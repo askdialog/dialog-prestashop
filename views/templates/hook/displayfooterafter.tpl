@@ -27,4 +27,4 @@
     });
 </script>
 
-<script src="https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js"></script>
+<!--<script src="https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js"></script>-->

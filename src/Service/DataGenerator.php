@@ -115,6 +115,18 @@ class DataGenerator{
         return $productItem;
     }
 
+    public function getCatalogDataForBatch($batchSize, $idShop)
+    {
+        //Retrieve from the askdialog_product table the ids to process
+        $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . $idShop . ' LIMIT ' . $batchSize);
+        $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT'); 
+        $linkObj = new Link();
+        foreach($products as $product){
+            $this->products[] = $this->getProductData($product['id_product'], $defaultLang, $linkObj);
+        }
+        return $this->products;
+    }
+
     public function getCatalogData(){
         //Retrieve all prestashop products
         $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'product');

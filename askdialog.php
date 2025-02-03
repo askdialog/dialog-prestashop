@@ -64,13 +64,15 @@ class AskDialog extends Module
         //Add JS
         $this->context->controller->addJS($this->_path . 'views/js/setupModal.js');
 
-        //Si page produit
-        if ($this->context->controller->php_self == 'product') {
-            $this->context->controller->addJS($this->_path . 'views/js/instant.js');
-        }
-        else {
-            $this->context->controller->addJS($this->_path . 'views/js/ai-input.js');
-        }
+        // //Si page produit
+        // if ($this->context->controller->php_self == 'product') {
+        //     $this->context->controller->addJS($this->_path . 'views/js/instant.js');
+        // }
+        // else {
+        //     $this->context->controller->addJS($this->_path . 'views/js/ai-input.js');
+        // }
+
+        $this->context->controller->addJS($this->_path . 'views/js/askdialog.js');
        
     }
 
