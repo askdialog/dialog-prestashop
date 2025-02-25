@@ -46,13 +46,25 @@ class AskDialog extends Module
 
     public function install()
     {
-        return parent::install() && $this->registerHook('displayHeader') && $this->registerHook('displayFooterAfter') && $this->registerHook('displayProductAdditionalInfo') && $this->createTables();
+        return parent::install() && $this->registerHook('displayHeader') && $this->registerHook('displayFooterAfter') && $this->registerHook('displayProductAdditionalInfo') && $this->registerHook('actionFrontControllerInitBefore') && $this->createTables();
     }
 
     public function uninstall()
     {
         return parent::uninstall() && $this->dropTables();
     }
+
+
+    public function hookActionFrontControllerInitBefore()
+    {
+        // header("Access-Control-Allow-Origin: *");
+        // header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        // header("Access-Control-Allow-Headers: Content-Type, Authorization");
+        // if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+        //     exit;
+        // }
+    }
+
 
     public function hookDisplayHeader($params)
     {
@@ -61,16 +73,17 @@ class AskDialog extends Module
         }
         $this->context->controller->addCSS($this->_path . 'views/css/cssForAllPages.css', 'all');
 
+        //$this->context->controller->addJS($this->_path . 'views/js/index.js');
         //Add JS
         $this->context->controller->addJS($this->_path . 'views/js/setupModal.js');
 
-        // //Si page produit
-        // if ($this->context->controller->php_self == 'product') {
-        //     $this->context->controller->addJS($this->_path . 'views/js/instant.js');
-        // }
-        // else {
-        //     $this->context->controller->addJS($this->_path . 'views/js/ai-input.js');
-        // }
+        //Si page produit
+        if ($this->context->controller->php_self == 'product') {
+            $this->context->controller->addJS($this->_path . 'views/js/instant.js');
+        }
+        else {
+            $this->context->controller->addJS($this->_path . 'views/js/ai-input.js');
+        }
 
         $this->context->controller->addJS($this->_path . 'views/js/askdialog.js');
        
@@ -117,9 +130,10 @@ class AskDialog extends Module
         $customer = $this->context->customer;
         $customerId = $customer->isLogged() ? $customer->id : 'anonymous';
         $this->context->smarty->assign('customer_id', $customerId);
-        $publicApiKey = Configuration::get('ASKDIALOG_API_KEY');
+        $publicApiKey = Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
         $countryCode = $this->context->country->iso_code;
         $languageCode = $this->context->language->iso_code;
+
         $languageName = $this->context->language->name;
         $primaryColor = Configuration::get('ASKDIALOG_COLOR_PRIMARY');
         $backgroundColor = Configuration::get('ASKDIALOG_COLOR_BACKGROUND');
@@ -151,6 +165,7 @@ class AskDialog extends Module
         $output = '';
         if (Tools::isSubmit('submit' . $this->name)) {
             $apiKey = strval(Tools::getValue('ASKDIALOG_API_KEY'));
+            $apiKeyPublic = strval(Tools::getValue('ASKDIALOG_API_KEY_PUBLIC'));
             $primaryColor = strval(Tools::getValue('ASKDIALOG_COLOR_PRIMARY'));
             $backgroundColor = strval(Tools::getValue('ASKDIALOG_COLOR_BACKGROUND'));
             $ctaTextColor = strval(Tools::getValue('ASKDIALOG_COLOR_CTA_TEXT'));
@@ -164,6 +179,7 @@ class AskDialog extends Module
                 $output .= $this->displayError($this->trans('Invalid API Key', [], 'Modules.AskDialog.Admin'));
             } else {
                 Configuration::updateValue('ASKDIALOG_API_KEY', $apiKey);
+                Configuration::updateValue('ASKDIALOG_API_KEY_PUBLIC', $apiKeyPublic);
                 Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', $primaryColor);
                 Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', $backgroundColor);
                 Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', $ctaTextColor);
@@ -196,8 +212,15 @@ class AskDialog extends Module
             'input' => [
                 [
                 'type' => 'text',
-                'label' => $this->trans('API Key', [], 'Modules.AskDialog.Admin'),
+                'label' => $this->trans('API Key private', [], 'Modules.AskDialog.Admin'),
                 'name' => 'ASKDIALOG_API_KEY',
+                'size' => 20,
+                'required' => true,
+                ],
+                [
+                'type' => 'text',
+                'label' => $this->trans('API Key public', [], 'Modules.AskDialog.Admin'),
+                'name' => 'ASKDIALOG_API_KEY_PUBLIC',
                 'size' => 20,
                 'required' => true,
                 ],
@@ -308,6 +331,7 @@ class AskDialog extends Module
     {
         return [
             'ASKDIALOG_API_KEY' => Configuration::get('ASKDIALOG_API_KEY', ''),
+            'ASKDIALOG_API_KEY_PUBLIC' => Configuration::get('ASKDIALOG_API_KEY_PUBLIC', ''),
             'ASKDIALOG_COLOR_PRIMARY' => Configuration::get('ASKDIALOG_COLOR_PRIMARY', ''),
             'ASKDIALOG_COLOR_BACKGROUND' => Configuration::get('ASKDIALOG_COLOR_BACKGROUND', ''),
             'ASKDIALOG_COLOR_CTA_TEXT' => Configuration::get('ASKDIALOG_COLOR_CTA_TEXT', ''),
@@ -315,7 +339,7 @@ class AskDialog extends Module
             'ASKDIALOG_CAPITALIZE_CTAS' => Configuration::get('ASKDIALOG_CAPITALIZE_CTAS', false),
             'ASKDIALOG_FONT_FAMILY' => Configuration::get('ASKDIALOG_FONT_FAMILY', ''),
             'ASKDIALOG_HIGHLIGHT_PRODUCT_NAME' => Configuration::get('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', false),
-            'ASKDIALOG_BATCH_SIZE' => Configuration::get('ASKDIALOG_BATCH_SIZE', 10)
+            'ASKDIALOG_BATCH_SIZE' => Configuration::get('ASKDIALOG_BATCH_SIZE', 1000000)
         ];
     }
 }

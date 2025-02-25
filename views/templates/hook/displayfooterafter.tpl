@@ -1,10 +1,11 @@
 <div
-    id="dialog-prestashop-ai"
+    id="dialog-shopify-ai"
     data-user-id="{$customer_id}"
     data-api-key="{$public_api_key}"
     data-country-code="{$country_code}"
     data-shop-iso-code="{$language_code}"
     data-language="{$language_name}"
+    data-locale="{$language_code}"
     data-primary-color="{$primary_color}"
     data-background-color="{$background_color}"
     data-cta-text-color="{$cta_text_color}"
@@ -27,4 +28,4 @@
     });
 </script>
 
-<!--<script src="https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js"></script>-->
+<script src="https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js"></script>

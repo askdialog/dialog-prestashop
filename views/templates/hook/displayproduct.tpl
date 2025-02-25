@@ -27,12 +27,12 @@
     </div>
 
     <div class="dialog-suggestion-wrapper">
-        {if $enableProductQuestion}
+        {if true || $enableProductQuestion}
             <div class="dialog-suggestions-container" id="dialog-suggestions-container">
             {foreach from=$suggestions item=suggestion}
                 <button
                 class="dialog-suggestion"
-                id="dialog-{{ suggestion }}"
+                id="dialog-{$suggestion}"
                 type="button">
                 {* ai icon processing *}
                 <div class="dialog-suggestion-child">
@@ -42,7 +42,7 @@
             {/foreach}
             </div>
         {/if}
-        {if $defaultDesign}
+        {if $defaultDesign || true}
             <div class="dialog-input-wrapper">
                 <div class="dialog-input-container">
                     <input

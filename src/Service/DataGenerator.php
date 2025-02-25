@@ -14,6 +14,30 @@ use StockAvailable;
 class DataGenerator{
     private $products = [];
 
+    public function generateCMSData()
+    {
+        // Récupérer toutes les pages CMS
+        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)Configuration::get('PS_LANG_DEFAULT');
+        $cmsPages = Db::getInstance()->executeS($sql);
+
+        $cmsData = [];
+        foreach ($cmsPages as $page) {
+            $cmsData[] = [
+                'title' => $page['meta_title'],
+                'content' => $page['content']
+            ];
+        }
+
+        // Créer le dossier temp s'il n'existe pas
+        if (!file_exists(_PS_MODULE_DIR_ . 'askdialog/temp')) {
+            mkdir(_PS_MODULE_DIR_ . 'askdialog/temp', 0777, true);
+        }
+
+        // Générer le fichier JSON
+        $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/cms.json';
+        file_put_contents($tempFile, json_encode($cmsData));
+    }
+
     public function getProductData($product_id, $defaultLang, $linkObj) {
         $productObj = new Product((int)$product_id);
         $productItem = [];
@@ -48,10 +72,10 @@ class DataGenerator{
             $variant["displayName"] = $productObj->getProductName($productObj->id, $combination["id_product_attribute"], $defaultLang);
             $variant["title"] = $variant["displayName"];
             $stockAvailableCombinationObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id, $combination["id_product_attribute"]));
-            $variant["inventoryQuantity"] = $stockAvailableCombinationObj->quantity;
+            $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
             $variant["price"] = $productObj->getPrice(false, $combination['id_product_attribute'], 2, null, false, true); //Avec réductions (computed)
             $variant["selectedOptions"] = [["name"=>"Taille", "value"=>"small"]];
-            $variant["id"] = $combination["id_product_attribute"];
+            $variant["id"] = "".$combination["id_product_attribute"];
             $variant["compareAtPrice"] = $productObj->getPrice(false, $combination['id_product_attribute'], 2, null, false, false);  //Sans réductions
             $variants[] = $variant;
         }
@@ -74,7 +98,7 @@ class DataGenerator{
         }
         $productItem["images"] = $images;
         $stockAvailableObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id));
-        $productItem["totalInventory"] = $stockAvailableObj->quantity;
+        $productItem["totalInventory"] = (int)$stockAvailableObj->quantity;
         $productItem["status"] = $productObj->active?"ACTIVE":"NOT ACTIVE";
 
         //Retrieve categories
@@ -125,6 +149,12 @@ class DataGenerator{
             $this->products[] = $this->getProductData($product['id_product'], $defaultLang, $linkObj);
         }
         return $this->products;
+    }
+
+    public function getNumCatalogRemaining($idShop)
+    {
+        $totalProducts = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)$idShop);
+        return count($totalProducts);
     }
 
     public function getCatalogData(){

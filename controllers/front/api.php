@@ -8,11 +8,17 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
         //Check if token is valid
-        $token = Tools::getValue('token');
-        if ($token != Configuration::get('ASKDIALOG_API_KEY')) {
-            $response = array('status' => 'error', 'message' => 'Invalid token');
-            die(json_encode($response));
+        
+        $headers = getallheaders();
+        
+        if (substr($headers['Authorization'], 0, 6) !== 'Token ') {
+            die(json_encode(["error" => "Public API Token is missing"]));
+        }else{
+            if($headers['Authorization'] != "Token ".Configuration::get('ASKDIALOG_API_KEY_PUBLIC')){
+                die(json_encode(["error" => "Public API Token is wrong"]));
+            }
         }
+        
         $this->ajax = true;
     }
 
@@ -31,7 +37,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
 
                 $countryCode = Tools::getValue('country_code');
                 $locale = Tools::getValue('locale');
-
+                
                 //Si countrycode et locale sont vides, on prend les valeurs par défaut
                 if(empty($countryCode) || empty($locale)){
                     $idLang = $defaultLang;
