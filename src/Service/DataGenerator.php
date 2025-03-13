@@ -75,7 +75,7 @@ class DataGenerator{
             $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
             $variant["price"] = $productObj->getPrice(false, $combination['id_product_attribute'], 2, null, false, true); //Avec réductions (computed)
             $variant["selectedOptions"] = [["name"=>"Taille", "value"=>"small"]];
-            $variant["id"] = "".$combination["id_product_attribute"];
+            $variant["id"] = (int)$combination["id_product_attribute"];
             $variant["compareAtPrice"] = $productObj->getPrice(false, $combination['id_product_attribute'], 2, null, false, false);  //Sans réductions
             $variants[] = $variant;
         }
@@ -135,7 +135,7 @@ class DataGenerator{
         }else{
             $productItem["hasOnlyDefaultVariant"] = 1;
         }
-        $productItem["id"] = $productObj->id;
+        $productItem["id"] = (int)$productObj->id;
         return $productItem;
     }
 
@@ -167,6 +167,20 @@ class DataGenerator{
             $this->products[] = $this->getProductData($product['id_product'], $defaultLang, $linkObj);
         }
         return $this->products;
+    }
+
+    public function getLanguageData(){
+        $languages = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'lang');
+        $languagesData = [];
+        foreach($languages as $language){
+            $languagesData[] = [
+                "id" => (int)$language['id_lang'],
+                "name" => $language['name'],
+                "isoCode" => $language['iso_code'],
+                "default" => (int)$language['active']
+            ];
+        }
+        return $languagesData;
     }
 
 

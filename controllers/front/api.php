@@ -31,6 +31,8 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
         switch ($action) {
             case 'getCatalogData':
                 die(json_encode($dataGenerator->getCatalogData()));
+            case 'getLanguageData':
+                die(json_encode($dataGenerator->getLanguageData()));
             case 'getProductData':
                 $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
                 $linkObj = new Link();

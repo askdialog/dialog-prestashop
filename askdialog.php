@@ -163,23 +163,35 @@ class AskDialog extends Module
     public function getContent()
     {
         $output = '';
-        if (Tools::isSubmit('submit' . $this->name)) {
-            $apiKey = strval(Tools::getValue('ASKDIALOG_API_KEY'));
-            $apiKeyPublic = strval(Tools::getValue('ASKDIALOG_API_KEY_PUBLIC'));
-            $primaryColor = strval(Tools::getValue('ASKDIALOG_COLOR_PRIMARY'));
-            $backgroundColor = strval(Tools::getValue('ASKDIALOG_COLOR_BACKGROUND'));
-            $ctaTextColor = strval(Tools::getValue('ASKDIALOG_COLOR_CTA_TEXT'));
-            $ctaBorderType = strval(Tools::getValue('ASKDIALOG_CTA_BORDER_TYPE'));
-            $capitalizeCtas = strval(Tools::getValue('ASKDIALOG_CAPITALIZE_CTAS'));
-            $fontFamily = strval(Tools::getValue('ASKDIALOG_FONT_FAMILY'));
-            $highlightProductName = strval(Tools::getValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME'));
-            $batchSize = strval(Tools::getValue('ASKDIALOG_BATCH_SIZE'));
-
-            if (!$apiKey || empty($apiKey)) {
-                $output .= $this->displayError($this->trans('Invalid API Key', [], 'Modules.AskDialog.Admin'));
-            } else {
-                Configuration::updateValue('ASKDIALOG_API_KEY', $apiKey);
-                Configuration::updateValue('ASKDIALOG_API_KEY_PUBLIC', $apiKeyPublic);
+        
+        //Si on est a l'étape 1 on affiche le formulaire de configuration des API Keys
+        if (Tools::getValue('test') == null && (Tools::getValue('step') == 1 || Tools::getValue('step') == null)) {
+            if (Tools::isSubmit('submit' . $this->name)) {
+                $apiKey = strval(Tools::getValue('ASKDIALOG_API_KEY'));
+                $apiKeyPublic = strval(Tools::getValue('ASKDIALOG_API_KEY_PUBLIC'));
+                if (!$apiKey || empty($apiKey)) {
+                    $output .= $this->displayError($this->trans('Invalid API Key', [], 'Modules.AskDialog.Admin'));
+                } else {
+                    Configuration::updateValue('ASKDIALOG_API_KEY', $apiKey);
+                    Configuration::updateValue('ASKDIALOG_API_KEY_PUBLIC', $apiKeyPublic);
+    
+                    $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.AskDialog.Admin'));
+                    $apiClient = new AskDialogClient($apiKey);
+                    $result = $apiClient->sendDomainHost();
+                }
+            }
+            return $output . $this->renderFormApiKeys();
+        } else if (Tools::getValue('step') == 2 ) {
+            if (Tools::isSubmit('submit' . $this->name)) {
+                $primaryColor = strval(Tools::getValue('ASKDIALOG_COLOR_PRIMARY'));
+                $backgroundColor = strval(Tools::getValue('ASKDIALOG_COLOR_BACKGROUND'));
+                $ctaTextColor = strval(Tools::getValue('ASKDIALOG_COLOR_CTA_TEXT'));
+                $ctaBorderType = strval(Tools::getValue('ASKDIALOG_CTA_BORDER_TYPE'));
+                $capitalizeCtas = strval(Tools::getValue('ASKDIALOG_CAPITALIZE_CTAS'));
+                $fontFamily = strval(Tools::getValue('ASKDIALOG_FONT_FAMILY'));
+                $highlightProductName = strval(Tools::getValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME'));
+                $batchSize = strval(Tools::getValue('ASKDIALOG_BATCH_SIZE'));
+    
                 Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', $primaryColor);
                 Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', $backgroundColor);
                 Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', $ctaTextColor);
@@ -188,20 +200,95 @@ class AskDialog extends Module
                 Configuration::updateValue('ASKDIALOG_FONT_FAMILY', $fontFamily);
                 Configuration::updateValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', $highlightProductName);
                 Configuration::updateValue('ASKDIALOG_BATCH_SIZE', $batchSize);
-
                 $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.AskDialog.Admin'));
-                $apiClient = new AskDialogClient($apiKey);
-                $result = $apiClient->sendDomainHost();
             }
+            return $output . $this->renderFormSetting();
+        }  
+        
+        //Si test
+        if (Tools::getValue('test') == 1) {
+
+            $apiKey = Configuration::get('ASKDIALOG_API_KEY');
+            $apiClient = new AskDialogClient($apiKey);
+            $result = $apiClient->sendDomainHost();
+            if ($result) {
+                $output .= $this->displayConfirmation($this->trans('Connection successful', [], 'Modules.AskDialog.Admin'));
+            } else {
+                $output .= $this->displayError($this->trans('Connection failed', [], 'Modules.AskDialog.Admin'));
+            }
+            return $output. $this->renderFormApiKeys();
         }
-
-        $dataGenerator = new DataGenerator();
-        $dataGenerator->getCatalogData();
-
-        return $output . $this->renderForm();
     }
 
-    protected function renderForm()
+    protected function renderFormApiKeys()
+    {
+        $fieldsForm = 
+        [
+            'form' => [
+                'legend' => [
+                    'title' => $this->trans('Settings', [], 'Modules.AskDialog.Admin'),
+                    'icon' => 'icon-cogs',
+                ],
+                'input' => [
+                    [
+                        'type' => 'text',
+                        'label' => $this->trans('API Key public', [], 'Modules.AskDialog.Admin'),
+                        'name' => 'ASKDIALOG_API_KEY_PUBLIC',
+                        'size' => 20,
+                        'required' => true,
+                    ],
+                    [
+                    'type' => 'text',
+                    'label' => $this->trans('API Key private', [], 'Modules.AskDialog.Admin'),
+                    'name' => 'ASKDIALOG_API_KEY',
+                    'size' => 20,
+                    'required' => true,
+                    ]
+                ],
+                'submit' => [
+                    'title' => $this->trans('Save', [], 'Admin.Actions'),
+                ],
+                //Add a link button to go to the next step
+                'buttons' => [
+                    [
+                        'href' => $this->context->link->getAdminLink('AdminModules', false)
+                            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=2&token='.Tools::getAdminTokenLite('AdminModules'),
+                        'title' => $this->trans('Next', [], 'Modules.AskDialog.Admin'),
+                        'class' => 'btn btn-default pull-right',
+                        'icon' => 'process-icon-next'
+                    ],
+                    //Test connection to API if API key is not empty
+                    [
+                        'href' => $this->context->link->getAdminLink('AdminModules', false)
+                            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&test=1&token='.Tools::getAdminTokenLite('AdminModules'),
+                        'title' => $this->trans('Test connection', [], 'Modules.AskDialog.Admin'),
+                        'class' => 'btn btn-default pull-left',
+                        'icon' => 'process-icon-next',
+                        'disabled' => empty(Configuration::get('ASKDIALOG_API_KEY'))
+                    ]
+                ]
+            ],
+        ];
+
+        $helper = new HelperForm();
+        $helper->show_toolbar = false;
+        $helper->module = $this;
+        $helper->default_form_language = (int)Configuration::get('PS_LANG_DEFAULT');
+        $helper->allow_employee_form_lang = Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG') ? Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG') : 0;
+        $helper->submit_action = 'submit' . $this->name;
+        $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
+            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=1';
+        $helper->token = Tools::getAdminTokenLite('AdminModules');
+        $helper->tpl_vars = [
+            'fields_value' => $this->getConfigFormValuesApiKeys(),
+            'languages' => $this->context->controller->getLanguages(),
+            'id_language' => $this->context->language->id,
+        ];
+
+        return $helper->generateForm([$fieldsForm]);
+    }
+
+    protected function renderFormSetting()
     {
         $fieldsForm = [
             'form' => [
@@ -210,20 +297,6 @@ class AskDialog extends Module
                 'icon' => 'icon-cogs',
             ],
             'input' => [
-                [
-                'type' => 'text',
-                'label' => $this->trans('API Key private', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_API_KEY',
-                'size' => 20,
-                'required' => true,
-                ],
-                [
-                'type' => 'text',
-                'label' => $this->trans('API Key public', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_API_KEY_PUBLIC',
-                'size' => 20,
-                'required' => true,
-                ],
                 [
                 'type' => 'color',
                 'label' => $this->trans('Primary Color', [], 'Modules.AskDialog.Admin'),
@@ -306,6 +379,15 @@ class AskDialog extends Module
             'submit' => [
                 'title' => $this->trans('Save', [], 'Admin.Actions'),
             ],
+            'buttons' => [
+                    [
+                        'href' => $this->context->link->getAdminLink('AdminModules', false)
+                            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=1&token='.Tools::getAdminTokenLite('AdminModules'),
+                        'title' => $this->trans('Previous', [], 'Modules.AskDialog.Admin'),
+                        'class' => 'btn btn-default pull-left',
+                        'icon' => 'process-icon-next'
+                    ]
+            ]
             ],
         ];
 
@@ -316,10 +398,10 @@ class AskDialog extends Module
         $helper->allow_employee_form_lang = Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG') ? Configuration::get('PS_BO_ALLOW_EMPLOYEE_FORM_LANG') : 0;
         $helper->submit_action = 'submit' . $this->name;
         $helper->currentIndex = $this->context->link->getAdminLink('AdminModules', false)
-            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name;
+            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=2';
         $helper->token = Tools::getAdminTokenLite('AdminModules');
         $helper->tpl_vars = [
-            'fields_value' => $this->getConfigFormValues(),
+            'fields_value' => $this->getConfigFormValuesSettings(),
             'languages' => $this->context->controller->getLanguages(),
             'id_language' => $this->context->language->id,
         ];
@@ -327,11 +409,17 @@ class AskDialog extends Module
         return $helper->generateForm([$fieldsForm]);
     }
 
-    protected function getConfigFormValues()
+    protected function getConfigFormValuesApiKeys()
     {
         return [
             'ASKDIALOG_API_KEY' => Configuration::get('ASKDIALOG_API_KEY', ''),
-            'ASKDIALOG_API_KEY_PUBLIC' => Configuration::get('ASKDIALOG_API_KEY_PUBLIC', ''),
+            'ASKDIALOG_API_KEY_PUBLIC' => Configuration::get('ASKDIALOG_API_KEY_PUBLIC', '')
+        ];
+    }
+
+    protected function getConfigFormValuesSettings()
+    {
+        return [
             'ASKDIALOG_COLOR_PRIMARY' => Configuration::get('ASKDIALOG_COLOR_PRIMARY', ''),
             'ASKDIALOG_COLOR_BACKGROUND' => Configuration::get('ASKDIALOG_COLOR_BACKGROUND', ''),
             'ASKDIALOG_COLOR_CTA_TEXT' => Configuration::get('ASKDIALOG_COLOR_CTA_TEXT', ''),

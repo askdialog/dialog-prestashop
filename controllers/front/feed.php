@@ -15,9 +15,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         $headers = getallheaders();
         
         if (substr($headers['Authorization'], 0, 6) !== 'Token ') {
-            die(json_encode(["error" => "Privte API Token is missing"]));
-        }else{
+            http_response_code(401); // Unauthorized
+            die(json_encode(["error" => "Private API Token is missing"]));
+        } else {
             if($headers['Authorization'] != "Token ".Configuration::get('ASKDIALOG_API_KEY')){
+                http_response_code(403); // Forbidden
                 die(json_encode(["error" => "Private API Token is wrong"]));
             }
         }
@@ -150,6 +152,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     }
 
                 } catch (RequestException $e) {
+                    http_response_code(500); // Internal Server Error
                     echo "<pre>";
                     if ($e->hasResponse()) {
                         echo "Response Body:\n";
@@ -164,6 +167,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 break;
                 
             default:
+                http_response_code(400); // Bad Request
                 $response = array('status' => 'error', 'message' => 'Invalid action');
                 die(json_encode($response));
         }
