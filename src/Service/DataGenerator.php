@@ -1,16 +1,5 @@
 <?php
 
-namespace LouisAuthie\Askdialog\Service;
-
-use Db;
-use Product;
-use Configuration;
-use Link;
-use Category;
-use Image;
-use ProductAttribute;
-use StockAvailable;
-
 class DataGenerator{
     private $products = [];
 
@@ -55,17 +44,16 @@ class DataGenerator{
         $variants = [];
         foreach ($combinations as $combination) {
             $variant = [];
-            $productAttributeObj = new ProductAttribute((int)$combination["id_product_attribute"]);
-            $images = Product::_getAttributeImageAssociations($combination["id_product_attribute"]);
-            if(count($images)>0){
-                $image = new Image((int)$images[0]);
-                $variant['image'] = [
-                    "url" => $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image->id)
-                ];
-            }else{
-                $variant['image'] = [];
+            $productAttributeObj = new Combination((int)$combination["id_product_attribute"]);
+            $images = $productAttributeObj->getWsImages();
+            if (count($images) > 0) {
+            $image = new Image((int)$images[0]['id']);
+            $variant['image'] = [
+                "url" => $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image->id)
+            ];
+            } else {
+            $variant['image'] = [];
             }
-
 
             $variant["metafields"] = [];
 
@@ -73,10 +61,10 @@ class DataGenerator{
             $variant["title"] = $variant["displayName"];
             $stockAvailableCombinationObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id, $combination["id_product_attribute"]));
             $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
-            $variant["price"] = $productObj->getPrice(false, $combination['id_product_attribute'], 2, null, false, true); //Avec réductions (computed)
-            $variant["selectedOptions"] = [["name"=>"Taille", "value"=>"small"]];
+            $variant["price"] = Product::getPriceStatic($productObj->id, false, $combination['id_product_attribute'], 2, null, false, true); // With reductions (computed)
+            $variant["selectedOptions"] = [["name" => "Taille", "value" => "small"]];
             $variant["id"] = (int)$combination["id_product_attribute"];
-            $variant["compareAtPrice"] = $productObj->getPrice(false, $combination['id_product_attribute'], 2, null, false, false);  //Sans réductions
+            $variant["compareAtPrice"] = Product::getPriceStatic($productObj->id, false, $combination['id_product_attribute'], 2, null, false, false); // Without reductions
             $variants[] = $variant;
         }
 

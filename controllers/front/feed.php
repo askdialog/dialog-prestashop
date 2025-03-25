@@ -1,34 +1,36 @@
 <?php
 
+require_once _PS_MODULE_DIR_ . 'askdialog/vendor/autoload.php';
+require_once _PS_MODULE_DIR_ . 'askdialog/src/Service/DataGenerator.php';
+require_once _PS_MODULE_DIR_ . 'askdialog/src/Service/AskDialogClient.php';
+
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use LouisAuthie\Askdialog\Service\DataGenerator;
-use LouisAuthie\Askdialog\Service\AskDialogClient;
-use PSpell\Config;
 
 class AskDialogFeedModuleFrontController extends ModuleFrontController
 {
     public function initContent()
     {
         parent::initContent();
-        //Check if token is valid
-        $headers = getallheaders();
-        
-        if (substr($headers['Authorization'], 0, 6) !== 'Token ') {
-            http_response_code(401); // Unauthorized
+        // Check if token is valid
+        $headers = $this->getRequestHeaders();
+
+        if (!isset($headers['Authorization']) || substr($headers['Authorization'], 0, 6) !== 'Token ') {
+            header('HTTP/1.1 401 Unauthorized');
             die(json_encode(["error" => "Private API Token is missing"]));
         } else {
-            if($headers['Authorization'] != "Token ".Configuration::get('ASKDIALOG_API_KEY')){
-                http_response_code(403); // Forbidden
+            if ($headers['Authorization'] != "Token " . Configuration::get('ASKDIALOG_API_KEY')) {
+                header('HTTP/1.1 403 Forbidden');
                 die(json_encode(["error" => "Private API Token is wrong"]));
             }
         }
         $this->ajax = true;
     }
 
-    public function sendFileToUrl($url, $fields, $tempFile, $filename, $client) {
+    public function sendFileToUrl($url, $fields, $tempFile, $filename, $client)
+    {
         $data = ['multipart' => array_merge(
-            array_map(function($name, $contents) {                
+            array_map(function ($name, $contents) {
                 return [
                     'name'     => $name,
                     'contents' => $contents,
@@ -43,7 +45,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             ]
         )];
         $data['multipart'][] = [
-            'name'=> 'Content-Type',
+            'name'    => 'Content-Type',
             'contents' => 'application/json'
         ];
 
@@ -52,7 +54,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
     public function displayAjax()
     {
-        //Get action from the post request in Json
+        // Get action from the post request in JSON
         $action = Tools::getValue('action');
         $dataGenerator = new DataGenerator();
         $batchSize = Configuration::get('ASKDIALOG_BATCH_SIZE');
@@ -62,32 +64,25 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 $numRemaining = $dataGenerator->getNumCatalogRemaining(Configuration::get('PS_SHOP_DEFAULT'));
                 $dataCatalog = $dataGenerator->getCatalogDataForBatch($batchSize, Configuration::get('PS_SHOP_DEFAULT'));
 
-                if($numRemaining>0 && $numRemaining <= $batchSize){
+                if ($numRemaining > 0 && $numRemaining <= $batchSize) {
                     $this->generatePartialDataFile($dataCatalog);
                     $numRemaining = $dataGenerator->getNumCatalogRemaining(Configuration::get('PS_SHOP_DEFAULT'));
                 }
 
                 if ($numRemaining == 0) {
-                    //Check if there are files in the temp folder
                     $files = glob(_PS_MODULE_DIR_ . 'askdialog/temp/catalog_partial_*.json');
-                    //if there are files in this temp folder, load their content in a loop and check the JSON validity of each, then merge them all in one file
                     if (!empty($files)) {
                         $dataCatalog = [];
                         foreach ($files as $file) {
                             $dataCatalog = array_merge($dataCatalog, json_decode(file_get_contents($file), true));
                         }
-                        //Delete all files in the temp folder
                         array_map('unlink', glob(_PS_MODULE_DIR_ . 'askdialog/temp/*'));
 
                         $filename = 'catalog_' . date('Ymd_His') . '.json';
-                        // Generate a temporary file to store the JSON data
-                        $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/'.$filename;
+                        $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/' . $filename;
                         file_put_contents($tempFile, json_encode($dataCatalog));
                     }
 
-
-                    //Go for a new batch
-                    //Add all the products to generate to the database
                     $sql = 'TRUNCATE TABLE ' . _DB_PREFIX_ . 'askdialog_product';
                     Db::getInstance()->execute($sql);
 
@@ -96,78 +91,56 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                         $sql = 'INSERT INTO ' . _DB_PREFIX_ . 'askdialog_product (id_product, id_shop) VALUES (' . $product['id_product'] . ', ' . Configuration::get('PS_SHOP_DEFAULT') . ')';
                         Db::getInstance()->execute($sql);
                     }
-                    
+
                     if (empty($files)) {
                         break;
                     }
-                    
-                    
-                }
-                else{
-                    //Prepare a partial file
+                } else {
                     $this->generatePartialDataFile($dataCatalog);
                     break;
                 }
 
-                //Generate cms pages export 
                 $dataGenerator->generateCMSData();
-                
 
-                //Prepare the server transfer
                 $askDialogClient = new AskDialogClient(Configuration::get('ASKDIALOG_API_KEY'));
                 $return = $askDialogClient->prepareServerTransfer();
                 $bodyPrepared = json_decode($return['body'], true);
 
                 $bodyCatalog = $bodyPrepared['catalogUploadUrl'];
                 $bodyPages = $bodyPrepared['pageUploadUrl'];
-                $bodyBlogPost = $bodyPrepared['blogPostUploadUrl'];
-    
 
-                
                 $client = new Client(['verify' => false]);
-                
+
                 try {
-                    // Send to Catalog URL
                     $urlCatalog = $bodyCatalog['url'];
                     $fieldsCatalog = $bodyCatalog['fields'];
                     $responseCatalog = $this->sendFileToUrl($urlCatalog, $fieldsCatalog, $tempFile, $filename, $client);
-                    
-                    // Send to Pages URL
+
                     $urlPages = $bodyPages['url'];
                     $fieldsPages = $bodyPages['fields'];
                     $tempsCmsFile = _PS_MODULE_DIR_ . 'askdialog/temp/cms.json';
                     $responsePages = $this->sendFileToUrl($urlPages, $fieldsPages, $tempsCmsFile, 'cms.json', $client);
 
-                    // Check both responses
                     if ($responseCatalog->getStatusCode() == 204 && $responsePages->getStatusCode() == 204) {
-                    //if ($responseCatalog->getStatusCode() == 204) {
                         rename($tempFile, _PS_MODULE_DIR_ . 'askdialog/sent/' . $filename);
                         $filenameCMS = 'cms_' . date('Ymd_His') . '.json';
-                        rename($tempsCmsFile, _PS_MODULE_DIR_ . 'askdialog/sent/'. $filenameCMS);
+                        rename($tempsCmsFile, _PS_MODULE_DIR_ . 'askdialog/sent/' . $filenameCMS);
                         $response = array('status' => 'success', 'message' => 'Catalog and Pages data sent successfully');
                         die(json_encode($response));
                     } else {
                         $response = array('status' => 'error', 'message' => 'Error sending data');
                         die(json_encode($response));
                     }
-
                 } catch (RequestException $e) {
-                    http_response_code(500); // Internal Server Error
-                    echo "<pre>";
-                    if ($e->hasResponse()) {
-                        echo "Response Body:\n";
-                        echo $e->getResponse()->getBody()->getContents();
-                    }
-                    echo "</pre>";
-                    
+                    header('HTTP/1.1 500 Internal Server Error');
                     $response = array('status' => 'error', 'message' => 'Exception while sending data: ' . $e->getMessage());
                     die(json_encode($response));
                 }
 
                 break;
-                
+
             default:
-                http_response_code(400); // Bad Request
+                header('HTTP/1.1 400 Bad Request');
                 $response = array('status' => 'error', 'message' => 'Invalid action');
                 die(json_encode($response));
         }
@@ -176,7 +149,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private function generatePartialDataFile($dataCatalog)
     {
         $filename = 'catalog_partial_' . date('Ymd_His') . '.json';
-        // Generate a temporary file to store the JSON data
         $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/' . $filename;
         file_put_contents($tempFile, json_encode($dataCatalog));
 
@@ -184,8 +156,22 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         Db::getInstance()->execute($sql);
 
         $dataGenerator = new DataGenerator();
-        if($dataGenerator->getNumCatalogRemaining(Configuration::get('PS_SHOP_DEFAULT'))>0){
+        if ($dataGenerator->getNumCatalogRemaining(Configuration::get('PS_SHOP_DEFAULT')) > 0) {
             die(json_encode(array('status' => 'success', 'message' => 'Partial data generated')));
         }
+    }
+
+    private function getRequestHeaders()
+    {
+        if (!function_exists('getallheaders')) {
+            $headers = [];
+            foreach ($_SERVER as $name => $value) {
+                if (substr($name, 0, 5) == 'HTTP_') {
+                    $headers[str_replace(' ', '-', ucwords(strtolower(str_replace('_', ' ', substr($name, 5)))))] = $value;
+                }
+            }
+            return $headers;
+        }
+        return getallheaders();
     }
 }

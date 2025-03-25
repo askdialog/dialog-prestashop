@@ -1,6 +1,6 @@
 <?php
 
-use LouisAuthie\Askdialog\Service\DataGenerator;
+require_once _PS_MODULE_DIR_ . 'askdialog/src/Service/DataGenerator.php';
 
 class AskDialogApiModuleFrontController extends ModuleFrontController
 {
@@ -44,7 +44,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
                 if(empty($countryCode) || empty($locale)){
                     $idLang = $defaultLang;
                 }else{
-                    $idLang = Language::getIdByLocale($countryCode . '-' . $locale);
+                    $idLang = Language::getIdByIso($countryCode);
                     if (!$idLang) {
                         $response = array('status' => 'error', 'message' => 'Invalid country code or locale');
                         die(json_encode($response));

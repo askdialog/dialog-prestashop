@@ -4,8 +4,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-use LouisAuthie\Askdialog\Service\AskDialogClient;
-use LouisAuthie\Askdialog\Service\DataGenerator;
+require_once dirname(__FILE__).'/src/Service/AskDialogClient.php';
+require_once dirname(__FILE__).'/src/Service/DataGenerator.php';
 
 class AskDialog extends Module
 {
@@ -19,10 +19,19 @@ class AskDialog extends Module
 
         parent::__construct();
 
-        $this->displayName = $this->trans('Ask Dialog', [], 'Modules.AskDialog.Admin');
-        $this->description =  $this->trans('Module to provide the AskDialog assistant on your e-shop', [], 'Modules.AskDialog.Admin');
+        if(_PS_VERSION_ < 1.7){
+            $this->bootstrap = true;
+            $this->displayName = $this->l('Ask Dialog');
+            $this->description = $this->l('Module to provide the AskDialog assistant on your e-shop');
+        }
+        else {
+            $this->bootstrap = true;
+            $this->displayName = $this->trans('Ask Dialog', [], 'Modules.AskDialog.Admin');
+            $this->description = $this->trans('Module to provide the AskDialog assistant on your e-shop', [], 'Modules.AskDialog.Admin');
+        }
+        
         $this->ps_versions_compliancy = array('min' => '1.6', 'max' => _PS_VERSION_);
-        $this->bootstrap = true;
+        
     }
 
     private function createTables()
@@ -46,7 +55,7 @@ class AskDialog extends Module
 
     public function install()
     {
-        return parent::install() && $this->registerHook('displayHeader') && $this->registerHook('displayFooterAfter') && $this->registerHook('displayProductAdditionalInfo') && $this->registerHook('actionFrontControllerInitBefore') && $this->createTables();
+        return parent::install() && $this->registerHook('displayHeader') && $this->registerHook('displayFooter') && $this->registerHook('displayFooterProduct') && $this->registerHook('actionFrontControllerInitBefore') && $this->createTables();
     }
 
     public function uninstall()
@@ -89,9 +98,8 @@ class AskDialog extends Module
        
     }
 
-    public function hookDisplayProductAdditionalInfo($params)
+    public function hookDisplayFooterProduct($params)
     {
-
         if($this->context->controller->php_self != 'product'){
             return;
         }
@@ -99,13 +107,22 @@ class AskDialog extends Module
 
         $this->context->smarty->assign('product', $product);
 
-        $product_id = $product['id_product'];
-        $product_title = $product['name'];
-        $product_slug = $product['link_rewrite'];
-        $selected_variant_id = $product['id_product_attribute'];
-        $assistant_name = $this->trans('AskDialog Assistant', [], 'Modules.AskDialog.Admin');
-        $assistant_description = $this->trans('How can I help you with this product?', [], 'Modules.AskDialog.Admin');
-        $ask_anything_placeholder = $this->trans('Ask anything about this product...', [], 'Modules.AskDialog.Admin');
+        $product_id = $product->id;
+        $product_title = $product->name;
+        $product_slug = $product->link_rewrite;
+    
+        $selected_variant_id = 0;
+
+        if(_PS_VERSION_ < 1.7){
+            $assistant_name = $this->l('AskDialog Assistant');
+            $assistant_description = $this->l('How can I help you with this product?');
+            $ask_anything_placeholder = $this->l('Ask anything about this product...');
+        }
+        else {
+            $assistant_name = $this->trans('AskDialog Assistant', [], 'Modules.AskDialog.Admin');
+            $assistant_description = $this->trans('How can I help you with this product?', [], 'Modules.AskDialog.Admin');
+            $ask_anything_placeholder = $this->trans('Ask anything about this product...', [], 'Modules.AskDialog.Admin');
+        }
 
         $this->context->smarty->assign([
             'product_id' => $product_id,
@@ -123,7 +140,7 @@ class AskDialog extends Module
         return $this->display(__FILE__, 'views/templates/hook/displayproduct.tpl');
     }
 
-    public function hookDisplayFooterAfter($params)
+    public function hookFooter($params)
     {
         //Include view 
         $this->context->smarty->assign('module_dir', $this->_path);
@@ -143,46 +160,63 @@ class AskDialog extends Module
         $fontFamily = Configuration::get('ASKDIALOG_FONT_FAMILY');
         $highlightProductName = Configuration::get('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME');
 
-        $this->context->smarty->assign([
-            'public_api_key' => $publicApiKey,
-            'country_code' => $countryCode,
-            'language_code' => $languageCode,
-            'language_name' => $languageName,
-            'primary_color' => $primaryColor,
-            'background_color' => $backgroundColor,
-            'cta_text_color' => $ctaTextColor,
-            'cta_border_type' => $ctaBorderType,
-            'capitalize_ctas' => $capitalizeCtas,
-            'font_family' => $fontFamily,
-            'highlight_product_name' => $highlightProductName
-        ]);
-        return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl');
+        if (_PS_VERSION_ < 1.7) {
+            $this->context->smarty->assign([
+                'public_api_key' => $publicApiKey,
+                'country_code' => $countryCode,
+                'language_code' => $languageCode,
+                'language_name' => $languageName,
+                'primary_color' => $primaryColor,
+                'background_color' => $backgroundColor,
+                'cta_text_color' => $ctaTextColor,
+                'cta_border_type' => $ctaBorderType,
+                'capitalize_ctas' => $capitalizeCtas,
+                'font_family' => $fontFamily,
+                'highlight_product_name' => $highlightProductName
+            ]);
+        } else {
+            $this->context->smarty->assign([
+                'public_api_key' => $publicApiKey,
+                'country_code' => $countryCode,
+                'language_code' => $languageCode,
+                'language_name' => $languageName,
+                'primary_color' => $primaryColor,
+                'background_color' => $backgroundColor,
+                'cta_text_color' => $ctaTextColor,
+                'cta_border_type' => $ctaBorderType,
+                'capitalize_ctas' => $capitalizeCtas,
+                'font_family' => $fontFamily,
+                'highlight_product_name' => $highlightProductName
+            ]);
+        }
 
+        return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl');
     }
 
     public function getContent()
     {
         $output = '';
         
-        //Si on est a l'étape 1 on affiche le formulaire de configuration des API Keys
+        // If we are at step 1 or no step is defined, show the API Keys configuration form
         if (Tools::getValue('test') == null && (Tools::getValue('step') == 1 || Tools::getValue('step') == null)) {
-            if (Tools::isSubmit('submit' . $this->name)) {
+            if (Tools::isSubmit('submitStep1' . $this->name)) {
                 $apiKey = strval(Tools::getValue('ASKDIALOG_API_KEY'));
                 $apiKeyPublic = strval(Tools::getValue('ASKDIALOG_API_KEY_PUBLIC'));
                 if (!$apiKey || empty($apiKey)) {
-                    $output .= $this->displayError($this->trans('Invalid API Key', [], 'Modules.AskDialog.Admin'));
+                    $output .= $this->displayError($this->l('Invalid API Key'));
                 } else {
                     Configuration::updateValue('ASKDIALOG_API_KEY', $apiKey);
                     Configuration::updateValue('ASKDIALOG_API_KEY_PUBLIC', $apiKeyPublic);
     
-                    $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.AskDialog.Admin'));
+                    $output .= $this->displayConfirmation($this->l('Settings updated'));
                     $apiClient = new AskDialogClient($apiKey);
                     $result = $apiClient->sendDomainHost();
                 }
             }
             return $output . $this->renderFormApiKeys();
         } else if (Tools::getValue('step') == 2 ) {
-            if (Tools::isSubmit('submit' . $this->name)) {
+
+            if (Tools::isSubmit('submitStep2' . $this->name)) {
                 $primaryColor = strval(Tools::getValue('ASKDIALOG_COLOR_PRIMARY'));
                 $backgroundColor = strval(Tools::getValue('ASKDIALOG_COLOR_BACKGROUND'));
                 $ctaTextColor = strval(Tools::getValue('ASKDIALOG_COLOR_CTA_TEXT'));
@@ -200,23 +234,22 @@ class AskDialog extends Module
                 Configuration::updateValue('ASKDIALOG_FONT_FAMILY', $fontFamily);
                 Configuration::updateValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', $highlightProductName);
                 Configuration::updateValue('ASKDIALOG_BATCH_SIZE', $batchSize);
-                $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.AskDialog.Admin'));
+                $output .= $this->displayConfirmation($this->l('Settings updated'));
             }
             return $output . $this->renderFormSetting();
         }  
         
-        //Si test
+        // If test connection
         if (Tools::getValue('test') == 1) {
-
             $apiKey = Configuration::get('ASKDIALOG_API_KEY');
             $apiClient = new AskDialogClient($apiKey);
             $result = $apiClient->sendDomainHost();
             if ($result) {
-                $output .= $this->displayConfirmation($this->trans('Connection successful', [], 'Modules.AskDialog.Admin'));
+                $output .= $this->displayConfirmation($this->l('Connection successful'));
             } else {
-                $output .= $this->displayError($this->trans('Connection failed', [], 'Modules.AskDialog.Admin'));
+                $output .= $this->displayError($this->l('Connection failed'));
             }
-            return $output. $this->renderFormApiKeys();
+            return $output . $this->renderFormApiKeys();
         }
     }
 
@@ -226,44 +259,49 @@ class AskDialog extends Module
         [
             'form' => [
                 'legend' => [
-                    'title' => $this->trans('Settings', [], 'Modules.AskDialog.Admin'),
+                    'title' => $this->l('Settings'),
                     'icon' => 'icon-cogs',
                 ],
                 'input' => [
                     [
                         'type' => 'text',
-                        'label' => $this->trans('API Key public', [], 'Modules.AskDialog.Admin'),
+                        'label' => $this->l('API Key public'),
                         'name' => 'ASKDIALOG_API_KEY_PUBLIC',
                         'size' => 20,
                         'required' => true,
                     ],
                     [
-                    'type' => 'text',
-                    'label' => $this->trans('API Key private', [], 'Modules.AskDialog.Admin'),
-                    'name' => 'ASKDIALOG_API_KEY',
-                    'size' => 20,
-                    'required' => true,
+                        'type' => 'text',
+                        'label' => $this->l('API Key private'),
+                        'name' => 'ASKDIALOG_API_KEY',
+                        'size' => 20,
+                        'required' => true,
+                    ],
+                    //Add a link to the AskDialog website
+                    [
+                        'type' => 'html',
+                        'name' => 'askdialog_link',
+                        'html_content' => '<a href="https://app.askdialog.com/onboarding" class="btn btn-info" target="_blank">Go to AskDialog Onboarding</a>'
                     ]
                 ],
                 'submit' => [
-                    'title' => $this->trans('Save', [], 'Admin.Actions'),
+                    'title' => $this->l('Save'),
+                    'name' => 'submitStep1' . $this->name
                 ],
-                //Add a link button to go to the next step
                 'buttons' => [
                     [
                         'href' => $this->context->link->getAdminLink('AdminModules', false)
                             . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=2&token='.Tools::getAdminTokenLite('AdminModules'),
-                        'title' => $this->trans('Next', [], 'Modules.AskDialog.Admin'),
+                        'title' => $this->l('Next'),
                         'class' => 'btn btn-default pull-right',
                         'icon' => 'process-icon-next'
                     ],
-                    //Test connection to API if API key is not empty
                     [
                         'href' => $this->context->link->getAdminLink('AdminModules', false)
                             . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&test=1&token='.Tools::getAdminTokenLite('AdminModules'),
-                        'title' => $this->trans('Test connection', [], 'Modules.AskDialog.Admin'),
+                        'title' => $this->l('Test connection'),
                         'class' => 'btn btn-default pull-left',
-                        'icon' => 'process-icon-next',
+                        'icon' => 'process-icon-cogs',
                         'disabled' => empty(Configuration::get('ASKDIALOG_API_KEY'))
                     ]
                 ]
@@ -292,102 +330,103 @@ class AskDialog extends Module
     {
         $fieldsForm = [
             'form' => [
-            'legend' => [
-                'title' => $this->trans('Settings', [], 'Modules.AskDialog.Admin'),
-                'icon' => 'icon-cogs',
-            ],
-            'input' => [
-                [
-                'type' => 'color',
-                'label' => $this->trans('Primary Color', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_COLOR_PRIMARY',
-                'size' => 20,
-                'required' => true,
+                'legend' => [
+                    'title' => $this->l('Settings'),
+                    'icon' => 'icon-cogs',
                 ],
-                [
-                'type' => 'color',
-                'label' => $this->trans('Background Color', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_COLOR_BACKGROUND',
-                'size' => 20,
-                'required' => true,
-                ],
-                [
-                'type' => 'color',
-                'label' => $this->trans('CTA Text Color', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_COLOR_CTA_TEXT',
-                'size' => 20,
-                'required' => true,
-                ],
-                [
-                'type' => 'text',
-                'label' => $this->trans('CTA Border Type', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_CTA_BORDER_TYPE',
-                'size' => 20,
-                'required' => true,
-                ],
-                [
-                'type' => 'switch',
-                'label' => $this->trans('Capitalize CTAs', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_CAPITALIZE_CTAS',
-                'is_bool' => true,
-                'values' => [
+                'input' => [
                     [
-                    'id' => 'active_on',
-                    'value' => 1,
-                    'label' => $this->trans('Enabled', [], 'Admin.Global')
+                        'type' => 'color',
+                        'label' => $this->l('Primary Color'),
+                        'name' => 'ASKDIALOG_COLOR_PRIMARY',
+                        'size' => 20,
+                        'required' => true,
                     ],
                     [
-                    'id' => 'active_off',
-                    'value' => 0,
-                    'label' => $this->trans('Disabled', [], 'Admin.Global')
-                    ]
-                ],
-                ],
-                [
-                'type' => 'text',
-                'label' => $this->trans('Font Family', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_FONT_FAMILY',
-                'size' => 20,
-                'required' => true,
-                ],
-                [
-                'type' => 'switch',
-                'label' => $this->trans('Highlight Product Name', [], 'Modules.AskDialog.Admin'),
-                'name' => 'ASKDIALOG_HIGHLIGHT_PRODUCT_NAME',
-                'is_bool' => true,
-                'values' => [
-                    [
-                    'id' => 'active_on',
-                    'value' => 1,
-                    'label' => $this->trans('Enabled', [], 'Admin.Global')
+                        'type' => 'color',
+                        'label' => $this->l('Background Color'),
+                        'name' => 'ASKDIALOG_COLOR_BACKGROUND',
+                        'size' => 20,
+                        'required' => true,
                     ],
                     [
-                    'id' => 'active_off',
-                    'value' => 0,
-                    'label' => $this->trans('Disabled', [], 'Admin.Global')
-                    ]
+                        'type' => 'color',
+                        'label' => $this->l('CTA Text Color'),
+                        'name' => 'ASKDIALOG_COLOR_CTA_TEXT',
+                        'size' => 20,
+                        'required' => true,
+                    ],
+                    [
+                        'type' => 'text',
+                        'label' => $this->l('CTA Border Type'),
+                        'name' => 'ASKDIALOG_CTA_BORDER_TYPE',
+                        'size' => 20,
+                        'required' => true,
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Capitalize CTAs'),
+                        'name' => 'ASKDIALOG_CAPITALIZE_CTAS',
+                        'is_bool' => true,
+                        'values' => [
+                            [
+                                'id' => 'active_on',
+                                'value' => 1,
+                                'label' => $this->l('Enabled')
+                            ],
+                            [
+                                'id' => 'active_off',
+                                'value' => 0,
+                                'label' => $this->l('Disabled')
+                            ]
+                        ],
+                    ],
+                    [
+                        'type' => 'text',
+                        'label' => $this->l('Font Family'),
+                        'name' => 'ASKDIALOG_FONT_FAMILY',
+                        'size' => 20,
+                        'required' => true,
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Highlight Product Name'),
+                        'name' => 'ASKDIALOG_HIGHLIGHT_PRODUCT_NAME',
+                        'is_bool' => true,
+                        'values' => [
+                            [
+                                'id' => 'active_on',
+                                'value' => 1,
+                                'label' => $this->l('Enabled')
+                            ],
+                            [
+                                'id' => 'active_off',
+                                'value' => 0,
+                                'label' => $this->l('Disabled')
+                            ]
+                        ],
+                    ],
+                    [
+                        'type' => 'text',
+                        'label' => $this->l('Batch Size'),
+                        'name' => 'ASKDIALOG_BATCH_SIZE',
+                        'size' => 20,
+                        'required' => true,
+                    ],
                 ],
+                'submit' => [
+                    'title' => $this->l('Save'),
+                    'name' => 'submitStep2' . $this->name
                 ],
-                [
-                    'type' => 'text',
-                    'label' => $this->trans('Batch Size', [], 'Modules.AskDialog.Admin'),
-                    'name' => 'ASKDIALOG_BATCH_SIZE',
-                    'size' => 20,
-                    'required' => true,
-                ],
-            ],
-            'submit' => [
-                'title' => $this->trans('Save', [], 'Admin.Actions'),
-            ],
-            'buttons' => [
+                'buttons' => [
                     [
                         'href' => $this->context->link->getAdminLink('AdminModules', false)
                             . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=1&token='.Tools::getAdminTokenLite('AdminModules'),
-                        'title' => $this->trans('Previous', [], 'Modules.AskDialog.Admin'),
+                        'title' => $this->l('Previous'),
                         'class' => 'btn btn-default pull-left',
                         'icon' => 'process-icon-next'
                     ]
-            ]
+                ]
             ],
         ];
 
