@@ -40,7 +40,25 @@ class AskDialog extends Module
 
     public function install()
     {
-        return parent::install() && $this->registerHook('displayHeader') && $this->registerHook('displayFooter') && $this->registerHook('displayFooterProduct') && $this->registerHook('actionFrontControllerInitBefore') && $this->createTables();
+        return parent::install()
+            && $this->registerHook('displayHeader')
+            && $this->registerHook('displayFooter')
+            && $this->registerHook('displayFooterProduct')
+            && $this->registerHook('actionFrontControllerInitBefore')
+            && $this->createTables()
+            && $this->setDefaultConfigurationValues();
+    }
+
+    private function setDefaultConfigurationValues()
+    {
+        return Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', '#CCCCCC') // Default primary color
+            && Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', '#FFFFFF') // Default background color
+            && Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', '#000000') // Default CTA text color
+            && Configuration::updateValue('ASKDIALOG_CTA_BORDER_TYPE', 'solid') // Default border type
+            && Configuration::updateValue('ASKDIALOG_CAPITALIZE_CTAS', 0) // Default boolean value for capitalizing CTAs
+            && Configuration::updateValue('ASKDIALOG_FONT_FAMILY', 'Arial, sans-serif') // Default font family
+            && Configuration::updateValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', 0) // Default boolean value for highlighting product name
+            && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 1000000); // Default batch size
     }
 
     public function uninstall()
@@ -195,7 +213,13 @@ class AskDialog extends Module
     
                     $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.AskDialog.Admin'));
                     $apiClient = new AskDialogClient($apiKey);
+                    
                     $result = $apiClient->sendDomainHost();
+                    if ($result) {
+                        $output .= $this->displayConfirmation($this->trans('Connection successful', [], 'Modules.AskDialog.Admin'));
+                    } else {
+                        $output .= $this->displayError($this->trans('Connection failed', [], 'Modules.AskDialog.Admin'));
+                    }
                 }
             }
             return $output . $this->renderFormApiKeys();
@@ -222,20 +246,6 @@ class AskDialog extends Module
             }
             return $output . $this->renderFormSetting();
         }  
-        
-        //Si test
-        if (Tools::getValue('test') == 1) {
-
-            $apiKey = Configuration::get('ASKDIALOG_API_KEY');
-            $apiClient = new AskDialogClient($apiKey);
-            $result = $apiClient->sendDomainHost();
-            if ($result) {
-                $output .= $this->displayConfirmation($this->trans('Connection successful', [], 'Modules.AskDialog.Admin'));
-            } else {
-                $output .= $this->displayError($this->trans('Connection failed', [], 'Modules.AskDialog.Admin'));
-            }
-            return $output. $this->renderFormApiKeys();
-        }
     }
 
     protected function renderFormApiKeys()
@@ -281,15 +291,6 @@ class AskDialog extends Module
                         'title' => $this->trans('Next', [], 'Modules.AskDialog.Admin'),
                         'class' => 'btn btn-default pull-right',
                         'icon' => 'process-icon-next'
-                    ],
-                    //Test connection to API if API key is not empty
-                    [
-                        'href' => $this->context->link->getAdminLink('AdminModules', false)
-                            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&test=1&token='.Tools::getAdminTokenLite('AdminModules'),
-                        'title' => $this->trans('Test connection', [], 'Modules.AskDialog.Admin'),
-                        'class' => 'btn btn-default pull-left',
-                        'icon' => 'process-icon-next',
-                        'disabled' => empty(Configuration::get('ASKDIALOG_API_KEY'))
                     ]
                 ]
             ],
@@ -410,7 +411,7 @@ class AskDialog extends Module
                             . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=1&token='.Tools::getAdminTokenLite('AdminModules'),
                         'title' => $this->trans('Previous', [], 'Modules.AskDialog.Admin'),
                         'class' => 'btn btn-default pull-left',
-                        'icon' => 'process-icon-next'
+                        'icon' => 'process-icon-back'
                     ]
             ]
             ],

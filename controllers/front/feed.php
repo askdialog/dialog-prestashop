@@ -83,11 +83,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
                     $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'product');
                     foreach ($products as $product) {
-                        $sql = 'INSERT INTO ' . _DB_PREFIX_ . 'askdialog_product (id_product, id_shop) VALUES (' . $product['id_product'] . ', ' . Configuration::get('PS_SHOP_DEFAULT') . ')';
+                        $sql = 'INSERT INTO ' . _DB_PREFIX_ . 'askdialog_product (id_product, id_shop) VALUES (' . (int)$product['id_product'] . ', ' . (int)Configuration::get('PS_SHOP_DEFAULT') . ')';
                         Db::getInstance()->execute($sql);
                     }
                     
                     if (empty($files)) {
+                        throw new Exception('No catalog files found to process.');
                         break;
                     }
                     
@@ -170,7 +171,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/' . $filename;
         file_put_contents($tempFile, json_encode($dataCatalog));
 
-        $sql = 'DELETE FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . Configuration::get('PS_SHOP_DEFAULT') . ' AND id_product IN (' . implode(',', array_column($dataCatalog, 'id')) . ')';
+        $sql = 'DELETE FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)Configuration::get('PS_SHOP_DEFAULT') . ' AND id_product IN (' . implode(',', array_column($dataCatalog, 'id')) . ')';
         Db::getInstance()->execute($sql);
 
         $dataGenerator = new DataGenerator();
