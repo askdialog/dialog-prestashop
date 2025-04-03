@@ -93,6 +93,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     }
 
                     if (empty($files)) {
+                        throw new Exception('No catalog files found to process.');
                         break;
                     }
                 } else {
