@@ -153,7 +153,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/' . $filename;
         file_put_contents($tempFile, json_encode($dataCatalog));
 
-        $sql = 'DELETE FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)Configuration::get('PS_SHOP_DEFAULT') . ' AND id_product IN (' . implode(',', (int)array_column($dataCatalog, 'id')) . ')';
+        $sql = 'DELETE FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)Configuration::get('PS_SHOP_DEFAULT') . ' AND id_product IN (' . implode(',', array_column($dataCatalog, 'id')) . ')';
         Db::getInstance()->execute($sql);
 
         $dataGenerator = new DataGenerator();
