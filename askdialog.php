@@ -55,7 +55,25 @@ class AskDialog extends Module
 
     public function install()
     {
-        return parent::install() && $this->registerHook('displayHeader') && $this->registerHook('displayFooter') && $this->registerHook('displayFooterProduct') && $this->registerHook('actionFrontControllerInitBefore') && $this->createTables();
+        return parent::install() 
+            && $this->registerHook('displayHeader') 
+            && $this->registerHook('displayFooter') 
+            && $this->registerHook('displayFooterProduct') 
+            && $this->registerHook('actionFrontControllerInitBefore') 
+            && $this->createTables()
+            && $this->setDefaultConfigurationValues();
+    }
+
+    private function setDefaultConfigurationValues()
+    {
+        return Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', '#CCCCCC') // Exemple de couleur par défaut
+            && Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', '#FFFFFF') // Exemple de couleur de fond par défaut
+            && Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', '#000000') // Exemple de couleur de texte CTA par défaut
+            && Configuration::updateValue('ASKDIALOG_CTA_BORDER_TYPE', 'solid') // Exemple de type de bordure par défaut
+            && Configuration::updateValue('ASKDIALOG_CAPITALIZE_CTAS',0) // Valeur booléenne par défaut
+            && Configuration::updateValue('ASKDIALOG_FONT_FAMILY', 'Arial, sans-serif') // Exemple de police par défaut
+            && Configuration::updateValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', 0) // Valeur booléenne par défaut
+            && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 1000000); // Taille de lot par défaut
     }
 
     public function uninstall()
@@ -211,6 +229,11 @@ class AskDialog extends Module
                     $output .= $this->displayConfirmation($this->l('Settings updated'));
                     $apiClient = new AskDialogClient($apiKey);
                     $result = $apiClient->sendDomainHost();
+                    if ($result) {
+                        $output .= $this->displayConfirmation($this->l('Connection successful'));
+                    } else {
+                        $output .= $this->displayError($this->l('Connection failed'));
+                    }
                 }
             }
             return $output . $this->renderFormApiKeys();
@@ -238,19 +261,6 @@ class AskDialog extends Module
             }
             return $output . $this->renderFormSetting();
         }  
-        
-        // If test connection
-        if (Tools::getValue('test') == 1) {
-            $apiKey = Configuration::get('ASKDIALOG_API_KEY');
-            $apiClient = new AskDialogClient($apiKey);
-            $result = $apiClient->sendDomainHost();
-            if ($result) {
-                $output .= $this->displayConfirmation($this->l('Connection successful'));
-            } else {
-                $output .= $this->displayError($this->l('Connection failed'));
-            }
-            return $output . $this->renderFormApiKeys();
-        }
     }
 
     protected function renderFormApiKeys()
@@ -295,14 +305,6 @@ class AskDialog extends Module
                         'title' => $this->l('Next'),
                         'class' => 'btn btn-default pull-right',
                         'icon' => 'process-icon-next'
-                    ],
-                    [
-                        'href' => $this->context->link->getAdminLink('AdminModules', false)
-                            . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&test=1&token='.Tools::getAdminTokenLite('AdminModules'),
-                        'title' => $this->l('Test connection'),
-                        'class' => 'btn btn-default pull-left',
-                        'icon' => 'process-icon-cogs',
-                        'disabled' => empty(Configuration::get('ASKDIALOG_API_KEY'))
                     ]
                 ]
             ],
@@ -424,7 +426,7 @@ class AskDialog extends Module
                             . '&configure=' . $this->name . '&tab_module=' . $this->tab . '&module_name=' . $this->name.'&step=1&token='.Tools::getAdminTokenLite('AdminModules'),
                         'title' => $this->l('Previous'),
                         'class' => 'btn btn-default pull-left',
-                        'icon' => 'process-icon-next'
+                        'icon' => 'process-icon-back'
                     ]
                 ]
             ],
