@@ -103,7 +103,8 @@ class AskDialog extends Module
 
     public function hookDisplayFooterProduct($params)
     {
-        if($this->context->controller->php_self != 'product'){
+        $enableProductHook = Configuration::get('ASKDIALOG_ENABLE_PRODUCT_HOOK') ? 1 : 0;
+        if (!$enableProductHook) {
             return;
         }
         $product = $params['product'];
@@ -205,11 +206,13 @@ class AskDialog extends Module
             if (Tools::isSubmit('submit' . $this->name)) {
                 $apiKey = strval(Tools::getValue('ASKDIALOG_API_KEY'));
                 $apiKeyPublic = strval(Tools::getValue('ASKDIALOG_API_KEY_PUBLIC'));
+                $enableProductHook = (bool)Tools::getValue('ASKDIALOG_ENABLE_PRODUCT_HOOK');
                 if (!$apiKey || empty($apiKey)) {
                     $output .= $this->displayError($this->trans('Invalid API Key', [], 'Modules.AskDialog.Admin'));
                 } else {
                     Configuration::updateValue('ASKDIALOG_API_KEY', $apiKey);
                     Configuration::updateValue('ASKDIALOG_API_KEY_PUBLIC', $apiKeyPublic);
+                    Configuration::updateValue('ASKDIALOG_ENABLE_PRODUCT_HOOK', $enableProductHook);
     
                     $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.AskDialog.Admin'));
                     $apiClient = new AskDialogClient($apiKey);
@@ -271,6 +274,25 @@ class AskDialog extends Module
                     'name' => 'ASKDIALOG_API_KEY',
                     'size' => 20,
                     'required' => true,
+                    ],
+                    [
+                        'type' => 'switch',
+                        'label' => $this->l('Enable on Product Page'),
+                        'name' => 'ASKDIALOG_ENABLE_PRODUCT_HOOK',
+                        'is_bool' => true,
+                        'values' => [
+                            [
+                                'id' => 'active_on',
+                                'value' => 1,
+                                'label' => $this->l('Enabled')
+                            ],
+                            [
+                                'id' => 'active_off',
+                                'value' => 0,
+                                'label' => $this->l('Disabled')
+                            ]
+                        ],
+                        'desc' => $this->l('Enable or disable the AskDialog assistant on the product page.')
                     ],
                     //add a link to dialog onboarding
                     [
@@ -439,7 +461,8 @@ class AskDialog extends Module
     {
         return [
             'ASKDIALOG_API_KEY' => Configuration::get('ASKDIALOG_API_KEY', ''),
-            'ASKDIALOG_API_KEY_PUBLIC' => Configuration::get('ASKDIALOG_API_KEY_PUBLIC', '')
+            'ASKDIALOG_API_KEY_PUBLIC' => Configuration::get('ASKDIALOG_API_KEY_PUBLIC', ''),
+            'ASKDIALOG_ENABLE_PRODUCT_HOOK' => Configuration::get('ASKDIALOG_ENABLE_PRODUCT_HOOK') ? 1 : 0,
         ];
     }
 
