@@ -221,8 +221,6 @@ class AskDialog extends Module
             $apiKey = strval(Tools::getValue('ASKDIALOG_API_KEY'));
             $apiKeyPublic = strval(Tools::getValue('ASKDIALOG_API_KEY_PUBLIC'));
             $enableProductHook = (bool)Tools::getValue('ASKDIALOG_ENABLE_PRODUCT_HOOK');
-            var_dump("Debug");
-            var_dump($enableProductHook);
             if (!$apiKey || empty($apiKey)) {
                 $output .= $this->displayError($this->l('Invalid API Key'));
             } else {
