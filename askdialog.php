@@ -138,7 +138,7 @@ class AskDialog extends Module
             'ask_anything_placeholder' => $ask_anything_placeholder,
             'enableProductQuestion' => Configuration::get('ASKDIALOG_ENABLE_PRODUCT_QUESTION'),
             'defaultDesign' => Configuration::get('ASKDIALOG_DEFAULT_DESIGN'),
-            'my_array' => ['suggestion-0', 'suggestion-1']
+            'suggestions' => ['suggestion-0', 'suggestion-1']
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/displayproduct.tpl');
