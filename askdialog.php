@@ -104,6 +104,7 @@ class AskDialog extends Module
         }
 
         $this->context->controller->addJS($this->_path . 'views/js/askdialog.js');
+        //$this->context->controller->addJS($this->_path . 'views/js/posthog.js');
        
     }
 
