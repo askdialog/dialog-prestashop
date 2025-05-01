@@ -127,10 +127,23 @@ class AskDialog extends Module
         $this->context->smarty->assign('product', $product);
 
         $product_id = $product->id;
+        
+        //If cache_default_attribute is not null, it means that the product has variants
+        if (!Tools::getValue('id_product_attribute') && $product->cache_default_attribute) {
+            $selected_variant_id = $product->cache_default_attribute;
+        }else {
+            //Get the selected attribute id
+            $attribute_id = Tools::getValue('id_product_attribute');
+            if ($attribute_id) {
+                $selected_variant_id = $attribute_id;
+            } else {
+                $selected_variant_id = 0;
+            }
+        }
+
+
         $product_title = $product->name;
         $product_slug = $product->link_rewrite;
-    
-        $selected_variant_id = 0;
 
         if (_PS_VERSION_ < 1.7) {
             $assistant_name = $this->l('AskDialog Assistant');

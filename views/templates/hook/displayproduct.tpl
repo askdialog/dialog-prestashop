@@ -12,7 +12,7 @@
     data-product-id="{$product_id}"
     data-product-title="{$product_title}"
     data-handle="{$product_slug}"
-    data-selected-variant-id="{$selected_variant_id}"></div>
+    data-selected-variant-id="{$selected_variant_id}" top></div>
 
 <div class="dialog-instant" id="dialog-instant">
     <div class="dialog-instant-text">
@@ -92,3 +92,38 @@
         {/if}
     </div>
 </div>
+
+<script>
+    // On product page, PrestaShop 1.6 reloads the page when the variant (attribute) is changed
+
+    // Function to update the variant ID after page reload
+    function updateVariantId() {
+        var variantId = document.querySelector('#idCombination').value;
+        var dialogProduct = document.querySelector('#dialog-shopify-ai-product');
+        dialogProduct.setAttribute('data-selected-variant-id', variantId);
+        window.DIALOG_PRODUCT_VARIABLES.selectedVariantId = variantId;
+    }
+
+    // Run the function on page load to set the initial variant ID
+    updateVariantId();
+
+    // Listen for the DOMContentLoaded event to ensure the DOM is fully loaded after page reload
+    document.addEventListener('DOMContentLoaded', function () {
+        updateVariantId();
+    });
+
+    //If any event of click on #attributes
+    document.querySelectorAll('#attributes').forEach(function (element) {
+        element.addEventListener('click', function () {
+            updateVariantId();
+        });
+    });
+
+    document.querySelectorAll('#attributes li').forEach(function (element) {
+        element.addEventListener('click', function () {
+            updateVariantId();
+        });
+    });
+</script>
+
+
