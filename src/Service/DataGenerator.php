@@ -10,6 +10,10 @@ use Category;
 use Image;
 use Combination;
 use StockAvailable;
+use Address;
+use Country;
+use TaxManagerFactory;
+
 
 class DataGenerator{
     private $products = [];

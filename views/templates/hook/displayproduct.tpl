@@ -98,7 +98,11 @@
 
     // Function to update the variant ID after page reload
     function updateVariantId() {
-        var variantId = document.querySelector('#idCombination').value;
+
+        var productDetails = document.querySelector('#product-details');
+        jsonData = JSON.parse(productDetails.getAttribute('data-product'));
+        
+        var variantId = jsonData.id_product_attribute;
         var dialogProduct = document.querySelector('#dialog-shopify-ai-product');
         dialogProduct.setAttribute('data-selected-variant-id', variantId);
         window.DIALOG_PRODUCT_VARIABLES.selectedVariantId = variantId;
@@ -113,14 +117,8 @@
     });
 
     //If any event of click on #attributes
-    document.querySelectorAll('#attributes').forEach(function (element) {
-        element.addEventListener('click', function () {
-            updateVariantId();
-        });
-    });
-
-    document.querySelectorAll('#attributes li').forEach(function (element) {
-        element.addEventListener('click', function () {
+    document.querySelectorAll('#dialog-instant').forEach(function (element) {
+        element.addEventListener('mouseenter', function () {
             updateVariantId();
         });
     });
