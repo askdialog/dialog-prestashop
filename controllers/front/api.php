@@ -37,7 +37,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
                 $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
                 $linkObj = new Link();
 
-                $countryCode = Tools::getValue('country_code');
+                $countryCode = Tools::getValue('country_code', 'fr');
                 $locale = Tools::getValue('locale');
                 
                 //Si countrycode et locale sont vides, on prend les valeurs par défaut
@@ -50,7 +50,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
                         die(json_encode($response));
                     }
                 }
-                die(json_encode($dataGenerator->getProductData(Tools::getValue('id'), $idLang, $linkObj)));
+                die(json_encode($dataGenerator->getProductData(Tools::getValue('id'), $idLang, $linkObj, $countryCode)));
             default:
                 $response = array('status' => 'error', 'message' => 'Invalid action');
                 die(json_encode($response));

@@ -38,7 +38,7 @@ class DataGenerator{
         file_put_contents($tempFile, json_encode($cmsData));
     }
 
-    public function getProductData($product_id, $defaultLang, $linkObj) {
+    public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr'){
         $productObj = new Product((int)$product_id);
         $productItem = [];
         $publishedAt = (new \DateTime($productObj->date_add))->format('Y-m-d\TH:i:s\Z');
@@ -48,14 +48,47 @@ class DataGenerator{
         $productItem["title"] = $productObj->name[$defaultLang];
         $productItem["handle"] = $productObj->link_rewrite[$defaultLang];
 
-        //Retrieve variants 
-        $combinations = $productObj->getAttributeCombinations($defaultLang, false);
-        $productItem['totalVariants'] = count($combinations);
+        $taxCalculator = null;
+
+        //Handle the product price with tax in the country
+        if($countryCode != null){
+            $addressObj = new Address();
+            //Get the Country ID from the country code in iso format
+            $countryObj = new Country();
+            $idCountry = $countryObj::getByIso($countryCode);
+
+
+            $addressObj->id_state = 0;
+            $addressObj->postcode = '';
+            $addressObj->id_city = 0;
+            $addressObj->id_manufacturer = 0;
+            $addressObj->id_customer = 0;
+            $addressObj->id = 0;
+            $addressObj->id_address = 0;
+            $addressObj->id_country = $idCountry;
+
+            $type = 'country';
+
+            $taxManager = TaxManagerFactory::getManager($addressObj, $type);
+            $taxCalculator = $taxManager->getTaxCalculator();
+            $productItem["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, null, 2, null, false, true));
+
+        }else{
+            $productItem["price"] = Product::getPriceStatic($productObj->id, true, null, 2, null, false, true);
+        }
+
+
+        $productAttributes = Product::getProductAttributesIds($product_id);
+        $productItem['totalVariants'] = 0;
+        if($productAttributes != null){
+            $productItem['totalVariants'] = count($productAttributes);
+        }
 
         $variants = [];
-        foreach ($combinations as $combination) {
+        foreach($productAttributes as $productAttribute) {
+            $productAttributeObj = new Combination((int)$productAttribute);
             $variant = [];
-            $productAttributeObj = new Combination((int)$combination["id_product_attribute"]);
+            
             $images = $productAttributeObj->getWsImages();
             if (count($images) > 0) {
             $image = new Image((int)$images[0]['id']);
@@ -69,16 +102,34 @@ class DataGenerator{
 
             $variant["metafields"] = [];
 
-            $variant["displayName"] = $productObj->getProductName($productObj->id, $combination["id_product_attribute"], $defaultLang);
+            $variant["displayName"] = $productObj->getProductName($productObj->id, $productAttribute["id_product_attribute"], $defaultLang);
             $variant["title"] = $variant["displayName"];
-            $stockAvailableCombinationObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id, $combination["id_product_attribute"]));
+            $stockAvailableCombinationObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id, $productAttribute["id_product_attribute"]));
             $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
-            $variant["price"] = Product::getPriceStatic($productObj->id, false, $combination['id_product_attribute'], 2, null, false, true); // With reductions (computed)
-            $variant["selectedOptions"] = [["name" => "Taille", "value" => "small"]];
-            $variant["id"] = (int)$combination["id_product_attribute"];
-            $variant["compareAtPrice"] = Product::getPriceStatic($productObj->id, false, $combination['id_product_attribute'], 2, null, false, false); // Without reductions
+
+            if($taxCalculator != null){
+                $variant["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions (computed)
+            }else{
+                $variant["price"] = Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions (computed)
+            }
+            
+            $attributeCombinations = $productObj->getAttributeCombinationsById($productAttribute["id_product_attribute"], $defaultLang);
+
+            $options = [];
+
+            foreach ($attributeCombinations as $combination) {
+                $options[] = [
+                    'name' => $combination['group_name'],  // ex: Couleur, Taille
+                    'value' => $combination['attribute_name'], // ex: Bleu, M
+                ];
+            }
+
+            $variant["selectedOptions"] = $options;
+            $variant["id"] = (int)$productAttribute["id_product_attribute"];
+            //$variant["compareAtPrice"] = Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, false); // Without reductions
             $variants[] = $variant;
         }
+        
 
         $productItem['variants'] = $variants;
 
