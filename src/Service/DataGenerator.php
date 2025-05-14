@@ -120,12 +120,15 @@ class DataGenerator{
             $attributeCombinations = $productObj->getAttributeCombinationsById($productAttribute["id_product_attribute"], $defaultLang);
 
             $options = [];
-
-            foreach ($attributeCombinations as $combination) {
-                $options[] = [
-                    'name' => $combination['group_name'],  // ex: Couleur, Taille
-                    'value' => $combination['attribute_name'], // ex: Bleu, M
-                ];
+            if (!empty($attributeCombinations)) {
+                foreach ($attributeCombinations as $combination) {
+                    if (isset($combination['group_name']) && isset($combination['attribute_name'])) {
+                        $options[] = [
+                            'name' => $combination['group_name'],  // ex: Couleur, Taille
+                            'value' => $combination['attribute_name'], // ex: Bleu, M
+                        ];
+                    }
+                }
             }
 
             $variant["selectedOptions"] = $options;
