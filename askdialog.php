@@ -23,8 +23,6 @@ class AskDialog extends Module
         $this->description =  $this->trans('Module to provide the AskDialog assistant on your e-shop', [], 'Modules.AskDialog.Admin');
         $this->ps_versions_compliancy = array('min' => '1.6', 'max' => _PS_VERSION_);
         $this->bootstrap = true;
-
-        $this->registerHook('displayOrderConfirmation');
     }
 
     private function createTables()
