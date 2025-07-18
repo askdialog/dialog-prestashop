@@ -23,6 +23,8 @@ class AskDialog extends Module
         $this->description =  $this->trans('Module to provide the AskDialog assistant on your e-shop', [], 'Modules.AskDialog.Admin');
         $this->ps_versions_compliancy = array('min' => '1.6', 'max' => _PS_VERSION_);
         $this->bootstrap = true;
+
+        $this->registerHook('displayOrderConfirmation');
     }
 
     private function createTables()
@@ -45,6 +47,7 @@ class AskDialog extends Module
             && $this->registerHook('displayFooter')
             && $this->registerHook('displayFooterProduct')
             && $this->registerHook('actionFrontControllerInitBefore')
+            && $this->registerHook('displayOrderConfirmation')
             && $this->createTables()
             && $this->setDefaultConfigurationValues();
     }
@@ -98,7 +101,28 @@ class AskDialog extends Module
         }
 
         $this->context->controller->addJS($this->_path . 'views/js/askdialog.js');
+        $this->context->controller->addJS($this->_path . 'views/js/posthog.js');
+
+        //Si on est sur la page de confirmation de commande, on ajoute le JS pour le formulaire de feedback
+        if ($this->context->controller->php_self == 'order-confirmation') {
+            $this->context->controller->addJS($this->_path . 'views/js/posthog_order_confirmation.js');
+        }
        
+    }
+
+    public function hookDisplayOrderConfirmation($params)
+    {
+        $order = $params['order'];
+        $customer = $this->context->customer;
+
+        $this->context->smarty->assign([
+            'order_reference' => $order->reference,
+            'order_total' => $order->total_paid,
+            'customer_name' => $customer->firstname . ' ' . $customer->lastname,
+            'order_date' => $order->date_add,
+        ]);
+
+        return $this->display(__FILE__, 'views/templates/hook/displayorderconfirmation.tpl');
     }
 
     public function hookDisplayFooterProduct($params)
