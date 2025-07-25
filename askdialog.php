@@ -159,8 +159,8 @@ class AskDialog extends Module
         }
         else {
             $assistant_name = $this->trans('AskDialog Assistant', [], 'Modules.AskDialog.Admin');
-            $assistant_description = $this->trans('How can I help you with this product?', [], 'Modules.AskDialog.Admin');
-            $ask_anything_placeholder = $this->trans('Ask anything about this product...', [], 'Modules.AskDialog.Admin');
+            $assistant_description = $this->trans('Comment puis-je vous aider avec ce produit ?', [], 'Modules.AskDialog.Admin');
+            $ask_anything_placeholder = $this->trans('Comment puis-je vous aider avec ce produit ?', [], 'Modules.AskDialog.Admin');
         }
 
         $this->context->smarty->assign([
