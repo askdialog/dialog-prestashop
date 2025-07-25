@@ -147,12 +147,12 @@ class AskDialog extends Module
 
         if (_PS_VERSION_ < 1.7) {
             $assistant_name = $this->l('AskDialog Assistant');
-            $assistant_description = $this->l('How can I help you with this product?');
-            $ask_anything_placeholder = $this->l('Ask anything about this product...');
+            $assistant_description = $this->l('Comment puis-je vous aider avec ce produit ?');
+            $ask_anything_placeholder = $this->l('Comment puis-je vous aider avec ce produit ?');
         } else {
             $assistant_name = $this->trans('AskDialog Assistant', [], 'Modules.AskDialog.Admin');
-            $assistant_description = $this->trans('How can I help you with this product?', [], 'Modules.AskDialog.Admin');
-            $ask_anything_placeholder = $this->trans('Ask anything about this product...', [], 'Modules.AskDialog.Admin');
+            $assistant_description = $this->trans('Comment puis-je vous aider avec ce produit ?', [], 'Modules.AskDialog.Admin');
+            $ask_anything_placeholder = $this->trans('Comment puis-je vous aider avec ce produit ?', [], 'Modules.AskDialog.Admin');
         }
 
         $this->context->smarty->assign([
