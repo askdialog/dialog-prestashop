@@ -208,7 +208,10 @@ class DataGenerator{
         $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT'); 
         $linkObj = new Link();
         foreach($products as $product){
-            $this->products[] = $this->getProductData($product['id_product'], $defaultLang, $linkObj);
+            if (!empty($productData = $this->getProductData($product['id_product'], $defaultLang, $linkObj))) {
+		        $this->products[] = $productData;
+	        }
+
         }
         return $this->products;
     }
