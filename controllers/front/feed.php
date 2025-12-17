@@ -2,8 +2,8 @@
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
-use LouisAuthie\Askdialog\Service\DataGenerator;
-use LouisAuthie\Askdialog\Service\AskDialogClient;
+use Dialog\AskDialog\Service\DataGenerator;
+use Dialog\AskDialog\Service\AskDialogClient;
 use PSpell\Config;
 
 class AskDialogFeedModuleFrontController extends ModuleFrontController

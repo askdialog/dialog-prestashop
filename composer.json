@@ -1,10 +1,10 @@
 {
-    "name": "louisauthie/askdialog",
+    "name": "dialog/askdialog",
     "description": "Ask Dialog PrestaShop module",
     "type": "project",
     "autoload": {
         "psr-4": {
-            "LouisAuthie\\Askdialog\\": "src/"
+            "Dialog\\AskDialog\\": "src/"
         }
     },
     "authors": [

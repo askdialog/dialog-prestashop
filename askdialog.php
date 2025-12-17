@@ -4,8 +4,8 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-use LouisAuthie\Askdialog\Service\AskDialogClient;
-use LouisAuthie\Askdialog\Service\DataGenerator;
+use Dialog\AskDialog\Service\AskDialogClient;
+use Dialog\AskDialog\Service\DataGenerator;
 
 class AskDialog extends Module
 {

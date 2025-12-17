@@ -1,6 +1,6 @@
 <?php
 
-use LouisAuthie\Askdialog\Service\DataGenerator;
+use Dialog\AskDialog\Service\DataGenerator;
 
 class AskDialogApiModuleFrontController extends ModuleFrontController
 {

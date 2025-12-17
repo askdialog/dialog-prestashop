@@ -1,6 +1,6 @@
 <?php
 
-namespace LouisAuthie\Askdialog\Service;
+namespace Dialog\AskDialog\Service;
 
 use Db;
 use Product;
