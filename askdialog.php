@@ -90,7 +90,20 @@ class AskDialog extends Module
 
     public function uninstall()
     {
-        return parent::uninstall() && $this->uninstallDb();
+        return parent::uninstall()
+            // Commented for development comfort - uncomment in production to clean all configuration
+            // && Configuration::deleteByName('ASKDIALOG_API_KEY')
+            // && Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
+            // && Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
+            // && Configuration::deleteByName('ASKDIALOG_COLOR_PRIMARY')
+            // && Configuration::deleteByName('ASKDIALOG_COLOR_BACKGROUND')
+            // && Configuration::deleteByName('ASKDIALOG_COLOR_CTA_TEXT')
+            // && Configuration::deleteByName('ASKDIALOG_CTA_BORDER_TYPE')
+            // && Configuration::deleteByName('ASKDIALOG_CAPITALIZE_CTAS')
+            // && Configuration::deleteByName('ASKDIALOG_FONT_FAMILY')
+            // && Configuration::deleteByName('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME')
+            // && Configuration::deleteByName('ASKDIALOG_BATCH_SIZE')
+            && $this->uninstallDb();
     }
 
 
