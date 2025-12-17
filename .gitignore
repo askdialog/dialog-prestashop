@@ -1,0 +1,4 @@
+vendor
+node_modules
+config*.xml
+.php_cs.cache
