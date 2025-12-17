@@ -50,34 +50,29 @@ class AskDialog extends Module
         $this->description =  $this->trans('Module to provide the AskDialog assistant on your e-shop', [], 'Modules.Askdialog.Admin');
     }
 
-    private function createTables()
+    protected function installDb(): bool
     {
-        //Create table to store all the products remaining to add to JSON file before sending it to AskDialog S3 server as a batch
-        $sql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_product` (
-            `id_askdialog_product` int(11) NOT NULL AUTO_INCREMENT,
-            `id_product` int(11) NOT NULL,
-            `id_shop` int(11) NOT NULL,
-            `date_add` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (`id_askdialog_product`)
-        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
-        return Db::getInstance()->execute($sql);
+        $file = __DIR__ . '/sql/install.php';
+
+        return is_file($file) ? (bool) require $file : false;
     }
 
-    private function dropTables()
+    protected function uninstallDb(): bool
     {
-        $sql = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_product`';
-        return Db::getInstance()->execute($sql);
+        $file = __DIR__ . '/sql/uninstall.php';
+
+        return is_file($file) ? (bool) require $file : false;
     }
 
     public function install()
     {
         return parent::install()
+            && $this->installDb()
             && $this->registerHook('actionFrontControllerSetMedia')
             && $this->registerHook('displayFooterAfter')
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('actionFrontControllerInitBefore')
             && $this->registerHook('displayOrderConfirmation')
-            && $this->createTables()
             && $this->setDefaultConfigurationValues();
     }
 
@@ -95,7 +90,7 @@ class AskDialog extends Module
 
     public function uninstall()
     {
-        return parent::uninstall() && $this->dropTables();
+        return parent::uninstall() && $this->uninstallDb();
     }
 
 
