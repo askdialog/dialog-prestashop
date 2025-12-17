@@ -124,6 +124,12 @@ After changes: Run `composer dump-autoload`
 1. **Setup:**
    ```bash
    composer install
+   cd views/js/_dev && npm install
+   ```
+
+2. **Build assets:**
+   ```bash
+   cd views/js/_dev && npm run build
    ```
 
 ## Code Standards
