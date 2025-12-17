@@ -39,10 +39,10 @@ class AskDialogClient{
     private function getApiUrlFromConfig() {
         $yamlFile = _PS_MODULE_DIR_ . 'askdialog/config/config.yml';
         if (!file_exists($yamlFile)) {
-            throw new \Exception('Le fichier config.yml est introuvable');
+            throw new \Exception('Config file config.yml not found');
         }
 
-        // Parse le fichier YAML
+        // Parse YAML file
         $config = Yaml::parseFile($yamlFile);
         return $config['askdialog']['settings']['api_url'];
     }

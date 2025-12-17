@@ -41,7 +41,7 @@ class DataGenerator{
 
     public function generateCMSData()
     {
-        // Récupérer toutes les pages CMS
+        // Retrieve all CMS pages
         $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)Configuration::get('PS_LANG_DEFAULT');
         $cmsPages = Db::getInstance()->executeS($sql);
 
@@ -53,12 +53,12 @@ class DataGenerator{
             ];
         }
 
-        // Créer le dossier temp s'il n'existe pas
+        // Create temp folder if it doesn't exist
         if (!file_exists(_PS_MODULE_DIR_ . 'askdialog/temp')) {
             mkdir(_PS_MODULE_DIR_ . 'askdialog/temp', 0777, true);
         }
 
-        // Générer le fichier JSON
+        // Generate JSON file
         $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/cms.json';
         file_put_contents($tempFile, json_encode($cmsData));
     }
@@ -80,10 +80,10 @@ class DataGenerator{
 
 
         $taxCalculator = null;
-        //Handle the product price with tax in the country
+        // Handle product price with tax for the country
         if($countryCode != null){
             $addressObj = new Address();
-            //Get the Country ID from the country code in iso format
+            // Get Country ID from ISO country code
             $countryObj = new Country();
             $idCountry = $countryObj::getByIso($countryCode);
             $addressObj->id_state = 0;
@@ -108,7 +108,7 @@ class DataGenerator{
             $productItem['totalVariants'] = count($productAttributes);
         }
 
-        //Retrieve variants
+        // Retrieve product variants
         $combinations = $productObj->getAttributeCombinations($defaultLang, false);
         $productItem['totalVariants'] = count($combinations);
 
@@ -139,9 +139,9 @@ class DataGenerator{
             $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
 
             if($taxCalculator != null){
-                $variant["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions (computed)
+                $variant["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions
             }else{
-                $variant["price"] = Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions (computed)
+                $variant["price"] = Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions
             }
             $attributeCombinations = $productObj->getAttributeCombinationsById($productAttribute["id_product_attribute"], $defaultLang);
             $options = [];
@@ -149,8 +149,8 @@ class DataGenerator{
                 foreach ($attributeCombinations as $combination) {
                     if (isset($combination['group_name']) && isset($combination['attribute_name'])) {
                         $options[] = [
-                            'name' => $combination['group_name'],  // ex: Couleur, Taille
-                            'value' => $combination['attribute_name'], // ex: Bleu, M
+                            'name' => $combination['group_name'],  // e.g. Color, Size
+                            'value' => $combination['attribute_name'], // e.g. Blue, M
                         ];
                     }
                 }
@@ -168,7 +168,7 @@ class DataGenerator{
         $featuredImage = null;
 
         foreach ($productImages as $image) {
-            //Get image url
+            // Get image URL
             $linkImage = $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image['id_image'], 'large_default');
 
             if($image['cover'] != null && $image['cover']=='1'){
@@ -181,7 +181,7 @@ class DataGenerator{
         $productItem["totalInventory"] = (int)$stockAvailableObj->quantity;
         $productItem["status"] = $productObj->active?"ACTIVE":"NOT ACTIVE";
 
-        //Retrieve categories
+        // Retrieve product categories
         $categories = $productObj->getCategories();
         $categoryItems = [];
 
@@ -203,7 +203,7 @@ class DataGenerator{
             $productItem["tags"] = explode(", ", $productObj->getTags($defaultLang));
         }
 
-        //Get all the product features
+        // Get all product features
         $productFeatures = $productObj->getFrontFeatures($defaultLang);
         $productItem["metafields"] = [];
         foreach ($productFeatures as $feature) {
@@ -223,7 +223,7 @@ class DataGenerator{
 
     public function getCatalogDataForBatch($batchSize, $idShop)
     {
-        //Retrieve from the askdialog_product table the ids to process
+        // Retrieve product IDs to process from askdialog_product table
         $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . $idShop . ' LIMIT ' . $batchSize);
         $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
         $linkObj = new Link();
@@ -242,7 +242,7 @@ class DataGenerator{
     }
 
     public function getCatalogData(){
-        //Retrieve all prestashop products
+        // Retrieve all PrestaShop products
         $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'product');
         $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
 
