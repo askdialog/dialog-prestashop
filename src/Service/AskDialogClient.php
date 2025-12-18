@@ -39,16 +39,6 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class AskDialogClient
 {
     /**
-     * @var string Private API key for authentication
-     */
-    private $apiKey;
-
-    /**
-     * @var string Base URL of Dialog API
-     */
-    private $apiUrl;
-
-    /**
      * @var HttpClientInterface Symfony HTTP client instance
      */
     private $httpClient;
@@ -60,17 +50,16 @@ class AskDialogClient
      */
     public function __construct(string $apiKey)
     {
-        $this->apiKey = $apiKey;
+        $apiUrl = Configuration::get('ASKDIALOG_API_URL');
 
-        $this->apiUrl = Configuration::get('ASKDIALOG_API_URL');
-        if (empty($this->apiUrl)) {
+        if (empty($apiUrl)) {
             throw new \Exception('ASKDIALOG_API_URL configuration is missing');
         }
 
         $this->httpClient = HttpClient::create([
-            'base_uri' => $this->apiUrl,
+            'base_uri' => $apiUrl,
             'headers' => [
-                'Authorization' => $this->apiKey,
+                'Authorization' => $apiKey,
                 'Content-Type' => 'application/json',
             ],
             'timeout' => 30,
