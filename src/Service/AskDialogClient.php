@@ -44,14 +44,18 @@ class AskDialogClient
     /**
      * AskDialogClient constructor.
      *
-     * @param string $apiKey Private API key for authentication
+     * @throws \Exception If ASKDIALOG_API_KEY or ASKDIALOG_API_URL is not configured
      */
-    public function __construct(string $apiKey)
+    public function __construct()
     {
-        $apiUrl = \Configuration::get('ASKDIALOG_API_URL');
+        $apiKey = \Configuration::get('ASKDIALOG_API_KEY');
+        if (empty($apiKey)) {
+            throw new \Exception('ASKDIALOG_API_KEY configuration is missing. Please configure the module.');
+        }
 
+        $apiUrl = \Configuration::get('ASKDIALOG_API_URL');
         if (empty($apiUrl)) {
-            throw new \Exception('ASKDIALOG_API_URL configuration is missing');
+            throw new \Exception('ASKDIALOG_API_URL configuration is missing. Please reinstall the module.');
         }
 
         $this->httpClient = HttpClient::create([

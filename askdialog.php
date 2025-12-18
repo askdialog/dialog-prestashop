@@ -315,7 +315,7 @@ class AskDialog extends Module
                     Configuration::updateValue('ASKDIALOG_ENABLE_PRODUCT_HOOK', $enableProductHook);
 
                     $output .= $this->displayConfirmation($this->trans('Settings updated', [], 'Modules.Askdialog.Admin'));
-                    $apiClient = new AskDialogClient($apiKey);
+                    $apiClient = new AskDialogClient();
                     $result = $apiClient->sendDomainHost();
                     if ($result) {
                         $output .= $this->displayConfirmation($this->trans('Connection successful', [], 'Modules.Askdialog.Admin'));

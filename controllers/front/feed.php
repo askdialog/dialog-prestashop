@@ -203,7 +203,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private function uploadToS3($tempFile, $filename)
     {
         // Get signed URLs from Dialog API
-        $askDialogClient = new AskDialogClient(Configuration::get('ASKDIALOG_API_KEY'));
+        $askDialogClient = new AskDialogClient();
         $result = $askDialogClient->prepareServerTransfer();
         
         if ($result['statusCode'] !== 200) {
