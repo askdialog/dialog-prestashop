@@ -24,12 +24,14 @@ use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Helper\PathHelper;
 use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Component\Mime\Part\DataPart;
+use Symfony\Component\Mime\Part\Multipart\FormDataPart;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 /**
  * Class AskDialogFeedModuleFrontController
- * 
+ *
  * Handles catalog data export and upload to Dialog AI platform via S3
  */
 class AskDialogFeedModuleFrontController extends ModuleFrontController
@@ -40,22 +42,20 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         parent::initContent();
-        
+
         // Check if token is valid
         $headers = getallheaders();
-        
+
         if (!isset($headers['Authorization']) || substr($headers['Authorization'], 0, 6) !== 'Token ') {
             $this->sendJsonResponse(['error' => 'Private API Token is missing'], 401);
         }
-        
+
         if ($headers['Authorization'] !== 'Token ' . Configuration::get('ASKDIALOG_API_KEY')) {
             $this->sendJsonResponse(['error' => 'Private API Token is wrong'], 403);
         }
-        
+
         $this->ajax = true;
     }
-
-
 
     /**
      * Sends a file to S3 using signed URL with multipart/form-data
@@ -70,33 +70,18 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private function sendFileToS3($url, $fields, $tempFile, $filename)
     {
         $httpClient = HttpClient::create(['verify_peer' => false]);
-        
-        // Prepare multipart data
-        $multipartData = [];
-        
-        // Add S3 fields
-        foreach ($fields as $name => $contents) {
-            $multipartData[] = [
-                'name' => $name,
-                'contents' => $contents,
-            ];
-        }
-        
-        // Add file
-        $multipartData[] = [
-            'name' => 'file',
-            'contents' => fopen($tempFile, 'r'),
-            'filename' => $filename,
-        ];
-        
-        // Add Content-Type
-        $multipartData[] = [
-            'name' => 'Content-Type',
-            'contents' => 'application/json',
-        ];
-        
+
+        // Build form fields
+        $formFields = $fields;
+        $formFields['file'] = DataPart::fromPath($tempFile, $filename);
+
+        // Create multipart form
+        $formData = new FormDataPart($formFields);
+        $headers = $formData->getPreparedHeaders()->toArray();
+
         return $httpClient->request('POST', $url, [
-            'body' => $multipartData,
+            'headers' => $headers,
+            'body' => $formData->bodyToString(),
         ]);
     }
 
@@ -107,13 +92,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     {
         $action = Tools::getValue('action');
         $dataGenerator = new DataGenerator();
-        $batchSize = Configuration::get('ASKDIALOG_BATCH_SIZE');
 
         switch ($action) {
             case 'sendCatalogData':
-                $this->handleCatalogExport($dataGenerator, $batchSize);
+                $this->handleCatalogExport($dataGenerator);
                 break;
-                
+
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
@@ -126,58 +110,40 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      * Handles catalog export: generate data, upload to S3
      *
      * @param DataGenerator $dataGenerator
-     * @param int $batchSize
      */
-    private function handleCatalogExport($dataGenerator, $batchSize)
+    private function handleCatalogExport($dataGenerator)
     {
         try {
             $idShop = (int)$this->context->shop->id;
-            $numRemaining = $dataGenerator->getNumCatalogRemaining($idShop);
-            $dataCatalog = $dataGenerator->getCatalogDataForBatch($batchSize, $idShop);
+            $idLang = (int)$this->context->language->id;
+            $countryCode = $this->context->country->iso_code;
 
-            // Process partial batch if needed
-            if ($numRemaining > 0 && $numRemaining <= $batchSize) {
-                $this->generatePartialDataFile($dataCatalog, $dataGenerator, $idShop);
-                $numRemaining = $dataGenerator->getNumCatalogRemaining($idShop);
+            // Get all product IDs for current shop
+            $productIds = $this->getProductIdsForShop($idShop);
+
+            if (empty($productIds)) {
+                throw new Exception('No products found for shop ID ' . $idShop);
             }
 
-            // If still items remaining, generate another partial file and return
-            if ($numRemaining > 0) {
-                $this->generatePartialDataFile($dataCatalog, $dataGenerator, $idShop);
-                $this->sendJsonResponse([
-                    'status' => 'success',
-                    'message' => 'Partial data generated',
-                    'remaining' => $numRemaining
-                ]);
-            }
+            // Generate catalog data
+            $catalogData = [];
+            $linkObj = new Link();
 
-            // All products processed - merge partial files
-            $files = glob(PathHelper::getTmpDir() . 'catalog_partial_*.json');
-            
-            if (empty($files)) {
-                throw new Exception('No catalog files found to process.');
-            }
-
-            // Merge all partial files
-            $dataCatalog = [];
-            foreach ($files as $file) {
-                $partialData = json_decode(file_get_contents($file), true);
-                if ($partialData === null) {
-                    throw new Exception('Invalid JSON in file: ' . basename($file));
+            foreach ($productIds as $productId) {
+                $productData = $dataGenerator->getProductData($productId, $idLang, $linkObj, $countryCode);
+                if (!empty($productData)) {
+                    $catalogData[] = $productData;
                 }
-                $dataCatalog = array_merge($dataCatalog, $partialData);
             }
 
-            // Clean up partial files
-            array_map('unlink', $files);
+            if (empty($catalogData)) {
+                throw new Exception('No valid product data generated');
+            }
 
             // Generate final catalog file
             $filename = 'catalog_' . date('Ymd_His') . '.json';
             $tempFile = PathHelper::getTmpDir() . $filename;
-            file_put_contents($tempFile, json_encode($dataCatalog));
-
-            // Reset queue for next export
-            $this->resetExportQueue($idShop);
+            file_put_contents($tempFile, json_encode($catalogData));
 
             // Generate CMS pages export
             $dataGenerator->generateCMSData();
@@ -194,6 +160,30 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * Get all product IDs for a specific shop
+     *
+     * TODO: Move to a Repository class in future refactoring
+     *
+     * @param int $idShop Shop ID
+     * @return array Array of product IDs
+     */
+    private function getProductIdsForShop($idShop)
+    {
+        $sql = 'SELECT p.id_product
+                FROM ' . _DB_PREFIX_ . 'product p
+                INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product
+                WHERE ps.id_shop = ' . (int)$idShop;
+
+        $results = Db::getInstance()->executeS($sql);
+
+        if (!$results) {
+            return [];
+        }
+
+        return array_column($results, 'id_product');
+    }
+
+    /**
      * Uploads catalog and CMS files to S3
      *
      * @param string $tempFile Path to catalog JSON file
@@ -205,11 +195,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         // Get signed URLs from Dialog API
         $askDialogClient = new AskDialogClient();
         $result = $askDialogClient->prepareServerTransfer();
-        
+
         if ($result['statusCode'] !== 200) {
             throw new Exception('Failed to get S3 upload URLs: ' . $result['body']);
         }
-        
+
         $uploadUrls = json_decode($result['body'], true);
         if ($uploadUrls === null) {
             throw new Exception('Invalid response from prepareServerTransfer');
@@ -249,54 +239,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             throw new Exception('HTTP error during S3 upload: ' . $e->getMessage());
         } catch (TransportExceptionInterface $e) {
             throw new Exception('Network error during S3 upload: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Generates a partial catalog file and removes processed products from queue
-     *
-     * @param array $dataCatalog Product data to save
-     * @param DataGenerator $dataGenerator
-     * @param int $idShop
-     */
-    private function generatePartialDataFile($dataCatalog, $dataGenerator, $idShop)
-    {
-        $filename = 'catalog_partial_' . date('Ymd_His') . '_' . uniqid() . '.json';
-        $tempFile = PathHelper::getTmpDir() . $filename;
-        file_put_contents($tempFile, json_encode($dataCatalog));
-
-        // Remove processed products from queue
-        $productIds = array_column($dataCatalog, 'id');
-        if (!empty($productIds)) {
-            $sql = 'DELETE FROM ' . _DB_PREFIX_ . 'askdialog_product 
-                    WHERE id_shop = ' . (int)$idShop . ' 
-                    AND id_product IN (' . implode(',', array_map('intval', $productIds)) . ')';
-            Db::getInstance()->execute($sql);
-        }
-    }
-
-    /**
-     * Resets the export queue by repopulating with all products from current shop
-     *
-     * @param int $idShop Current shop ID
-     */
-    private function resetExportQueue($idShop)
-    {
-        // Clear existing queue for this shop
-        $sql = 'DELETE FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)$idShop;
-        Db::getInstance()->execute($sql);
-
-        // Repopulate with all products from current shop
-        $sql = 'SELECT p.id_product 
-                FROM ' . _DB_PREFIX_ . 'product p
-                INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product
-                WHERE ps.id_shop = ' . (int)$idShop;
-        $products = Db::getInstance()->executeS($sql);
-        
-        foreach ($products as $product) {
-            $sql = 'INSERT INTO ' . _DB_PREFIX_ . 'askdialog_product (id_product, id_shop) 
-                    VALUES (' . (int)$product['id_product'] . ', ' . (int)$idShop . ')';
-            Db::getInstance()->execute($sql);
         }
     }
 
