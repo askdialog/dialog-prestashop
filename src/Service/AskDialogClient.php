@@ -22,8 +22,6 @@
 
 namespace Dialog\AskDialog\Service;
 
-use Configuration;
-use Context;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -50,7 +48,7 @@ class AskDialogClient
      */
     public function __construct(string $apiKey)
     {
-        $apiUrl = Configuration::get('ASKDIALOG_API_URL');
+        $apiUrl = \Configuration::get('ASKDIALOG_API_URL');
 
         if (empty($apiUrl)) {
             throw new \Exception('ASKDIALOG_API_URL configuration is missing');
@@ -75,7 +73,7 @@ class AskDialogClient
     public function sendDomainHost(): array
     {
         $body = [
-            'domain' => Context::getContext()->shop->domain,
+            'domain' => \Context::getContext()->shop->domain,
             'version' => _PS_VERSION_,
         ];
 
