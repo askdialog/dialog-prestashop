@@ -78,7 +78,8 @@ class AskDialog extends Module
 
     private function setDefaultConfigurationValues()
     {
-        return Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', '#CCCCCC') // Default primary color
+        return Configuration::updateValue('ASKDIALOG_API_URL', 'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com') // Dialog API base URL
+            && Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', '#CCCCCC') // Default primary color
             && Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', '#FFFFFF') // Default background color
             && Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', '#000000') // Default CTA text color
             && Configuration::updateValue('ASKDIALOG_CTA_BORDER_TYPE', 'solid') // Default border type
@@ -92,6 +93,7 @@ class AskDialog extends Module
     {
         return parent::uninstall()
             // Commented for development comfort - uncomment in production to clean all configuration
+            // && Configuration::deleteByName('ASKDIALOG_API_URL')
             // && Configuration::deleteByName('ASKDIALOG_API_KEY')
             // && Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
             // && Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')

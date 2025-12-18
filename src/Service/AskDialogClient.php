@@ -22,18 +22,18 @@
 
 namespace Dialog\AskDialog\Service;
 
+use Configuration;
 use Context;
 use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\Yaml\Yaml;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
  * Class AskDialogClient
- * 
+ *
  * Handles HTTP communication with Dialog AI platform API
- * 
+ *
  * @package Dialog\AskDialog\Service
  */
 class AskDialogClient
@@ -56,13 +56,12 @@ class AskDialogClient
     /**
      * AskDialogClient constructor.
      *
-     * @param string $apiKey Private API key
-     * @throws \Exception If config file is not found
+     * @param string $apiKey Private API key for authentication
      */
     public function __construct(string $apiKey)
     {
         $this->apiKey = $apiKey;
-        $this->urlApi = $this->getApiUrlFromConfig();
+        $this->urlApi = $this->getApiUrl();
         $this->httpClient = HttpClient::create([
             'base_uri' => $this->urlApi,
             'headers' => [
@@ -74,22 +73,13 @@ class AskDialogClient
     }
 
     /**
-     * Retrieves API URL from YAML configuration file
+     * Retrieves Dialog API URL from PrestaShop configuration
      *
      * @return string API base URL
-     * @throws \Exception If config file is not found
      */
-    private function getApiUrlFromConfig(): string
+    private function getApiUrl(): string
     {
-        $yamlFile = _PS_MODULE_DIR_ . 'askdialog/config/config.yml';
-        
-        if (!file_exists($yamlFile)) {
-            throw new \Exception('Config file config.yml not found');
-        }
-
-        $config = Yaml::parseFile($yamlFile);
-        
-        return $config['askdialog']['settings']['api_url'];
+        $apiUrl = Configuration::get('ASKDIALOG_API_URL');
     }
 
     /**
