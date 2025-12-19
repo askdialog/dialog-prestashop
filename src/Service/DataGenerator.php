@@ -107,7 +107,6 @@ class DataGenerator{
 
     /**
      * Bulk load all data for multiple products
-     * This method loads ALL data in ~13 queries instead of N*24 queries
      *
      * @param array $productIds Array of product IDs
      * @param int $idLang Language ID
@@ -120,33 +119,33 @@ class DataGenerator{
             return;
         }
 
-        // 1. Load products with multilingual data (1 query)
+        // 1. Load products with multilingual data
         $this->productsData = $this->productRepository->findByIdsWithLang($productIds, $idLang, $idShop);
 
-        // 2. Load combinations (1 query)
+        // 2. Load combinations
         $this->combinationsData = $this->combinationRepository->findByProductIds($productIds);
 
         // Get all combination IDs for next queries
         $combinationIds = $this->combinationRepository->getCombinationIdsByProductIds($productIds);
 
         if (!empty($combinationIds)) {
-            // 3. Load combination attributes (1 query)
+            // 3. Load combination attributes
             $this->combinationAttributesData = $this->combinationRepository->findAttributesByCombinationIds($combinationIds, $idLang);
 
-            // 4. Load combination images (1 query)
+            // 4. Load combination images
             $this->combinationImagesData = $this->imageRepository->findByCombinationIds($combinationIds);
 
-            // 5. Load combination stock (1 query)
+            // 5. Load combination stock
             $this->combinationStockData = $this->stockRepository->findByCombinationIds($combinationIds, $idShop);
         }
 
-        // 6. Load product images (1 query)
+        // 6. Load product images
         $this->productImagesData = $this->imageRepository->findByProductIds($productIds, $idShop);
 
-        // 7. Load product stock (1 query)
+        // 7. Load product stock
         $this->productStockData = $this->stockRepository->findByProductIds($productIds, $idShop);
 
-        // 8. Load product-category relations (1 query)
+        // 8. Load product-category relations
         $this->productCategoriesData = $this->categoryRepository->findCategoryIdsByProductIds($productIds);
 
         // Get all unique category IDs and load category details
@@ -159,14 +158,14 @@ class DataGenerator{
         $categoryIds = array_unique($categoryIds);
 
         if (!empty($categoryIds)) {
-            // 9. Load categories (1 query)
+            // 9. Load categories
             $this->categoriesData = $this->categoryRepository->findByIds($categoryIds, $idLang, $idShop);
         }
 
-        // 10. Load tags (1 query)
+        // 10. Load tags
         $this->productTagsData = $this->tagRepository->findByProductIds($productIds, $idLang);
 
-        // 11. Load features (1 query)
+        // 11. Load features
         $this->productFeaturesData = $this->featureRepository->findByProductIds($productIds, $idLang);
     }
 
