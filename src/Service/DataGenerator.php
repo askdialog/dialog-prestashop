@@ -31,6 +31,7 @@ use Dialog\AskDialog\Repository\CategoryRepository;
 use Dialog\AskDialog\Repository\TagRepository;
 use Dialog\AskDialog\Repository\FeatureRepository;
 use Dialog\AskDialog\Repository\LanguageRepository;
+use Dialog\AskDialog\Repository\CmsRepository;
 
 class DataGenerator{
     private $products = [];
@@ -44,6 +45,7 @@ class DataGenerator{
     private $tagRepository;
     private $featureRepository;
     private $languageRepository;
+    private $cmsRepository;
 
     // Preloaded data (indexed for O(1) lookup)
     private $productsData = [];
@@ -68,6 +70,7 @@ class DataGenerator{
         $this->tagRepository = new TagRepository();
         $this->featureRepository = new FeatureRepository();
         $this->languageRepository = new LanguageRepository();
+        $this->cmsRepository = new CmsRepository();
     }
 
     /**
@@ -83,8 +86,7 @@ class DataGenerator{
         }
 
         // Retrieve all CMS pages
-        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)$idLang;
-        $cmsPages = \Db::getInstance()->executeS($sql);
+        $cmsPages = $this->cmsRepository->findByLanguage($idLang);
 
         $cmsData = [];
         foreach ($cmsPages as $page) {
