@@ -294,14 +294,19 @@ class DataGenerator{
 
             $variant["metafields"] = [];
 
-            // Build display name from attributes
-            $displayNameParts = [$productData['name']];
+            // Build display name from attributes with group names
+            $displayNameParts = [];
             if (isset($this->combinationAttributesData[$combinationId])) {
                 foreach ($this->combinationAttributesData[$combinationId] as $attr) {
-                    $displayNameParts[] = $attr['attribute_name'];
+                    $displayNameParts[] = $attr['group_name'] . ' - ' . $attr['attribute_name'];
                 }
             }
-            $variant["displayName"] = implode(' - ', $displayNameParts);
+            
+            if (!empty($displayNameParts)) {
+                $variant["displayName"] = $productData['name'] . ' : ' . implode(', ', $displayNameParts);
+            } else {
+                $variant["displayName"] = $productData['name'];
+            }
             $variant["title"] = $variant["displayName"];
             
             // Use preloaded stock data
