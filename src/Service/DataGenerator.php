@@ -27,10 +27,20 @@ use Dialog\AskDialog\Helper\PathHelper;
 class DataGenerator{
     private $products = [];
 
-    public function generateCMSData()
+    /**
+     * Generates CMS pages data and saves to JSON file
+     *
+     * @param int $idLang Language ID (default: shop default language)
+     * @return string Path to generated JSON file
+     */
+    public function generateCMSData($idLang = null)
     {
+        if ($idLang === null) {
+            $idLang = (int)\Configuration::get('PS_LANG_DEFAULT');
+        }
+
         // Retrieve all CMS pages
-        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)\Configuration::get('PS_LANG_DEFAULT');
+        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)$idLang;
         $cmsPages = \Db::getInstance()->executeS($sql);
 
         $cmsData = [];
@@ -41,13 +51,81 @@ class DataGenerator{
             ];
         }
 
-        // Generate unique hash for filename
-        $hash = md5(date('Y-m-d H:i:s') . rand());
-        $tempFile = PathHelper::getTmpDir() . 'cms_' . $hash . '.json';
+        // Generate filename with timestamp and unique hash
+        $timestamp = date('Ymd_His');
+        $hash = substr(md5($timestamp . rand()), 0, 8);
+        $filename = 'cms_' . $timestamp . '_' . $hash . '.json';
+        $tempFile = PathHelper::getTmpDir() . $filename;
         
         file_put_contents($tempFile, json_encode($cmsData));
         
         return $tempFile;
+    }
+
+    /**
+     * Generates catalog data and saves to JSON file
+     *
+     * @param int $idShop Shop ID
+     * @param int $idLang Language ID
+     * @param string $countryCode Country ISO code for tax calculation
+     * @return string Path to generated JSON file
+     * @throws \Exception If no products found or data generation fails
+     */
+    public function generateCatalogData($idShop, $idLang, $countryCode = 'fr')
+    {
+        // Get all product IDs for current shop
+        $productIds = $this->getProductIdsForShop($idShop);
+
+        if (empty($productIds)) {
+            throw new \Exception('No products found for shop ID ' . $idShop);
+        }
+
+        // Generate catalog data
+        $catalogData = [];
+        $linkObj = new \Link();
+
+        foreach ($productIds as $productId) {
+            $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
+            if (!empty($productData)) {
+                $catalogData[] = $productData;
+            }
+        }
+
+        if (empty($catalogData)) {
+            throw new \Exception('No valid product data generated');
+        }
+
+        // Generate filename with timestamp and unique hash
+        $timestamp = date('Ymd_His');
+        $hash = substr(md5($timestamp . rand()), 0, 8);
+        $filename = 'catalog_' . $timestamp . '_' . $hash . '.json';
+        $tempFile = PathHelper::getTmpDir() . $filename;
+        
+        file_put_contents($tempFile, json_encode($catalogData));
+        
+        return $tempFile;
+    }
+
+    /**
+     * Get all product IDs for a specific shop
+     *
+     * @param int $idShop Shop ID
+     * @return array Array of product IDs
+     */
+    private function getProductIdsForShop($idShop)
+    {
+        $sql = 'SELECT p.id_product
+                FROM ' . _DB_PREFIX_ . 'product p
+                INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product
+                WHERE ps.id_shop = ' . (int)$idShop;
+
+        $results = \Db::getInstance()->executeS($sql);
+
+        if (!$results) {
+            return [];
+        }
+
+        return array_column($results, 'id_product');
     }
 
     public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr') {
