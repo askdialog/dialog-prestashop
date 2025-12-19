@@ -253,11 +253,10 @@ class DataGenerator{
         $productItem["handle"] = $productData['link_rewrite'];
 
 
-        $taxCalculator = null;
         // Handle product price with tax for the country
+        $taxCalculator = null;
         if($countryCode != null){
             $addressObj = new \Address();
-            // Get Country ID from ISO country code
             $countryObj = new \Country();
             $idCountry = $countryObj::getByIso($countryCode);
             $addressObj->id_state = 0;
@@ -271,65 +270,63 @@ class DataGenerator{
             $type = 'country';
             $taxManager = \TaxManagerFactory::getManager($addressObj, $type);
             $taxCalculator = $taxManager->getTaxCalculator();
-            $productItem["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($productObj->id, true, null, 2, null, false, true));
+            $productItem["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($product_id, true, null, 2, null, false, true));
         }else{
-            $productItem["price"] = \Product::getPriceStatic($productObj->id, true, null, 2, null, false, true);
+            $productItem["price"] = \Product::getPriceStatic($product_id, true, null, 2, null, false, true);
         }
 
-        $productAttributes = \Product::getProductAttributesIds($product_id);
-        $productItem['totalVariants'] = 0;
-        if($productAttributes != null){
-            $productItem['totalVariants'] = count($productAttributes);
-        }
-
-        $combinations = $productObj->getAttributeCombinations($defaultLang, false);
-        $productItem['totalVariants'] = count($combinations);
+        // Use preloaded combinations data
+        $productCombinations = isset($this->combinationsData[$product_id]) ? $this->combinationsData[$product_id] : [];
+        $productItem['totalVariants'] = count($productCombinations);
 
         $variants = [];
-        foreach($productAttributes as $productAttribute) {
-
-            $productAttributeObj = new \Combination((int)$productAttribute);
+        foreach($productCombinations as $combination) {
+            $combinationId = (int)$combination['id_product_attribute'];
             $variant = [];
 
-
-            $images = \Product::_getAttributeImageAssociations($productAttribute["id_product_attribute"]);
-            if(count($images)>0){
-                $image = new \Image((int)$images[0]);
+            // Use preloaded combination images
+            if (isset($this->combinationImagesData[$combinationId]) && !empty($this->combinationImagesData[$combinationId])) {
+                $firstImage = $this->combinationImagesData[$combinationId][0];
                 $variant['image'] = [
-                    "url" => $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image->id)
+                    "url" => $linkObj->getImageLink($productData['link_rewrite'], $firstImage['id_image'])
                 ];
             }
-            /*else{
-                $variant['image'] = null;
-            }*/
-
 
             $variant["metafields"] = [];
 
-            $variant["displayName"] = $productObj->getProductName($productObj->id, $productAttribute["id_product_attribute"], $defaultLang);
-            $variant["title"] = $variant["displayName"];
-            $stockAvailableCombinationObj = new \StockAvailable(\StockAvailable::getStockAvailableIdByProductId($productObj->id, $productAttribute["id_product_attribute"]));
-            $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
-
-            if($taxCalculator != null){
-                $variant["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions
-            }else{
-                $variant["price"] = \Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions
+            // Build display name from attributes
+            $displayNameParts = [$productData['name']];
+            if (isset($this->combinationAttributesData[$combinationId])) {
+                foreach ($this->combinationAttributesData[$combinationId] as $attr) {
+                    $displayNameParts[] = $attr['attribute_name'];
+                }
             }
-            $attributeCombinations = $productObj->getAttributeCombinationsById($productAttribute["id_product_attribute"], $defaultLang);
+            $variant["displayName"] = implode(' - ', $displayNameParts);
+            $variant["title"] = $variant["displayName"];
+            
+            // Use preloaded stock data
+            $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
+            $variant["inventoryQuantity"] = $stock ? (int)$stock['quantity'] : 0;
+
+            // Calculate price with tax if needed
+            if($taxCalculator != null){
+                $variant["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($product_id, true, $combinationId, 2, null, false, true));
+            }else{
+                $variant["price"] = \Product::getPriceStatic($product_id, false, $combinationId, 2, null, false, true);
+            }
+            
+            // Use preloaded attributes for selectedOptions
             $options = [];
-            if (!empty($attributeCombinations)) {
-                foreach ($attributeCombinations as $combination) {
-                    if (isset($combination['group_name']) && isset($combination['attribute_name'])) {
-                        $options[] = [
-                            'name' => $combination['group_name'],
-                            'value' => $combination['attribute_name'],
-                        ];
-                    }
+            if (isset($this->combinationAttributesData[$combinationId])) {
+                foreach ($this->combinationAttributesData[$combinationId] as $attr) {
+                    $options[] = [
+                        'name' => $attr['group_name'],
+                        'value' => $attr['attribute_name'],
+                    ];
                 }
             }
             $variant["selectedOptions"] = $options;
-            $variant["id"] = (int)$productAttribute["id_product_attribute"];
+            $variant["id"] = $combinationId;
             $variants[] = $variant;
         }
 
