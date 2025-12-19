@@ -22,19 +22,7 @@
 
 namespace Dialog\AskDialog\Service;
 
-use Db;
-use Product;
-use Configuration;
-use Link;
-use Category;
-use Image;
-use ProductAttribute;
-use StockAvailable;
-use Address;
-use Country;
-use TaxManagerFactory;
-use Combination;
-
+use Dialog\AskDialog\Helper\PathHelper;
 
 class DataGenerator{
     private $products = [];
@@ -42,8 +30,8 @@ class DataGenerator{
     public function generateCMSData()
     {
         // Retrieve all CMS pages
-        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)Configuration::get('PS_LANG_DEFAULT');
-        $cmsPages = Db::getInstance()->executeS($sql);
+        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)\Configuration::get('PS_LANG_DEFAULT');
+        $cmsPages = \Db::getInstance()->executeS($sql);
 
         $cmsData = [];
         foreach ($cmsPages as $page) {
@@ -53,19 +41,19 @@ class DataGenerator{
             ];
         }
 
-        // Create temp folder if it doesn't exist
-        if (!file_exists(_PS_MODULE_DIR_ . 'askdialog/temp')) {
-            mkdir(_PS_MODULE_DIR_ . 'askdialog/temp', 0777, true);
-        }
-
-        $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/cms.json';
+        // Generate unique hash for filename
+        $hash = md5(date('Y-m-d H:i:s') . rand());
+        $tempFile = PathHelper::getTmpDir() . 'cms_' . $hash . '.json';
+        
         file_put_contents($tempFile, json_encode($cmsData));
+        
+        return $tempFile;
     }
 
     public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr') {
-        $productObj = new Product((int)$product_id);
+        $productObj = new \Product((int)$product_id);
 
-        if (!Validate::isLoadedObject($productObj)) {
+        if (!\Validate::isLoadedObject($productObj)) {
 			return [];
 		}
 
@@ -81,9 +69,9 @@ class DataGenerator{
         $taxCalculator = null;
         // Handle product price with tax for the country
         if($countryCode != null){
-            $addressObj = new Address();
+            $addressObj = new \Address();
             // Get Country ID from ISO country code
-            $countryObj = new Country();
+            $countryObj = new \Country();
             $idCountry = $countryObj::getByIso($countryCode);
             $addressObj->id_state = 0;
             $addressObj->postcode = '';
@@ -94,14 +82,14 @@ class DataGenerator{
             $addressObj->id_address = 0;
             $addressObj->id_country = $idCountry;
             $type = 'country';
-            $taxManager = TaxManagerFactory::getManager($addressObj, $type);
+            $taxManager = \TaxManagerFactory::getManager($addressObj, $type);
             $taxCalculator = $taxManager->getTaxCalculator();
-            $productItem["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, null, 2, null, false, true));
+            $productItem["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($productObj->id, true, null, 2, null, false, true));
         }else{
-            $productItem["price"] = Product::getPriceStatic($productObj->id, true, null, 2, null, false, true);
+            $productItem["price"] = \Product::getPriceStatic($productObj->id, true, null, 2, null, false, true);
         }
 
-        $productAttributes = Product::getProductAttributesIds($product_id);
+        $productAttributes = \Product::getProductAttributesIds($product_id);
         $productItem['totalVariants'] = 0;
         if($productAttributes != null){
             $productItem['totalVariants'] = count($productAttributes);
@@ -113,13 +101,13 @@ class DataGenerator{
         $variants = [];
         foreach($productAttributes as $productAttribute) {
 
-            $productAttributeObj = new Combination((int)$productAttribute);
+            $productAttributeObj = new \Combination((int)$productAttribute);
             $variant = [];
 
 
-            $images = Product::_getAttributeImageAssociations($productAttribute["id_product_attribute"]);
+            $images = \Product::_getAttributeImageAssociations($productAttribute["id_product_attribute"]);
             if(count($images)>0){
-                $image = new Image((int)$images[0]);
+                $image = new \Image((int)$images[0]);
                 $variant['image'] = [
                     "url" => $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image->id)
                 ];
@@ -133,13 +121,13 @@ class DataGenerator{
 
             $variant["displayName"] = $productObj->getProductName($productObj->id, $productAttribute["id_product_attribute"], $defaultLang);
             $variant["title"] = $variant["displayName"];
-            $stockAvailableCombinationObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id, $productAttribute["id_product_attribute"]));
+            $stockAvailableCombinationObj = new \StockAvailable(\StockAvailable::getStockAvailableIdByProductId($productObj->id, $productAttribute["id_product_attribute"]));
             $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
 
             if($taxCalculator != null){
-                $variant["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions
+                $variant["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions
             }else{
-                $variant["price"] = Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions
+                $variant["price"] = \Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions
             }
             $attributeCombinations = $productObj->getAttributeCombinationsById($productAttribute["id_product_attribute"], $defaultLang);
             $options = [];
@@ -175,7 +163,7 @@ class DataGenerator{
             $images[] = ['url'=>$linkImage];
         }
         $productItem["images"] = $images;
-        $stockAvailableObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id));
+        $stockAvailableObj = new \StockAvailable(\StockAvailable::getStockAvailableIdByProductId($productObj->id));
         $productItem["totalInventory"] = (int)$stockAvailableObj->quantity;
         $productItem["status"] = $productObj->active?"ACTIVE":"NOT ACTIVE";
 
@@ -183,7 +171,7 @@ class DataGenerator{
         $categoryItems = [];
 
         foreach ($categories as $categoryId) {
-            $category = new Category($categoryId, $defaultLang);
+            $category = new \Category($categoryId, $defaultLang);
 
             if ($category->description !== null && $category->name !== null) {
                 $categoryItems[] = [
@@ -220,9 +208,9 @@ class DataGenerator{
     public function getCatalogDataForBatch($batchSize, $idShop)
     {
         // Retrieve product IDs to process from askdialog_product table
-        $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . $idShop . ' LIMIT ' . $batchSize);
-        $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
-        $linkObj = new Link();
+        $products = \Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . $idShop . ' LIMIT ' . $batchSize);
+        $defaultLang = (int) \Configuration::get('PS_LANG_DEFAULT');
+        $linkObj = new \Link();
         foreach($products as $product){
             if (!empty($productData = $this->getProductData($product['id_product'], $defaultLang, $linkObj))) {
 		        $this->products[] = $productData;
@@ -233,15 +221,15 @@ class DataGenerator{
 
     public function getNumCatalogRemaining($idShop)
     {
-        $totalProducts = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)$idShop);
+        $totalProducts = \Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)$idShop);
         return count($totalProducts);
     }
 
     public function getCatalogData(){
-        $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'product');
-        $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
+        $products = \Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'product');
+        $defaultLang = (int) \Configuration::get('PS_LANG_DEFAULT');
 
-        $linkObj = new Link();
+        $linkObj = new \Link();
         foreach($products as $product){
             if (!empty($productData = $this->getProductData($product['id_product'], $defaultLang, $linkObj))) {
                 $this->products[] = $productData;
@@ -252,7 +240,7 @@ class DataGenerator{
     }
 
     public function getLanguageData(){
-        $languages = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'lang');
+        $languages = \Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'lang');
         $languagesData = [];
         foreach($languages as $language){
             $languagesData[] = [
