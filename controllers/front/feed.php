@@ -76,7 +76,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         // Build form fields
         $formFields = $fields;
-        $formFields['file'] = DataPart::fromPath($tempFile, $filename);
+        
+        // Add explicit Content-Type field for S3 policy validation
+        $formFields['Content-Type'] = 'application/json';
+        
+        // Add file with application/json Content-Type
+        $formFields['file'] = DataPart::fromPath($tempFile, $filename, 'application/json');
 
         // Create multipart form
         $formData = new FormDataPart($formFields);
