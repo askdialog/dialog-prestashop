@@ -99,7 +99,9 @@ class DataGenerator{
         // Generate unique file path
         $tmpFile = PathHelper::generateTmpFilePath('cms');
 
-        file_put_contents($tmpFile, json_encode($cmsData));
+        // JSON optimized for LLM: unescaped unicode/slashes, pretty print for readability
+        $jsonData = json_encode($cmsData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        file_put_contents($tmpFile, $jsonData);
 
         return $tmpFile;
     }
@@ -207,7 +209,9 @@ class DataGenerator{
         // Generate unique file path
         $tmpFile = PathHelper::generateTmpFilePath('catalog');
 
-        file_put_contents($tmpFile, json_encode($catalogData));
+        // JSON optimized for LLM: unescaped unicode/slashes, pretty print for readability
+        $jsonData = json_encode($catalogData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        file_put_contents($tmpFile, $jsonData);
 
         return $tmpFile;
     }
