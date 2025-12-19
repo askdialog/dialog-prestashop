@@ -181,8 +181,8 @@ class DataGenerator{
      */
     public function generateCatalogData($idShop, $idLang, $countryCode = 'fr')
     {
-        // Get all product IDs for current shop
-        $productIds = $this->getProductIdsForShop($idShop);
+        // Get all product IDs for current shop using Repository
+        $productIds = $this->productRepository->getProductIdsByShop($idShop);
 
         if (empty($productIds)) {
             throw new \Exception('No products found for shop ID ' . $idShop);
@@ -215,28 +215,6 @@ class DataGenerator{
         file_put_contents($tempFile, json_encode($catalogData));
 
         return $tempFile;
-    }
-
-    /**
-     * Get all product IDs for a specific shop
-     *
-     * @param int $idShop Shop ID
-     * @return array Array of product IDs
-     */
-    private function getProductIdsForShop($idShop)
-    {
-        $sql = 'SELECT p.id_product
-                FROM ' . _DB_PREFIX_ . 'product p
-                INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product
-                WHERE ps.id_shop = ' . (int)$idShop;
-
-        $results = \Db::getInstance()->executeS($sql);
-
-        if (!$results) {
-            return [];
-        }
-
-        return array_column($results, 'id_product');
     }
 
     public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr') {
