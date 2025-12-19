@@ -30,10 +30,11 @@ use Dialog\AskDialog\Repository\StockRepository;
 use Dialog\AskDialog\Repository\CategoryRepository;
 use Dialog\AskDialog\Repository\TagRepository;
 use Dialog\AskDialog\Repository\FeatureRepository;
+use Dialog\AskDialog\Repository\LanguageRepository;
 
 class DataGenerator{
     private $products = [];
-    
+
     // Repositories
     private $productRepository;
     private $combinationRepository;
@@ -42,7 +43,8 @@ class DataGenerator{
     private $categoryRepository;
     private $tagRepository;
     private $featureRepository;
-    
+    private $languageRepository;
+
     // Preloaded data (indexed for O(1) lookup)
     private $productsData = [];
     private $combinationsData = [];
@@ -55,7 +57,7 @@ class DataGenerator{
     private $categoriesData = [];
     private $productTagsData = [];
     private $productFeaturesData = [];
-    
+
     public function __construct()
     {
         $this->productRepository = new ProductRepository();
@@ -65,6 +67,7 @@ class DataGenerator{
         $this->categoryRepository = new CategoryRepository();
         $this->tagRepository = new TagRepository();
         $this->featureRepository = new FeatureRepository();
+        $this->languageRepository = new LanguageRepository();
     }
 
     /**
@@ -96,9 +99,9 @@ class DataGenerator{
         $hash = substr(md5($timestamp . rand()), 0, 8);
         $filename = 'cms_' . $timestamp . '_' . $hash . '.json';
         $tempFile = PathHelper::getTmpDir() . $filename;
-        
+
         file_put_contents($tempFile, json_encode($cmsData));
-        
+
         return $tempFile;
     }
 
@@ -122,17 +125,17 @@ class DataGenerator{
 
         // 2. Load combinations (1 query)
         $this->combinationsData = $this->combinationRepository->findByProductIds($productIds);
-        
+
         // Get all combination IDs for next queries
         $combinationIds = $this->combinationRepository->getCombinationIdsByProductIds($productIds);
-        
+
         if (!empty($combinationIds)) {
             // 3. Load combination attributes (1 query)
             $this->combinationAttributesData = $this->combinationRepository->findAttributesByCombinationIds($combinationIds, $idLang);
-            
+
             // 4. Load combination images (1 query)
             $this->combinationImagesData = $this->imageRepository->findByCombinationIds($combinationIds);
-            
+
             // 5. Load combination stock (1 query)
             $this->combinationStockData = $this->stockRepository->findByCombinationIds($combinationIds, $idShop);
         }
@@ -145,7 +148,7 @@ class DataGenerator{
 
         // 8. Load product-category relations (1 query)
         $this->productCategoriesData = $this->categoryRepository->findCategoryIdsByProductIds($productIds);
-        
+
         // Get all unique category IDs and load category details
         $categoryIds = [];
         foreach ($this->productCategoriesData as $categories) {
@@ -154,7 +157,7 @@ class DataGenerator{
             }
         }
         $categoryIds = array_unique($categoryIds);
-        
+
         if (!empty($categoryIds)) {
             // 9. Load categories (1 query)
             $this->categoriesData = $this->categoryRepository->findByIds($categoryIds, $idLang, $idShop);
@@ -208,9 +211,9 @@ class DataGenerator{
         $hash = substr(md5($timestamp . rand()), 0, 8);
         $filename = 'catalog_' . $timestamp . '_' . $hash . '.json';
         $tempFile = PathHelper::getTmpDir() . $filename;
-        
+
         file_put_contents($tempFile, json_encode($catalogData));
-        
+
         return $tempFile;
     }
 
@@ -243,7 +246,7 @@ class DataGenerator{
         }
 
         $productData = $this->productsData[$product_id];
-        
+
         $productItem = [];
         $publishedAt = (new \DateTime($productData['date_add']))->format('Y-m-d\TH:i:s\Z');
         $productItem["publishedAt"] = $publishedAt;
@@ -301,14 +304,14 @@ class DataGenerator{
                     $displayNameParts[] = $attr['group_name'] . ' - ' . $attr['attribute_name'];
                 }
             }
-            
+
             if (!empty($displayNameParts)) {
                 $variant["displayName"] = $productData['name'] . ' : ' . implode(', ', $displayNameParts);
             } else {
                 $variant["displayName"] = $productData['name'];
             }
             $variant["title"] = $variant["displayName"];
-            
+
             // Use preloaded stock data
             $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
             $variant["inventoryQuantity"] = $stock ? (int)$stock['quantity'] : 0;
@@ -319,7 +322,7 @@ class DataGenerator{
             }else{
                 $variant["price"] = \Product::getPriceStatic($product_id, false, $combinationId, 2, null, false, true);
             }
-            
+
             // Use preloaded attributes for selectedOptions
             $options = [];
             if (isset($this->combinationAttributesData[$combinationId])) {
@@ -350,7 +353,7 @@ class DataGenerator{
             $images[] = ['url'=>$linkImage];
         }
         $productItem["images"] = $images;
-        
+
         // Use preloaded product stock
         $stock = isset($this->productStockData[$product_id]) ? $this->productStockData[$product_id] : null;
         $productItem["totalInventory"] = $stock ? (int)$stock['quantity'] : 0;
@@ -371,7 +374,7 @@ class DataGenerator{
             }
         }
         $productItem["categories"] = $categoryItems;
-        
+
         // Use preloaded tags
         $productItem["tags"] = [];
         if (isset($this->productTagsData[$product_id])) {
@@ -390,7 +393,7 @@ class DataGenerator{
                 ];
             }
         }
-        
+
         if($productItem['totalVariants']>0){
             $productItem["hasOnlyDefaultVariant"] = 0;
         }else{
@@ -408,14 +411,14 @@ class DataGenerator{
     public function getCatalogData(){
         $defaultLang = (int) \Configuration::get('PS_LANG_DEFAULT');
         $idShop = (int)\Context::getContext()->shop->id;
-        
+
         // Get all product IDs for the shop using Repository
         $productIds = $this->productRepository->getProductIdsByShop($idShop);
-        
+
         if (empty($productIds)) {
             return [];
         }
-        
+
         // Bulk load all data upfront (crucial for performance and data availability)
         $this->bulkLoadData($productIds, $defaultLang, $idShop);
 
@@ -428,8 +431,13 @@ class DataGenerator{
         return $this->products;
     }
 
+    /**
+     * Get language data for all languages
+     *
+     * @return array Array of language data formatted for Dialog AI
+     */
     public function getLanguageData(){
-        $languages = \Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'lang');
+        $languages = $this->languageRepository->findAll();
         $languagesData = [];
         foreach($languages as $language){
             $languagesData[] = [
@@ -441,6 +449,4 @@ class DataGenerator{
         }
         return $languagesData;
     }
-
-
 }
