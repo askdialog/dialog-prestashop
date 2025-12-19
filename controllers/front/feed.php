@@ -76,10 +76,10 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         // Build form fields
         $formFields = $fields;
-        
+
         // Add explicit Content-Type field for S3 policy validation
         $formFields['Content-Type'] = 'application/json';
-        
+
         // Add file with application/json Content-Type
         $formFields['file'] = DataPart::fromPath($tempFile, $filename, 'application/json');
 
@@ -186,6 +186,10 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 // Move files to sent folder
                 rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
                 rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
+
+                // Clean up old files after successful export
+                PathHelper::cleanTmpFiles(86400);
+                PathHelper::cleanSentFilesKeepRecent(20);
 
                 $this->sendJsonResponse([
                     'status' => 'success',
