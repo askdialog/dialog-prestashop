@@ -128,4 +128,31 @@ class PathHelper
             return false;
         }
     }
+
+    /**
+     * Generates a unique filename with timestamp and hash
+     *
+     * @param string $prefix Filename prefix (e.g., 'catalog', 'cms')
+     * @param string $extension File extension (default: 'json')
+     * @return string Generated filename (e.g., 'catalog_20250119_143025_a1b2c3d4.json')
+     */
+    public static function generateUniqueFilename(string $prefix, string $extension = 'json'): string
+    {
+        $timestamp = date('Ymd_His');
+        $hash = substr(md5($timestamp . rand()), 0, 8);
+        return $prefix . '_' . $timestamp . '_' . $hash . '.' . $extension;
+    }
+
+    /**
+     * Generates a unique file path in the temporary directory
+     *
+     * @param string $prefix Filename prefix (e.g., 'catalog', 'cms')
+     * @param string $extension File extension (default: 'json')
+     * @return string Full path to the file in tmp directory
+     */
+    public static function generateTmpFilePath(string $prefix, string $extension = 'json'): string
+    {
+        $filename = self::generateUniqueFilename($prefix, $extension);
+        return self::getTmpDir() . $filename;
+    }
 }

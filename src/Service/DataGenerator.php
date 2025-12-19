@@ -96,15 +96,12 @@ class DataGenerator{
             ];
         }
 
-        // Generate filename with timestamp and unique hash
-        $timestamp = date('Ymd_His');
-        $hash = substr(md5($timestamp . rand()), 0, 8);
-        $filename = 'cms_' . $timestamp . '_' . $hash . '.json';
-        $tempFile = PathHelper::getTmpDir() . $filename;
+        // Generate unique file path
+        $tmpFile = PathHelper::generateTmpFilePath('cms');
 
-        file_put_contents($tempFile, json_encode($cmsData));
+        file_put_contents($tmpFile, json_encode($cmsData));
 
-        return $tempFile;
+        return $tmpFile;
     }
 
     /**
@@ -207,15 +204,12 @@ class DataGenerator{
             throw new \Exception('No valid product data generated');
         }
 
-        // Generate filename with timestamp and unique hash
-        $timestamp = date('Ymd_His');
-        $hash = substr(md5($timestamp . rand()), 0, 8);
-        $filename = 'catalog_' . $timestamp . '_' . $hash . '.json';
-        $tempFile = PathHelper::getTmpDir() . $filename;
+        // Generate unique file path
+        $tmpFile = PathHelper::generateTmpFilePath('catalog');
 
-        file_put_contents($tempFile, json_encode($catalogData));
+        file_put_contents($tmpFile, json_encode($catalogData));
 
-        return $tempFile;
+        return $tmpFile;
     }
 
     public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr') {
