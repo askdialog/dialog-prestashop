@@ -44,4 +44,31 @@ trait JsonResponseTrait
         echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
     }
+
+    /**
+     * Sends a JSON response without terminating script execution
+     * Useful for async operations where processing continues after response is sent
+     *
+     * @param array $data Response data
+     * @param int $statusCode HTTP status code (default: 200)
+     * @return void
+     */
+    protected function sendJsonResponseAsync($data, $statusCode = 200)
+    {
+        http_response_code($statusCode);
+        header('Content-Type: application/json');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        // Flush output buffers to send response immediately
+        if (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        flush();
+
+        // Immediate response if PHP-FPM is available
+        // Falls back gracefully on non-FPM environments (mod_php, CGI)
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        }
+    }
 }

@@ -121,6 +121,14 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      */
     private function handleCatalogExport($dataGenerator)
     {
+        // Send immediate async response to Dialog API (HTTP 202 Accepted)
+        // Response sent immediately, then processing continues in background
+        $this->sendJsonResponseAsync([
+            'status' => 'accepted',
+            'message' => 'Export started'
+        ], 202);
+
+        // Process export asynchronously (client already received 202)
         try {
             $idShop = (int)$this->context->shop->id;
             $idLang = (int)$this->context->language->id;
@@ -135,11 +143,26 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             // Upload both files to S3
             $this->uploadToS3($catalogFile, $cmsFile);
 
+            // Log success (no HTTP response needed - client already received 202)
+            \PrestaShopLogger::addLog(
+                'AskDialog catalog export completed successfully',
+                1, // Info level
+                null,
+                'AskDialog',
+                null,
+                true
+            );
+
         } catch (Exception $e) {
-            $this->sendJsonResponse([
-                'status' => 'error',
-                'message' => 'Exception while exporting data: ' . $e->getMessage()
-            ], 500);
+            // Log error since client already received 202 response
+            \PrestaShopLogger::addLog(
+                'AskDialog catalog export failed: ' . $e->getMessage(),
+                3, // Error level
+                null,
+                'AskDialog',
+                null,
+                true
+            );
         }
     }
 
@@ -190,11 +213,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 // Clean up old files after successful export
                 PathHelper::cleanTmpFiles(86400);
                 PathHelper::cleanSentFilesKeepRecent(20);
-
-                $this->sendJsonResponse([
-                    'status' => 'success',
-                    'message' => 'Catalog and Pages data sent successfully'
-                ]);
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }
