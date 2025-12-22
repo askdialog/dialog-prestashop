@@ -77,6 +77,10 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
                 $this->handleGetProductData($dataGenerator);
                 break;
 
+            case 'getCategoryData':
+                $this->handleGetCategoryData($dataGenerator);
+                break;
+
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
@@ -149,5 +153,17 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
         $productData = $dataGenerator->getProductData($productId, $idLang, $linkObj, $countryCode);
 
         $this->sendJsonResponse($productData);
+    }
+
+    /**
+     * Handles getCategoryData action
+     * Returns category tree with multilingual data
+     *
+     * @param DataGenerator $dataGenerator
+     */
+    private function handleGetCategoryData($dataGenerator)
+    {
+        $categoryData = $dataGenerator->getCategoryData();
+        $this->sendJsonResponse($categoryData);
     }
 }
