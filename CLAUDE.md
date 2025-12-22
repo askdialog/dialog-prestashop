@@ -16,7 +16,10 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - Manages export queue via `askdialog_product` table
 
 **Key Files:**
-- `src/Service/DataGenerator.php`: Generates JSON data for products and CMS pages
+- `src/Service/DataGenerator.php`: Orchestrator - delegates to export services
+- `src/Service/Export/ProductExportService.php`: Product catalog export logic
+- `src/Service/Export/CmsExportService.php`: CMS pages export logic
+- `src/Service/Export/CategoryExportService.php`: Category tree export logic
 - `src/Service/AskDialogClient.php`: Handles API communication with Dialog platform
 - `controllers/front/feed.php`: Export endpoint (private API key protected)
 
@@ -76,6 +79,27 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `displayOrderConfirmation`: PostHog analytics on order confirmation
 
 ## Refactoring History
+
+### Category Export + DataGenerator Refactoring (2025-12-22)
+
+**Changes:**
+- ✅ Added category tree export (nested JSON structure for LLM)
+- ✅ Split DataGenerator into specialized export services (SRP pattern)
+- ✅ Created `src/Service/Export/` directory with 3 services
+- ✅ DataGenerator reduced from 526 → 150 lines (orchestrator pattern)
+- ✅ Fixed `getProductData` API endpoint (id_product parameter)
+
+**Architecture:**
+```
+src/Service/
+├── DataGenerator.php (orchestrator - 150 lines)
+└── Export/
+    ├── ProductExportService.php (470 lines)
+    ├── CmsExportService.php (100 lines)
+    └── CategoryExportService.php (140 lines)
+```
+
+**Benefits:** Better maintainability, testability, and single responsibility per service
 
 ### DataGenerator Optimization (2025-12-19)
 **Pre-refactoring version:** `d61c6f8e6e360181616bfdae8aa09a809384cfdf`
