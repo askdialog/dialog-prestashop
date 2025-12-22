@@ -124,7 +124,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
      */
     private function handleGetProductData($dataGenerator)
     {
-        $productId = (int)Tools::getValue('id');
+        $productId = (int)Tools::getValue('id_product');
 
         // Use context language and country by default
         $idLang = (int)$this->context->language->id;
