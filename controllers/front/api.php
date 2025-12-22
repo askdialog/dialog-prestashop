@@ -25,7 +25,7 @@ use Dialog\AskDialog\Trait\JsonResponseTrait;
 
 /**
  * Class AskDialogApiModuleFrontController
- * 
+ *
  * Public API endpoints for Dialog AI platform
  * Provides product catalog and language data
  */
@@ -39,20 +39,20 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
     public function initContent()
     {
         parent::initContent();
-        
+
         $headers = getallheaders();
-        
+
         // Check Authorization header format
         if (!isset($headers['Authorization']) || substr($headers['Authorization'], 0, 6) !== 'Token ') {
             $this->sendJsonResponse(['error' => 'Public API Token is missing'], 401);
         }
-        
+
         // Validate public API key
         $expectedToken = 'Token ' . Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
         if ($headers['Authorization'] !== $expectedToken) {
             $this->sendJsonResponse(['error' => 'Public API Token is wrong'], 403);
         }
-        
+
         $this->ajax = true;
     }
 
@@ -68,15 +68,15 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
             case 'getCatalogData':
                 $this->handleGetCatalogData($dataGenerator);
                 break;
-                
+
             case 'getLanguageData':
                 $this->handleGetLanguageData($dataGenerator);
                 break;
-                
+
             case 'getProductData':
                 $this->handleGetProductData($dataGenerator);
                 break;
-                
+
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
@@ -112,7 +112,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
     /**
      * Handles getProductData action
      * Returns single product data with language and country context
-     * 
+     *
      * Uses current context (language/country) by default
      * Can be overridden with country_code and locale parameters
      *
@@ -121,33 +121,33 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
     private function handleGetProductData($dataGenerator)
     {
         $productId = (int)Tools::getValue('id');
-        
+
         // Use context language and country by default
         $idLang = (int)$this->context->language->id;
         $countryCode = $this->context->country->iso_code;
-        
+
         // Allow override via parameters (for Dialog AI API calls)
         $paramLocale = Tools::getValue('locale');
         $paramCountryCode = Tools::getValue('country_code');
-        
+
         if (!empty($paramCountryCode) && !empty($paramLocale)) {
             // Override with API parameters if provided
             $idLang = Language::getIdByLocale($paramCountryCode . '-' . $paramLocale);
-            
+
             if (!$idLang) {
                 $this->sendJsonResponse([
                     'status' => 'error',
                     'message' => 'Invalid country code or locale: ' . $paramCountryCode . '-' . $paramLocale
                 ], 400);
             }
-            
+
             $countryCode = $paramCountryCode;
         }
-        
+
         // Get product data
         $linkObj = new Link();
         $productData = $dataGenerator->getProductData($productId, $idLang, $linkObj, $countryCode);
-        
+
         $this->sendJsonResponse($productData);
     }
 }

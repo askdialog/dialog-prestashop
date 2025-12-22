@@ -22,28 +22,71 @@
 
 namespace Dialog\AskDialog\Service;
 
-use Db;
-use Product;
-use Configuration;
-use Link;
-use Category;
-use Image;
-use ProductAttribute;
-use StockAvailable;
-use Address;
-use Country;
-use TaxManagerFactory;
-use Combination;
-
+use Dialog\AskDialog\Helper\PathHelper;
+use Dialog\AskDialog\Repository\ProductRepository;
+use Dialog\AskDialog\Repository\CombinationRepository;
+use Dialog\AskDialog\Repository\ImageRepository;
+use Dialog\AskDialog\Repository\StockRepository;
+use Dialog\AskDialog\Repository\CategoryRepository;
+use Dialog\AskDialog\Repository\TagRepository;
+use Dialog\AskDialog\Repository\FeatureRepository;
+use Dialog\AskDialog\Repository\LanguageRepository;
+use Dialog\AskDialog\Repository\CmsRepository;
 
 class DataGenerator{
     private $products = [];
 
-    public function generateCMSData()
+    // Repositories
+    private $productRepository;
+    private $combinationRepository;
+    private $imageRepository;
+    private $stockRepository;
+    private $categoryRepository;
+    private $tagRepository;
+    private $featureRepository;
+    private $languageRepository;
+    private $cmsRepository;
+
+    // Preloaded data (indexed for O(1) lookup)
+    private $productsData = [];
+    private $combinationsData = [];
+    private $combinationAttributesData = [];
+    private $productImagesData = [];
+    private $combinationImagesData = [];
+    private $productStockData = [];
+    private $combinationStockData = [];
+    private $productCategoriesData = [];
+    private $categoriesData = [];
+    private $productTagsData = [];
+    private $productFeaturesData = [];
+
+    public function __construct()
     {
+        $this->productRepository = new ProductRepository();
+        $this->combinationRepository = new CombinationRepository();
+        $this->imageRepository = new ImageRepository();
+        $this->stockRepository = new StockRepository();
+        $this->categoryRepository = new CategoryRepository();
+        $this->tagRepository = new TagRepository();
+        $this->featureRepository = new FeatureRepository();
+        $this->languageRepository = new LanguageRepository();
+        $this->cmsRepository = new CmsRepository();
+    }
+
+    /**
+     * Generates CMS pages data and saves to JSON file
+     *
+     * @param int $idLang Language ID (default: shop default language)
+     * @return string Path to generated JSON file
+     */
+    public function generateCMSData($idLang = null)
+    {
+        if ($idLang === null) {
+            $idLang = (int)\Configuration::get('PS_LANG_DEFAULT');
+        }
+
         // Retrieve all CMS pages
-        $sql = 'SELECT * FROM ' . _DB_PREFIX_ . 'cms_lang WHERE id_lang = ' . (int)Configuration::get('PS_LANG_DEFAULT');
-        $cmsPages = Db::getInstance()->executeS($sql);
+        $cmsPages = $this->cmsRepository->findByLanguage($idLang);
 
         $cmsData = [];
         foreach ($cmsPages as $page) {
@@ -53,37 +96,147 @@ class DataGenerator{
             ];
         }
 
-        // Create temp folder if it doesn't exist
-        if (!file_exists(_PS_MODULE_DIR_ . 'askdialog/temp')) {
-            mkdir(_PS_MODULE_DIR_ . 'askdialog/temp', 0777, true);
+        // Generate unique file path
+        $tmpFile = PathHelper::generateTmpFilePath('cms');
+
+        // JSON optimized for LLM: unescaped unicode/slashes, pretty print for readability
+        $jsonData = json_encode($cmsData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        file_put_contents($tmpFile, $jsonData);
+
+        return $tmpFile;
+    }
+
+    /**
+     * Bulk load all data for multiple products
+     *
+     * @param array $productIds Array of product IDs
+     * @param int $idLang Language ID
+     * @param int $idShop Shop ID
+     * @return void
+     */
+    private function bulkLoadData(array $productIds, $idLang, $idShop)
+    {
+        if (empty($productIds)) {
+            return;
         }
 
-        $tempFile = _PS_MODULE_DIR_ . 'askdialog/temp/cms.json';
-        file_put_contents($tempFile, json_encode($cmsData));
+        // 1. Load products with multilingual data
+        $this->productsData = $this->productRepository->findByIdsWithLang($productIds, $idLang, $idShop);
+
+        // 2. Load combinations
+        $this->combinationsData = $this->combinationRepository->findByProductIds($productIds);
+
+        // Get all combination IDs for next queries
+        $combinationIds = $this->combinationRepository->getCombinationIdsByProductIds($productIds);
+
+        if (!empty($combinationIds)) {
+            // 3. Load combination attributes
+            $this->combinationAttributesData = $this->combinationRepository->findAttributesByCombinationIds($combinationIds, $idLang);
+
+            // 4. Load combination images
+            $this->combinationImagesData = $this->imageRepository->findByCombinationIds($combinationIds);
+
+            // 5. Load combination stock
+            $this->combinationStockData = $this->stockRepository->findByCombinationIds($combinationIds, $idShop);
+        }
+
+        // 6. Load product images
+        $this->productImagesData = $this->imageRepository->findByProductIds($productIds, $idShop);
+
+        // 7. Load product stock
+        $this->productStockData = $this->stockRepository->findByProductIds($productIds, $idShop);
+
+        // 8. Load product-category relations
+        $this->productCategoriesData = $this->categoryRepository->findCategoryIdsByProductIds($productIds);
+
+        // Get all unique category IDs and load category details
+        $categoryIds = [];
+        foreach ($this->productCategoriesData as $categories) {
+            foreach ($categories as $cat) {
+                $categoryIds[] = $cat['id_category'];
+            }
+        }
+        $categoryIds = array_unique($categoryIds);
+
+        if (!empty($categoryIds)) {
+            // 9. Load categories
+            $this->categoriesData = $this->categoryRepository->findByIds($categoryIds, $idLang, $idShop);
+        }
+
+        // 10. Load tags
+        $this->productTagsData = $this->tagRepository->findByProductIds($productIds, $idLang);
+
+        // 11. Load features
+        $this->productFeaturesData = $this->featureRepository->findByProductIds($productIds, $idLang);
+    }
+
+    /**
+     * Generates catalog data and saves to JSON file
+     *
+     * @param int $idShop Shop ID
+     * @param int $idLang Language ID
+     * @param string $countryCode Country ISO code for tax calculation
+     * @return string Path to generated JSON file
+     * @throws \Exception If no products found or data generation fails
+     */
+    public function generateCatalogData($idShop, $idLang, $countryCode = 'fr')
+    {
+        // Get all product IDs for current shop using Repository
+        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+
+        if (empty($productIds)) {
+            throw new \Exception('No products found for shop ID ' . $idShop);
+        }
+
+        $this->bulkLoadData($productIds, $idLang, $idShop);
+
+        // Generate catalog data, uses preloaded data
+        $catalogData = [];
+        $linkObj = new \Link();
+
+        foreach ($productIds as $productId) {
+            $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
+            if (!empty($productData)) {
+                $catalogData[] = $productData;
+            }
+        }
+
+        if (empty($catalogData)) {
+            throw new \Exception('No valid product data generated');
+        }
+
+        // Generate unique file path
+        $tmpFile = PathHelper::generateTmpFilePath('catalog');
+
+        // JSON optimized for LLM: unescaped unicode/slashes, pretty print for readability
+        $jsonData = json_encode($catalogData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        file_put_contents($tmpFile, $jsonData);
+
+        return $tmpFile;
     }
 
     public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr') {
-        $productObj = new Product((int)$product_id);
+        // Use preloaded data instead of loading Product object
+        if (!isset($this->productsData[$product_id])) {
+            return [];
+        }
 
-        if (!Validate::isLoadedObject($productObj)) {
-			return [];
-		}
+        $productData = $this->productsData[$product_id];
 
         $productItem = [];
-        $publishedAt = (new \DateTime($productObj->date_add))->format('Y-m-d\TH:i:s\Z');
+        $publishedAt = (new \DateTime($productData['date_add']))->format('Y-m-d\TH:i:s\Z');
         $productItem["publishedAt"] = $publishedAt;
-        $productItem["modifiedDescription"] = $productObj->description_short[$defaultLang];
-        $productItem["description"] = $productObj->description[$defaultLang];
-        $productItem["title"] = $productObj->name[$defaultLang];
-        $productItem["handle"] = $productObj->link_rewrite[$defaultLang];
+        $productItem["modifiedDescription"] = $productData['description_short'];
+        $productItem["description"] = $productData['description'];
+        $productItem["title"] = $productData['name'];
+        $productItem["handle"] = $productData['link_rewrite'];
 
 
-        $taxCalculator = null;
         // Handle product price with tax for the country
+        $taxCalculator = null;
         if($countryCode != null){
-            $addressObj = new Address();
-            // Get Country ID from ISO country code
-            $countryObj = new Country();
+            $addressObj = new \Address();
+            $countryObj = new \Country();
             $idCountry = $countryObj::getByIso($countryCode);
             $addressObj->id_state = 0;
             $addressObj->postcode = '';
@@ -94,80 +247,81 @@ class DataGenerator{
             $addressObj->id_address = 0;
             $addressObj->id_country = $idCountry;
             $type = 'country';
-            $taxManager = TaxManagerFactory::getManager($addressObj, $type);
+            $taxManager = \TaxManagerFactory::getManager($addressObj, $type);
             $taxCalculator = $taxManager->getTaxCalculator();
-            $productItem["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, null, 2, null, false, true));
+            $productItem["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($product_id, true, null, 2, null, false, true));
         }else{
-            $productItem["price"] = Product::getPriceStatic($productObj->id, true, null, 2, null, false, true);
+            $productItem["price"] = \Product::getPriceStatic($product_id, true, null, 2, null, false, true);
         }
 
-        $productAttributes = Product::getProductAttributesIds($product_id);
-        $productItem['totalVariants'] = 0;
-        if($productAttributes != null){
-            $productItem['totalVariants'] = count($productAttributes);
-        }
-
-        $combinations = $productObj->getAttributeCombinations($defaultLang, false);
-        $productItem['totalVariants'] = count($combinations);
+        // Use preloaded combinations data
+        $productCombinations = isset($this->combinationsData[$product_id]) ? $this->combinationsData[$product_id] : [];
+        $productItem['totalVariants'] = count($productCombinations);
 
         $variants = [];
-        foreach($productAttributes as $productAttribute) {
-
-            $productAttributeObj = new Combination((int)$productAttribute);
+        foreach($productCombinations as $combination) {
+            $combinationId = (int)$combination['id_product_attribute'];
             $variant = [];
 
-
-            $images = Product::_getAttributeImageAssociations($productAttribute["id_product_attribute"]);
-            if(count($images)>0){
-                $image = new Image((int)$images[0]);
+            // Use preloaded combination images
+            if (isset($this->combinationImagesData[$combinationId]) && !empty($this->combinationImagesData[$combinationId])) {
+                $firstImage = $this->combinationImagesData[$combinationId][0];
                 $variant['image'] = [
-                    "url" => $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image->id)
+                    "url" => $linkObj->getImageLink($productData['link_rewrite'], $firstImage['id_image'])
                 ];
             }
-            /*else{
-                $variant['image'] = null;
-            }*/
-
 
             $variant["metafields"] = [];
 
-            $variant["displayName"] = $productObj->getProductName($productObj->id, $productAttribute["id_product_attribute"], $defaultLang);
-            $variant["title"] = $variant["displayName"];
-            $stockAvailableCombinationObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id, $productAttribute["id_product_attribute"]));
-            $variant["inventoryQuantity"] = (int)$stockAvailableCombinationObj->quantity;
-
-            if($taxCalculator != null){
-                $variant["price"] = $taxCalculator->addTaxes(Product::getPriceStatic($productObj->id, true, $productAttribute['id_product_attribute'], 2, null, false, true)); // With reductions
-            }else{
-                $variant["price"] = Product::getPriceStatic($productObj->id, false, $productAttribute['id_product_attribute'], 2, null, false, true); // With reductions
+            // Build display name from attributes with group names
+            $displayNameParts = [];
+            if (isset($this->combinationAttributesData[$combinationId])) {
+                foreach ($this->combinationAttributesData[$combinationId] as $attr) {
+                    $displayNameParts[] = $attr['group_name'] . ' - ' . $attr['attribute_name'];
+                }
             }
-            $attributeCombinations = $productObj->getAttributeCombinationsById($productAttribute["id_product_attribute"], $defaultLang);
+
+            if (!empty($displayNameParts)) {
+                $variant["displayName"] = $productData['name'] . ' : ' . implode(', ', $displayNameParts);
+            } else {
+                $variant["displayName"] = $productData['name'];
+            }
+            $variant["title"] = $variant["displayName"];
+
+            // Use preloaded stock data
+            $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
+            $variant["inventoryQuantity"] = $stock ? (int)$stock['quantity'] : 0;
+
+            // Calculate price with tax if needed
+            if($taxCalculator != null){
+                $variant["price"] = $taxCalculator->addTaxes(\Product::getPriceStatic($product_id, true, $combinationId, 2, null, false, true));
+            }else{
+                $variant["price"] = \Product::getPriceStatic($product_id, false, $combinationId, 2, null, false, true);
+            }
+
+            // Use preloaded attributes for selectedOptions
             $options = [];
-            if (!empty($attributeCombinations)) {
-                foreach ($attributeCombinations as $combination) {
-                    if (isset($combination['group_name']) && isset($combination['attribute_name'])) {
-                        $options[] = [
-                            'name' => $combination['group_name'],
-                            'value' => $combination['attribute_name'],
-                        ];
-                    }
+            if (isset($this->combinationAttributesData[$combinationId])) {
+                foreach ($this->combinationAttributesData[$combinationId] as $attr) {
+                    $options[] = [
+                        'name' => $attr['group_name'],
+                        'value' => $attr['attribute_name'],
+                    ];
                 }
             }
             $variant["selectedOptions"] = $options;
-            $variant["id"] = (int)$productAttribute["id_product_attribute"];
+            $variant["id"] = $combinationId;
             $variants[] = $variant;
         }
 
         $productItem['variants'] = $variants;
 
+        // Use preloaded product images
         $images = [];
-        $productImages = $productObj->getImages($defaultLang);
-
-        $featuredImage = null;
+        $productImages = isset($this->productImagesData[$product_id]) ? $this->productImagesData[$product_id] : [];
 
         foreach ($productImages as $image) {
-            // Get image URL
-            $linkImage = $linkObj->getImageLink($productObj->link_rewrite[$defaultLang], $image['id_image'], 'large_default');
+            $linkImage = $linkObj->getImageLink($productData['link_rewrite'], $image['id_image'], 'large_default');
 
             if($image['cover'] != null && $image['cover']=='1'){
                 $productItem['featuredImage'] = ['url'=>$linkImage];
@@ -175,84 +329,91 @@ class DataGenerator{
             $images[] = ['url'=>$linkImage];
         }
         $productItem["images"] = $images;
-        $stockAvailableObj = new StockAvailable(StockAvailable::getStockAvailableIdByProductId($productObj->id));
-        $productItem["totalInventory"] = (int)$stockAvailableObj->quantity;
-        $productItem["status"] = $productObj->active?"ACTIVE":"NOT ACTIVE";
 
-        $categories = $productObj->getCategories();
+        // Use preloaded product stock
+        $stock = isset($this->productStockData[$product_id]) ? $this->productStockData[$product_id] : null;
+        $productItem["totalInventory"] = $stock ? (int)$stock['quantity'] : 0;
+        $productItem["status"] = $productData['active'] ? "ACTIVE" : "NOT ACTIVE";
+
+        // Use preloaded categories
         $categoryItems = [];
+        if (isset($this->productCategoriesData[$product_id])) {
+            foreach ($this->productCategoriesData[$product_id] as $catRelation) {
+                $categoryId = $catRelation['id_category'];
+                if (isset($this->categoriesData[$categoryId])) {
+                    $category = $this->categoriesData[$categoryId];
+                    $categoryItems[] = [
+                        "description" => $category['description'],
+                        "title" => $category['name']
+                    ];
+                }
+            }
+        }
+        $productItem["categories"] = $categoryItems;
 
-        foreach ($categories as $categoryId) {
-            $category = new Category($categoryId, $defaultLang);
+        // Use preloaded tags
+        $productItem["tags"] = [];
+        if (isset($this->productTagsData[$product_id])) {
+            foreach ($this->productTagsData[$product_id] as $tag) {
+                $productItem["tags"][] = $tag['name'];
+            }
+        }
 
-            if ($category->description !== null && $category->name !== null) {
-                $categoryItems[] = [
-                    "description" => $category->description,
-                    "title" => $category->name
+        // Use preloaded features
+        $productItem["metafields"] = [];
+        if (isset($this->productFeaturesData[$product_id])) {
+            foreach ($this->productFeaturesData[$product_id] as $feature) {
+                $productItem["metafields"][] = [
+                    "name" => $feature['feature_name'],
+                    "value" => $feature['feature_value'] !== null ? $feature['feature_value'] : ""
                 ];
             }
         }
 
-        $productItem["categories"] = $categoryItems;
-        if($productObj->getTags($defaultLang) == ""){
-            $productItem["tags"] = [];
-        }else{
-            $productItem["tags"] = explode(", ", $productObj->getTags($defaultLang));
-        }
-
-        $productFeatures = $productObj->getFrontFeatures($defaultLang);
-        $productItem["metafields"] = [];
-        foreach ($productFeatures as $feature) {
-            $productItem["metafields"][] = [
-            "name" => $feature['name'],
-            "value" => $feature['value'] !== null ? $feature['value'] : ""
-            ];
-        }
         if($productItem['totalVariants']>0){
             $productItem["hasOnlyDefaultVariant"] = 0;
         }else{
             $productItem["hasOnlyDefaultVariant"] = 1;
         }
-        $productItem["id"] = (int)$productObj->id;
+        $productItem["id"] = (int)$product_id;
         return $productItem;
     }
 
-    public function getCatalogDataForBatch($batchSize, $idShop)
-    {
-        // Retrieve product IDs to process from askdialog_product table
-        $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . $idShop . ' LIMIT ' . $batchSize);
-        $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
-        $linkObj = new Link();
-        foreach($products as $product){
-            if (!empty($productData = $this->getProductData($product['id_product'], $defaultLang, $linkObj))) {
-		        $this->products[] = $productData;
-	        }
-        }
-        return $this->products;
-    }
-
-    public function getNumCatalogRemaining($idShop)
-    {
-        $totalProducts = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'askdialog_product WHERE id_shop = ' . (int)$idShop);
-        return count($totalProducts);
-    }
-
+    /**
+     * Get catalog data for all products in the shop
+     *
+     * @return array Array of product data formatted for Dialog AI
+     */
     public function getCatalogData(){
-        $products = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'product');
-        $defaultLang = (int) Configuration::get('PS_LANG_DEFAULT');
+        $defaultLang = (int) \Configuration::get('PS_LANG_DEFAULT');
+        $idShop = (int)\Context::getContext()->shop->id;
 
-        $linkObj = new Link();
-        foreach($products as $product){
-            if (!empty($productData = $this->getProductData($product['id_product'], $defaultLang, $linkObj))) {
+        // Get all product IDs for the shop using Repository
+        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+
+        if (empty($productIds)) {
+            return [];
+        }
+
+        // Bulk load all data upfront (crucial for performance and data availability)
+        $this->bulkLoadData($productIds, $defaultLang, $idShop);
+
+        $linkObj = new \Link();
+        foreach($productIds as $productId){
+            if (!empty($productData = $this->getProductData($productId, $defaultLang, $linkObj))) {
                 $this->products[] = $productData;
 			}
-
         }
         return $this->products;
     }
 
+    /**
+     * Get language data for all languages
+     *
+     * @return array Array of language data formatted for Dialog AI
+     */
     public function getLanguageData(){
-        $languages = Db::getInstance()->executeS('SELECT * FROM ' . _DB_PREFIX_ . 'lang');
+        $languages = $this->languageRepository->findAll();
         $languagesData = [];
         foreach($languages as $language){
             $languagesData[] = [
@@ -264,6 +425,4 @@ class DataGenerator{
         }
         return $languagesData;
     }
-
-
 }
