@@ -48,6 +48,7 @@ class ProductRepository extends AbstractRepository
                     p.id_product,
                     p.active,
                     p.date_add,
+                    p.id_category_default,
                     pl.name,
                     pl.description,
                     pl.description_short,
