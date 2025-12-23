@@ -134,17 +134,14 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $idLang = (int)$this->context->language->id;
             $countryCode = $this->context->country->iso_code;
 
-            // Generate catalog data (Service handles everything)
+            // Generate catalog data merged with categories (Service handles everything)
             $catalogFile = $dataGenerator->generateCatalogData($idShop, $idLang, $countryCode);
 
             // Generate CMS pages export (Service handles everything)
             $cmsFile = $dataGenerator->generateCMSData($idLang);
 
-            // Generate category export (Service handles everything)
-            $categoryFile = $dataGenerator->generateCategoryData($idLang, $idShop);
-
-            // Upload all files to S3
-            $this->uploadToS3($catalogFile, $cmsFile, $categoryFile);
+            // Upload files to S3
+            $this->uploadToS3($catalogFile, $cmsFile);
 
             // Log success
             \PrestaShopLogger::addLog(
@@ -170,14 +167,13 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     }
 
     /**
-     * Uploads catalog, CMS and category files to S3
+     * Uploads catalog (with embedded categories) and CMS files to S3
      *
      * @param string $catalogFile Path to catalog JSON file
      * @param string $cmsFile Path to CMS JSON file
-     * @param string $categoryFile Path to category JSON file
      * @throws Exception
      */
-    private function uploadToS3($catalogFile, $cmsFile, $categoryFile)
+    private function uploadToS3($catalogFile, $cmsFile)
     {
         // Get signed URLs from Dialog API
         $askDialogClient = new AskDialogClient();
@@ -193,13 +189,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         }
 
         // Extract upload URLs (validate presence)
-        if (!isset($uploadUrls['catalogUploadUrl']) || !isset($uploadUrls['pageUploadUrl']) || !isset($uploadUrls['categoryUploadUrl'])) {
-            throw new Exception('Dialog API missing required upload URLs. Expected: catalogUploadUrl, pageUploadUrl, categoryUploadUrl');
+        if (!isset($uploadUrls['catalogUploadUrl']) || !isset($uploadUrls['pageUploadUrl'])) {
+            throw new Exception('Dialog API missing required upload URLs. Expected: catalogUploadUrl, pageUploadUrl');
         }
 
         $bodyCatalog = $uploadUrls['catalogUploadUrl'];
         $bodyPages = $uploadUrls['pageUploadUrl'];
-        $bodyCategory = $uploadUrls['categoryUploadUrl'];
 
         try {
             // Send catalog to S3
@@ -214,20 +209,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $cmsFilename = basename($cmsFile);
             $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
 
-            // Send categories to S3
-            $urlCategory = $bodyCategory['url'];
-            $fieldsCategory = $bodyCategory['fields'];
-            $categoryFilename = basename($categoryFile);
-            $responseCategory = $this->sendFileToS3($urlCategory, $fieldsCategory, $categoryFile, $categoryFilename);
-
             // Check all uploads succeeded
             if ($responseCatalog->getStatusCode() === 204 && 
-                $responsePages->getStatusCode() === 204 && 
-                $responseCategory->getStatusCode() === 204) {
+                $responsePages->getStatusCode() === 204) {
                 // Move files to sent folder
                 rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
                 rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
-                rename($categoryFile, PathHelper::getSentDir() . $categoryFilename);
 
                 // Clean up old files after successful export
                 PathHelper::cleanTmpFiles(86400);
