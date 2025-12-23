@@ -80,6 +80,44 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ## Refactoring History
 
+### Category Integration into Catalog (2025-12-23)
+
+**Changes:**
+- ✅ Merged categories into catalog JSON (single file export)
+- ✅ Products now reference categories by name (`category_names`, `default_category_name`)
+- ✅ Removed separate `categoryUploadUrl` (client request)
+- ✅ CategoryExportService kept intact for potential future use
+- ✅ Added `id_category_default` to ProductRepository
+
+**Structure:**
+```json
+{
+  "categories": [
+    {
+      "id_category": 5,
+      "name": "Electronics",
+      "description": "...",
+      "children": [...]
+    }
+  ],
+  "products": [
+    {
+      "id": 123,
+      "name": "Product",
+      "category_names": ["Electronics", "Gadgets"],
+      "default_category_name": "Electronics",
+      ...
+    }
+  ]
+}
+```
+
+**Benefits:** 
+- No duplication of category descriptions across products
+- LLM-friendly structure with references by name
+- Single catalog file (< 100 MB target)
+- Flexibility for future separate category export
+
 ### Category Export + DataGenerator Refactoring (2025-12-22)
 
 **Changes:**
@@ -92,7 +130,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 **Architecture:**
 ```
 src/Service/
-├── DataGenerator.php (orchestrator - 150 lines)
+├── DataGenerator.php (orchestrator - ~180 lines)
 └── Export/
     ├── ProductExportService.php (470 lines)
     ├── CmsExportService.php (100 lines)
