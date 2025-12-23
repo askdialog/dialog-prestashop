@@ -357,21 +357,25 @@ class ProductExportService
         $productItem["totalInventory"] = $stock ? (int)$stock['quantity'] : 0;
         $productItem["status"] = $productData['active'] ? "ACTIVE" : "NOT ACTIVE";
 
-        // Use preloaded categories
-        $categoryItems = [];
+        // Use preloaded categories - build category names array
+        $categoryNames = [];
+        $defaultCategoryName = null;
         if (isset($this->productCategoriesData[$product_id])) {
             foreach ($this->productCategoriesData[$product_id] as $catRelation) {
                 $categoryId = $catRelation['id_category'];
                 if (isset($this->categoriesData[$categoryId])) {
                     $category = $this->categoriesData[$categoryId];
-                    $categoryItems[] = [
-                        "description" => $category['description'],
-                        "title" => $category['name']
-                    ];
+                    $categoryNames[] = $category['name'];
+                    
+                    // Set default category (id_category_default from product data)
+                    if ($categoryId == $productData['id_category_default']) {
+                        $defaultCategoryName = $category['name'];
+                    }
                 }
             }
         }
-        $productItem["categories"] = $categoryItems;
+        $productItem["category_names"] = $categoryNames;
+        $productItem["default_category_name"] = $defaultCategoryName;
 
         // Use preloaded tags
         $productItem["tags"] = [];
