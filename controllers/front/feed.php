@@ -76,7 +76,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         // Build form fields
         $formFields = $fields;
-        $formFields['file'] = DataPart::fromPath($tempFile, $filename);
+
+        // Add explicit Content-Type field for S3 policy validation
+        $formFields['Content-Type'] = 'application/json';
+
+        // Add file with application/json Content-Type
+        $formFields['file'] = DataPart::fromPath($tempFile, $filename, 'application/json');
 
         // Create multipart form
         $formData = new FormDataPart($formFields);
@@ -116,84 +121,59 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      */
     private function handleCatalogExport($dataGenerator)
     {
+        // Send immediate async response to Dialog API (HTTP 202 Accepted)
+        // Response sent immediately, then processing continues in background
+        $this->sendJsonResponseAsync([
+            'status' => 'accepted',
+            'message' => 'Export started'
+        ], 202);
+
+        // Process export asynchronously (client already received 202)
         try {
             $idShop = (int)$this->context->shop->id;
             $idLang = (int)$this->context->language->id;
             $countryCode = $this->context->country->iso_code;
 
-            // Get all product IDs for current shop
-            $productIds = $this->getProductIdsForShop($idShop);
+            // Generate catalog data (Service handles everything)
+            $catalogFile = $dataGenerator->generateCatalogData($idShop, $idLang, $countryCode);
 
-            if (empty($productIds)) {
-                throw new Exception('No products found for shop ID ' . $idShop);
-            }
+            // Generate CMS pages export (Service handles everything)
+            $cmsFile = $dataGenerator->generateCMSData($idLang);
 
-            // Generate catalog data
-            $catalogData = [];
-            $linkObj = new Link();
+            // Upload both files to S3
+            $this->uploadToS3($catalogFile, $cmsFile);
 
-            foreach ($productIds as $productId) {
-                $productData = $dataGenerator->getProductData($productId, $idLang, $linkObj, $countryCode);
-                if (!empty($productData)) {
-                    $catalogData[] = $productData;
-                }
-            }
-
-            if (empty($catalogData)) {
-                throw new Exception('No valid product data generated');
-            }
-
-            // Generate final catalog file
-            $filename = 'catalog_' . date('Ymd_His') . '.json';
-            $tempFile = PathHelper::getTmpDir() . $filename;
-            file_put_contents($tempFile, json_encode($catalogData));
-
-            // Generate CMS pages export
-            $dataGenerator->generateCMSData();
-
-            // Upload to S3
-            $this->uploadToS3($tempFile, $filename);
+            // Log success (no HTTP response needed - client already received 202)
+            \PrestaShopLogger::addLog(
+                'AskDialog catalog export completed successfully',
+                1, // Info level
+                null,
+                'AskDialog',
+                null,
+                true
+            );
 
         } catch (Exception $e) {
-            $this->sendJsonResponse([
-                'status' => 'error',
-                'message' => 'Exception while exporting data: ' . $e->getMessage()
-            ], 500);
+            // Log error since client already received 202 response
+            \PrestaShopLogger::addLog(
+                'AskDialog catalog export failed: ' . $e->getMessage(),
+                3, // Error level
+                null,
+                'AskDialog',
+                null,
+                true
+            );
         }
-    }
-
-    /**
-     * Get all product IDs for a specific shop
-     *
-     * TODO: Move to a Repository class in future refactoring
-     *
-     * @param int $idShop Shop ID
-     * @return array Array of product IDs
-     */
-    private function getProductIdsForShop($idShop)
-    {
-        $sql = 'SELECT p.id_product
-                FROM ' . _DB_PREFIX_ . 'product p
-                INNER JOIN ' . _DB_PREFIX_ . 'product_shop ps ON p.id_product = ps.id_product
-                WHERE ps.id_shop = ' . (int)$idShop;
-
-        $results = Db::getInstance()->executeS($sql);
-
-        if (!$results) {
-            return [];
-        }
-
-        return array_column($results, 'id_product');
     }
 
     /**
      * Uploads catalog and CMS files to S3
      *
-     * @param string $tempFile Path to catalog JSON file
-     * @param string $filename Catalog filename
+     * @param string $catalogFile Path to catalog JSON file
+     * @param string $cmsFile Path to CMS JSON file
      * @throws Exception
      */
-    private function uploadToS3($tempFile, $filename)
+    private function uploadToS3($catalogFile, $cmsFile)
     {
         // Get signed URLs from Dialog API
         $askDialogClient = new AskDialogClient();
@@ -215,25 +195,24 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             // Send catalog to S3
             $urlCatalog = $bodyCatalog['url'];
             $fieldsCatalog = $bodyCatalog['fields'];
-            $responseCatalog = $this->sendFileToS3($urlCatalog, $fieldsCatalog, $tempFile, $filename);
+            $catalogFilename = basename($catalogFile);
+            $responseCatalog = $this->sendFileToS3($urlCatalog, $fieldsCatalog, $catalogFile, $catalogFilename);
 
             // Send CMS pages to S3
             $urlPages = $bodyPages['url'];
             $fieldsPages = $bodyPages['fields'];
-            $cmsFile = PathHelper::getTmpDir() . 'cms.json';
-            $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, 'cms.json');
+            $cmsFilename = basename($cmsFile);
+            $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
 
             // Check both uploads succeeded
             if ($responseCatalog->getStatusCode() === 204 && $responsePages->getStatusCode() === 204) {
                 // Move files to sent folder
-                rename($tempFile, PathHelper::getSentDir() . $filename);
-                $filenameCMS = 'cms_' . date('Ymd_His') . '.json';
-                rename($cmsFile, PathHelper::getSentDir() . $filenameCMS);
+                rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
+                rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
 
-                $this->sendJsonResponse([
-                    'status' => 'success',
-                    'message' => 'Catalog and Pages data sent successfully'
-                ]);
+                // Clean up old files after successful export
+                PathHelper::cleanTmpFiles(86400);
+                PathHelper::cleanSentFilesKeepRecent(20);
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }
