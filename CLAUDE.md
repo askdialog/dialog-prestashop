@@ -186,7 +186,7 @@ src/Service/
 - Use PSR-12 for PHP code
 - Use ESLint for JavaScript
 - All classes must have proper PHPDoc
-- Use type hints where possible (PHP 7.1+)
+- Use type hints where possible (PHP 7.4+)
 - **For all Core PrestaShop classes** (e.g., `Product`, `Context`, `Validation`, `Configuration`, etc.):
   - Always use FQCN (Fully Qualified Class Name) with leading backslash: `\Product`, `\Context`, `\Validation`
   - Never import them with `use` keyword at the top of the file
@@ -204,7 +204,6 @@ src/Service/
 
 ## Notes
 
-- Module is compatible with PrestaShop 1.6 to 8.x (check `ps_versions_compliancy`)
-- Uses Guzzle HTTP client for API calls
+- Module is compatible with PrestaShop 1.7.7 to 8.x (check `ps_versions_compliancy`)
+- Uses HttpClient for API calls
 - Symfony YAML component for configuration
-- Current branch: `feature/remove_1_6_legacy`
