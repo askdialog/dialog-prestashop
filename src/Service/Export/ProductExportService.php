@@ -249,7 +249,6 @@ class ProductExportService
         $productItem = [];
         $publishedAt = (new \DateTime($productData['date_add']))->format('Y-m-d\TH:i:s\Z');
         $productItem["publishedAt"] = $publishedAt;
-        $productItem["modifiedDescription"] = $productData['description_short'];
         $productItem["description"] = $productData['description'];
         $productItem["title"] = $productData['name'];
         $productItem["handle"] = $productData['link_rewrite'];
@@ -357,25 +356,21 @@ class ProductExportService
         $productItem["totalInventory"] = $stock ? (int)$stock['quantity'] : 0;
         $productItem["status"] = $productData['active'] ? "ACTIVE" : "NOT ACTIVE";
 
-        // Use preloaded categories - build category names array
-        $categoryNames = [];
-        $defaultCategoryName = null;
+        // Use preloaded categories - build categories array with title and description
+        $categories = [];
         if (isset($this->productCategoriesData[$product_id])) {
             foreach ($this->productCategoriesData[$product_id] as $catRelation) {
                 $categoryId = $catRelation['id_category'];
                 if (isset($this->categoriesData[$categoryId])) {
                     $category = $this->categoriesData[$categoryId];
-                    $categoryNames[] = $category['name'];
-                    
-                    // Set default category (id_category_default from product data)
-                    if ($categoryId == $productData['id_category_default']) {
-                        $defaultCategoryName = $category['name'];
-                    }
+                    $categories[] = [
+                        'title' => $category['name'],
+                        'description' => isset($category['description']) ? $category['description'] : null
+                    ];
                 }
             }
         }
-        $productItem["category_names"] = $categoryNames;
-        $productItem["default_category_name"] = $defaultCategoryName;
+        $productItem["categories"] = $categories;
 
         // Use preloaded tags
         $productItem["tags"] = [];
