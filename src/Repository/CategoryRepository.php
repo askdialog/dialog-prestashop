@@ -72,11 +72,15 @@ class CategoryRepository extends AbstractRepository
             return [];
         }
 
+        // Check if additional_description exists (PS 8+)
+        $hasAdditionalDesc = $this->columnExists('category_lang', 'additional_description');
+
         $sql = 'SELECT 
                     c.id_category,
                     c.active,
                     cl.name,
                     cl.description,
+                    ' . ($hasAdditionalDesc ? 'cl.additional_description,' : '') . '
                     cl.link_rewrite
                 FROM ' . $this->getPrefix() . 'category c
                 INNER JOIN ' . $this->getPrefix() . 'category_lang cl 

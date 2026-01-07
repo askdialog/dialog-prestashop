@@ -363,9 +363,18 @@ class ProductExportService
                 $categoryId = $catRelation['id_category'];
                 if (isset($this->categoriesData[$categoryId])) {
                     $category = $this->categoriesData[$categoryId];
+                    
+                    // Concatenate description + additional_description (PS 8+)
+                    $description = isset($category['description']) ? $category['description'] : null;
+                    if (isset($category['additional_description']) && !empty($category['additional_description'])) {
+                        $description = $description 
+                            ? $description . "\n\n" . $category['additional_description']
+                            : $category['additional_description'];
+                    }
+                    
                     $categories[] = [
                         'title' => $category['name'],
-                        'description' => isset($category['description']) ? $category['description'] : null
+                        'description' => $description
                     ];
                 }
             }
