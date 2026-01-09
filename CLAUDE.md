@@ -43,6 +43,16 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 **Key Files:**
 - `controllers/front/api.php`: Public API endpoints
 
+### 4. Export Status Monitoring
+- Tracks S3 upload status in database
+- Allows Dialog admin to monitor export progress
+- Four states: init, pending, success, error
+- Protected by private API key
+
+**Key Files:**
+- `controllers/front/exportstatus.php`: Export status API endpoints
+- `src/Repository/ExportLogRepository.php`: Database operations for export logs
+
 ## Current Architecture
 
 ### Namespace Structure
@@ -55,7 +65,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 3. **API**: Dialog AI → Public API → Product data
 
 ### Database Tables
-- `askdialog_product`: Queue for batch export processing
+- `askdialog_export_log`: Tracks export status (init, pending, success, error) for S3 uploads
 
 ### Configuration (Configuration::get)
 - `ASKDIALOG_API_KEY`: Private API key
@@ -159,6 +169,132 @@ src/Service/
 **Performance:** 
 - 2,182x fewer queries, ~4x faster export (35s → ~10s on 25k products)
 - Dialog API response time: 15s → <1s (with PHP-FPM)
+
+## Export Status API
+
+### Overview
+The Export Status API allows Dialog admin server to monitor S3 upload progress. All endpoints require authentication with private API key.
+
+### Authentication
+```bash
+Authorization: Token {ASKDIALOG_API_KEY}
+```
+
+### Base URL
+```
+https://your-shop.com/module/askdialog/exportstatus
+```
+
+### Available Endpoints
+
+#### 1. Get Latest Status
+Returns the most recent export status for a specific type.
+
+**Request:**
+```bash
+GET /module/askdialog/exportstatus?action=getLatestStatus&export_type=catalog
+```
+
+**Parameters:**
+- `export_type` (optional): catalog or cms (default: catalog)
+
+**Response:**
+```json
+{
+  "id": 123,
+  "id_shop": 1,
+  "export_type": "catalog",
+  "status": "success",
+  "file_name": "catalog_20250109_143022.json",
+  "s3_url": "https://s3.amazonaws.com/...",
+  "started_at": "2025-01-09 14:30:22",
+  "completed_at": "2025-01-09 14:30:45",
+  "metadata": {
+    "id_lang": 1,
+    "country_code": "fr"
+  }
+}
+```
+
+#### 2. Get Export History
+Returns recent export history with optional filtering.
+
+**Request:**
+```bash
+GET /module/askdialog/exportstatus?action=getExportHistory&limit=20&export_type=catalog
+```
+
+**Parameters:**
+- `limit` (optional): Number of results (default: 10, max: 100)
+- `export_type` (optional): Filter by type (catalog, cms)
+
+**Response:**
+```json
+{
+  "status": "success",
+  "count": 20,
+  "exports": [...]
+}
+```
+
+#### 3. Get Export by ID
+Returns a specific export log by ID.
+
+**Request:**
+```bash
+GET /module/askdialog/exportstatus?action=getExportById&id=123
+```
+
+**Parameters:**
+- `id` (required): Export log ID
+
+#### 4. Get Status Summary
+Returns count of exports by status.
+
+**Request:**
+```bash
+GET /module/askdialog/exportstatus?action=getStatusSummary
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "id_shop": 1,
+  "counts": {
+    "init": 0,
+    "pending": 1,
+    "success": 145,
+    "error": 3
+  }
+}
+```
+
+#### 5. Cleanup Old Logs (Cron-style)
+Deletes export logs older than specified days.
+
+**Request:**
+```bash
+GET /module/askdialog/exportstatus?action=cleanupOldLogs&days=90
+```
+
+**Parameters:**
+- `days` (optional): Days to keep (default: 90, min: 7, max: 365)
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Export logs older than 90 days have been deleted",
+  "days_kept": 90
+}
+```
+
+### Export Status Flow
+1. **init**: Export log created when Dialog API triggers export
+2. **pending**: File generation started
+3. **success**: Files uploaded to S3 successfully
+4. **error**: Export failed (error_message field contains details)
 
 ## TODO: Current Sprint
 
