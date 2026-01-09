@@ -26,14 +26,22 @@ if (!defined('_PS_VERSION_')) {
 
 $sql = [];
 
-// Create table to store products pending export to Dialog S3 server
-$sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_product` (
-    `id_askdialog_product` int(11) NOT NULL AUTO_INCREMENT,
-    `id_product` int(11) NOT NULL,
+// Create table to track export status for Dialog S3 uploads
+$sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_export_log` (
+    `id_export_log` int(11) NOT NULL AUTO_INCREMENT,
     `id_shop` int(11) NOT NULL,
-    `date_add` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (`id_askdialog_product`)
-) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8;';
+    `export_type` varchar(50) NOT NULL,
+    `status` enum(\'init\',\'pending\',\'success\',\'error\') NOT NULL DEFAULT \'init\',
+    `file_name` varchar(255) DEFAULT NULL,
+    `s3_url` text DEFAULT NULL,
+    `error_message` text DEFAULT NULL,
+    `started_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `completed_at` datetime DEFAULT NULL,
+    `metadata` text DEFAULT NULL,
+    PRIMARY KEY (`id_export_log`),
+    KEY `idx_shop_status` (`id_shop`, `status`),
+    KEY `idx_started_at` (`started_at`)
+) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {
