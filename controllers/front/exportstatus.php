@@ -79,6 +79,10 @@ class AskDialogExportstatusModuleFrontController extends ModuleFrontController
                 $this->handleGetStatusSummary($exportLogRepo);
                 break;
 
+            case 'cleanupOldLogs':
+                $this->handleCleanupOldLogs($exportLogRepo);
+                break;
+
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
@@ -199,6 +203,41 @@ class AskDialogExportstatusModuleFrontController extends ModuleFrontController
         ];
 
         $this->sendJsonResponse($summary);
+    }
+
+    /**
+     * Cleanup old export logs (cron-style endpoint)
+     *
+     * Query params:
+     * - days: Number of days to keep (default: 90, min: 7, max: 365)
+     *
+     * @param ExportLogRepository $exportLogRepo
+     */
+    private function handleCleanupOldLogs($exportLogRepo)
+    {
+        $days = (int)Tools::getValue('days', 90);
+
+        // Validate days parameter (between 7 and 365)
+        if ($days < 7) {
+            $days = 7;
+        } elseif ($days > 365) {
+            $days = 365;
+        }
+
+        $result = $exportLogRepo->deleteOlderThan($days);
+
+        if ($result) {
+            $this->sendJsonResponse([
+                'status' => 'success',
+                'message' => 'Export logs older than ' . $days . ' days have been deleted',
+                'days_kept' => $days
+            ]);
+        } else {
+            $this->sendJsonResponse([
+                'status' => 'error',
+                'message' => 'Failed to delete old export logs'
+            ], 500);
+        }
     }
 
     /**
