@@ -41,15 +41,16 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
         parent::initContent();
 
         $headers = getallheaders();
+        $authHeader = $this->getHeaderCaseInsensitive($headers, 'Authorization');
 
         // Check Authorization header format
-        if (!isset($headers['Authorization']) || substr($headers['Authorization'], 0, 6) !== 'Token ') {
+        if ($authHeader === null || substr($authHeader, 0, 6) !== 'Token ') {
             $this->sendJsonResponse(['error' => 'Public API Token is missing'], 401);
         }
 
         // Validate public API key
         $expectedToken = 'Token ' . Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
-        if ($headers['Authorization'] !== $expectedToken) {
+        if ($authHeader !== $expectedToken) {
             $this->sendJsonResponse(['error' => 'Public API Token is wrong'], 403);
         }
 

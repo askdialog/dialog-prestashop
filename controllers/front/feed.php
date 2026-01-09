@@ -24,6 +24,7 @@ use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Helper\PathHelper;
 use Dialog\AskDialog\Trait\JsonResponseTrait;
+use Dialog\AskDialog\Repository\ExportLogRepository;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\Multipart\FormDataPart;
@@ -48,12 +49,13 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         // Check if token is valid
         $headers = getallheaders();
+        $authHeader = $this->getHeaderCaseInsensitive($headers, 'Authorization');
 
-        if (!isset($headers['Authorization']) || substr($headers['Authorization'], 0, 6) !== 'Token ') {
+        if ($authHeader === null || substr($authHeader, 0, 6) !== 'Token ') {
             $this->sendJsonResponse(['error' => 'Private API Token is missing'], 401);
         }
 
-        if ($headers['Authorization'] !== 'Token ' . Configuration::get('ASKDIALOG_API_KEY')) {
+        if ($authHeader !== 'Token ' . Configuration::get('ASKDIALOG_API_KEY')) {
             $this->sendJsonResponse(['error' => 'Private API Token is wrong'], 403);
         }
 
@@ -128,11 +130,27 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             'message' => 'Export started'
         ], 202);
 
+        $exportLogRepo = new ExportLogRepository();
+        $exportLogId = null;
+
         // Process export asynchronously (client already received 202)
         try {
             $idShop = (int)$this->context->shop->id;
             $idLang = (int)$this->context->language->id;
             $countryCode = $this->context->country->iso_code;
+
+            // Create export log with 'init' status
+            $exportLogId = $exportLogRepo->createLog(
+                $idShop,
+                ExportLogRepository::EXPORT_TYPE_CATALOG,
+                [
+                    'id_lang' => $idLang,
+                    'country_code' => $countryCode
+                ]
+            );
+
+            // Update status to 'pending' - starting generation
+            $exportLogRepo->updateStatus($exportLogId, ExportLogRepository::STATUS_PENDING);
 
             // Generate catalog data merged with categories (Service handles everything)
             $catalogFile = $dataGenerator->generateCatalogData($idShop, $idLang, $countryCode);
@@ -140,8 +158,8 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             // Generate CMS pages export (Service handles everything)
             $cmsFile = $dataGenerator->generateCMSData($idLang);
 
-            // Upload files to S3
-            $this->uploadToS3($catalogFile, $cmsFile);
+            // Upload files to S3 (this will update log on success)
+            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo);
 
             // Log success
             \PrestaShopLogger::addLog(
@@ -154,6 +172,15 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             );
 
         } catch (Exception $e) {
+            // Update export log with error status
+            if ($exportLogId) {
+                $exportLogRepo->updateStatus(
+                    $exportLogId,
+                    ExportLogRepository::STATUS_ERROR,
+                    ['error_message' => $e->getMessage()]
+                );
+            }
+
             // Log error since client already received 202 response
             \PrestaShopLogger::addLog(
                 'AskDialog catalog export failed: ' . $e->getMessage(),
@@ -171,9 +198,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      *
      * @param string $catalogFile Path to catalog JSON file
      * @param string $cmsFile Path to CMS JSON file
+     * @param int $exportLogId Export log ID for tracking
+     * @param ExportLogRepository $exportLogRepo Repository for updating log
      * @throws Exception
      */
-    private function uploadToS3($catalogFile, $cmsFile)
+    private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo)
     {
         // Get signed URLs from Dialog API
         $askDialogClient = new AskDialogClient();
@@ -210,11 +239,21 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
 
             // Check all uploads succeeded
-            if ($responseCatalog->getStatusCode() === 204 && 
+            if ($responseCatalog->getStatusCode() === 204 &&
                 $responsePages->getStatusCode() === 204) {
                 // Move files to sent folder
                 rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
                 rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
+
+                // Update export log with success status
+                $exportLogRepo->updateStatus(
+                    $exportLogId,
+                    ExportLogRepository::STATUS_SUCCESS,
+                    [
+                        'file_name' => $catalogFilename,
+                        's3_url' => $urlCatalog // Base S3 URL (bucket path)
+                    ]
+                );
 
                 // Clean up old files after successful export
                 PathHelper::cleanTmpFiles(86400);

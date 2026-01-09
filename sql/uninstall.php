@@ -26,7 +26,7 @@ if (!defined('_PS_VERSION_')) {
 
 $sql = [];
 
-$sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_product`;';
+$sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_export_log`;';
 
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {

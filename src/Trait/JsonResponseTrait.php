@@ -71,4 +71,25 @@ trait JsonResponseTrait
             fastcgi_finish_request();
         }
     }
+
+    /**
+     * Get HTTP header value case-insensitively
+     *
+     * HTTP header names are case-insensitive per RFC 7230
+     * This method normalizes header lookup to handle any casing
+     *
+     * @param array $headers Array of headers from getallheaders()
+     * @param string $headerName Header name to search for
+     * @return string|null Header value or null if not found
+     */
+    protected function getHeaderCaseInsensitive($headers, $headerName)
+    {
+        $headerNameLower = strtolower($headerName);
+        foreach ($headers as $name => $value) {
+            if (strtolower($name) === $headerNameLower) {
+                return $value;
+            }
+        }
+        return null;
+    }
 }
