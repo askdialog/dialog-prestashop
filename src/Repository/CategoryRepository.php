@@ -72,11 +72,15 @@ class CategoryRepository extends AbstractRepository
             return [];
         }
 
+        // Check if additional_description exists (PS 8+)
+        $hasAdditionalDesc = $this->columnExists('category_lang', 'additional_description');
+
         $sql = 'SELECT 
                     c.id_category,
                     c.active,
                     cl.name,
                     cl.description,
+                    ' . ($hasAdditionalDesc ? 'cl.additional_description,' : '') . '
                     cl.link_rewrite
                 FROM ' . $this->getPrefix() . 'category c
                 INNER JOIN ' . $this->getPrefix() . 'category_lang cl 
@@ -93,5 +97,40 @@ class CategoryRepository extends AbstractRepository
         }
 
         return $this->indexBy($results, 'id_category');
+    }
+
+    /**
+     * Load all active categories for export with full multilingual data
+     *
+     * @param int $idLang Language ID
+     * @param int $idShop Shop ID
+     * @return array Array of categories with all fields
+     */
+    public function findAllForExport($idLang, $idShop)
+    {
+        $sql = 'SELECT 
+                    c.id_category,
+                    c.id_parent,
+                    cs.position,
+                    cl.name,
+                    cl.description,
+                    cl.additional_description,
+                    cl.link_rewrite,
+                    cl.meta_title,
+                    cl.meta_description
+                FROM ' . $this->getPrefix() . 'category c
+                INNER JOIN ' . $this->getPrefix() . 'category_lang cl 
+                    ON c.id_category = cl.id_category 
+                    AND cl.id_lang = ' . (int)$idLang . '
+                    AND cl.id_shop = ' . (int)$idShop . '
+                INNER JOIN ' . $this->getPrefix() . 'category_shop cs
+                    ON c.id_category = cs.id_category
+                    AND cs.id_shop = ' . (int)$idShop . '
+                WHERE c.active = 1
+                ORDER BY c.id_parent ASC, cs.position ASC';
+
+        $results = $this->executeS($sql);
+
+        return $results ?: [];
     }
 }

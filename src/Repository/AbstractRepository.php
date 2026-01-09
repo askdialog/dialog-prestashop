@@ -116,4 +116,18 @@ abstract class AbstractRepository
     {
         return $this->indexBy($results, $key, true);
     }
+
+    /**
+     * Check if a column exists in a table
+     *
+     * @param string $tableName Table name (without prefix)
+     * @param string $columnName Column name
+     * @return bool True if column exists
+     */
+    protected function columnExists($tableName, $columnName)
+    {
+        $sql = 'SHOW COLUMNS FROM `' . $this->getPrefix() . pSQL($tableName) . '` LIKE "' . pSQL($columnName) . '"';
+        $result = $this->executeS($sql);
+        return !empty($result);
+    }
 }

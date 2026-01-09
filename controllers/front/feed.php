@@ -134,16 +134,16 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $idLang = (int)$this->context->language->id;
             $countryCode = $this->context->country->iso_code;
 
-            // Generate catalog data (Service handles everything)
+            // Generate catalog data merged with categories (Service handles everything)
             $catalogFile = $dataGenerator->generateCatalogData($idShop, $idLang, $countryCode);
 
             // Generate CMS pages export (Service handles everything)
             $cmsFile = $dataGenerator->generateCMSData($idLang);
 
-            // Upload both files to S3
+            // Upload files to S3
             $this->uploadToS3($catalogFile, $cmsFile);
 
-            // Log success (no HTTP response needed - client already received 202)
+            // Log success
             \PrestaShopLogger::addLog(
                 'AskDialog catalog export completed successfully',
                 1, // Info level
@@ -167,7 +167,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     }
 
     /**
-     * Uploads catalog and CMS files to S3
+     * Uploads catalog (with embedded categories) and CMS files to S3
      *
      * @param string $catalogFile Path to catalog JSON file
      * @param string $cmsFile Path to CMS JSON file
@@ -188,6 +188,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             throw new Exception('Invalid response from prepareServerTransfer');
         }
 
+        // Extract upload URLs (validate presence)
+        if (!isset($uploadUrls['catalogUploadUrl']) || !isset($uploadUrls['pageUploadUrl'])) {
+            throw new Exception('Dialog API missing required upload URLs. Expected: catalogUploadUrl, pageUploadUrl');
+        }
+
         $bodyCatalog = $uploadUrls['catalogUploadUrl'];
         $bodyPages = $uploadUrls['pageUploadUrl'];
 
@@ -204,8 +209,9 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $cmsFilename = basename($cmsFile);
             $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
 
-            // Check both uploads succeeded
-            if ($responseCatalog->getStatusCode() === 204 && $responsePages->getStatusCode() === 204) {
+            // Check all uploads succeeded
+            if ($responseCatalog->getStatusCode() === 204 && 
+                $responsePages->getStatusCode() === 204) {
                 // Move files to sent folder
                 rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
                 rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);

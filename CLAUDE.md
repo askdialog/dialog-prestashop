@@ -16,7 +16,10 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - Manages export queue via `askdialog_product` table
 
 **Key Files:**
-- `src/Service/DataGenerator.php`: Generates JSON data for products and CMS pages
+- `src/Service/DataGenerator.php`: Orchestrator - delegates to export services
+- `src/Service/Export/ProductExportService.php`: Product catalog export logic
+- `src/Service/Export/CmsExportService.php`: CMS pages export logic
+- `src/Service/Export/CategoryExportService.php`: Category tree export logic
 - `src/Service/AskDialogClient.php`: Handles API communication with Dialog platform
 - `controllers/front/feed.php`: Export endpoint (private API key protected)
 
@@ -77,6 +80,65 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ## Refactoring History
 
+### Category Integration into Catalog (2025-12-23)
+
+**Changes:**
+- ✅ Merged categories into catalog JSON (single file export)
+- ✅ Products now reference categories by name (`category_names`, `default_category_name`)
+- ✅ Removed separate `categoryUploadUrl` (client request)
+- ✅ CategoryExportService kept intact for potential future use
+- ✅ Added `id_category_default` to ProductRepository
+
+**Structure:**
+```json
+{
+  "categories": [
+    {
+      "id_category": 5,
+      "name": "Electronics",
+      "description": "...",
+      "children": [...]
+    }
+  ],
+  "products": [
+    {
+      "id": 123,
+      "name": "Product",
+      "category_names": ["Electronics", "Gadgets"],
+      "default_category_name": "Electronics",
+      ...
+    }
+  ]
+}
+```
+
+**Benefits:** 
+- No duplication of category descriptions across products
+- LLM-friendly structure with references by name
+- Single catalog file (< 100 MB target)
+- Flexibility for future separate category export
+
+### Category Export + DataGenerator Refactoring (2025-12-22)
+
+**Changes:**
+- ✅ Added category tree export (nested JSON structure for LLM)
+- ✅ Split DataGenerator into specialized export services (SRP pattern)
+- ✅ Created `src/Service/Export/` directory with 3 services
+- ✅ DataGenerator reduced from 526 → 150 lines (orchestrator pattern)
+- ✅ Fixed `getProductData` API endpoint (id_product parameter)
+
+**Architecture:**
+```
+src/Service/
+├── DataGenerator.php (orchestrator - ~180 lines)
+└── Export/
+    ├── ProductExportService.php (470 lines)
+    ├── CmsExportService.php (100 lines)
+    └── CategoryExportService.php (140 lines)
+```
+
+**Benefits:** Better maintainability, testability, and single responsibility per service
+
 ### DataGenerator Optimization (2025-12-19)
 **Pre-refactoring version:** `d61c6f8e6e360181616bfdae8aa09a809384cfdf`
 
@@ -124,7 +186,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - Use PSR-12 for PHP code
 - Use ESLint for JavaScript
 - All classes must have proper PHPDoc
-- Use type hints where possible (PHP 7.1+)
+- Use type hints where possible (PHP 7.4+)
 - **For all Core PrestaShop classes** (e.g., `Product`, `Context`, `Validation`, `Configuration`, etc.):
   - Always use FQCN (Fully Qualified Class Name) with leading backslash: `\Product`, `\Context`, `\Validation`
   - Never import them with `use` keyword at the top of the file
@@ -142,7 +204,6 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ## Notes
 
-- Module is compatible with PrestaShop 1.6 to 8.x (check `ps_versions_compliancy`)
-- Uses Guzzle HTTP client for API calls
+- Module is compatible with PrestaShop 1.7.7 to 8.x (check `ps_versions_compliancy`)
+- Uses HttpClient for API calls
 - Symfony YAML component for configuration
-- Current branch: `feature/remove_1_6_legacy`
