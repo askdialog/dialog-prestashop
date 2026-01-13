@@ -82,13 +82,57 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `ASKDIALOG_BATCH_SIZE`: Batch size for export (default: 1000000)
 
 ### Hooks Used
-- `displayHeader`: Load CSS/JS files
+- `actionFrontControllerSetMedia`: Load CSS/JS files
 - `displayFooterAfter`: Inject Dialog SDK with configuration
 - `displayProductAdditionalInfo`: Display assistant on product pages
 - `actionFrontControllerInitBefore`: Handle CORS (currently commented)
-- `displayOrderConfirmation`: PostHog analytics on order confirmation
+- `actionCartUpdateQuantityBefore`: Track add to cart events (PostHog PHP)
+- `actionValidateOrder`: Track order confirmation events (PostHog PHP)
+- `displayOrderConfirmation`: Display order confirmation message
 
 ## Refactoring History
+
+### PostHog Analytics Migration to PHP
+
+**Problem:** JavaScript PostHog tracking was unreliable and blocked by ad blockers (uBlock Origin, etc.)
+
+**Solution:** Migrated to server-side PHP tracking using PostHog HTTP API
+
+**Changes:**
+- ✅ Created `src/Service/PostHogService.php`: Server-side analytics service
+- ✅ Uses Symfony HttpClient for HTTP requests (consistent with AskDialogClient)
+- ✅ Registered hooks: `actionCartUpdateQuantityBefore`, `actionValidateOrder`
+- ✅ Removed old JavaScript files: `posthog.js`, `posthog_order_confirmation.js`
+- ✅ Sets `$process_person_profile: false` for GDPR compliance
+
+**Tracked Events:**
+1. **user_added_to_cart** (via `actionCartUpdateQuantityBefore`)
+   - `productId`: Product ID
+   - `variantId`: Combination ID (if applicable)
+   - `quantity`: Quantity added
+   - `currency`: ISO currency code
+
+2. **Order Confirmation** (via `actionValidateOrder`)
+   - `order_id`: Order ID
+   - `total_amount`: Total paid
+   - `currency`: ISO currency code
+   - `customer_email`: Customer email
+
+**Key Features:**
+- **Ad-blocker proof**: Server-side tracking cannot be blocked
+- **Stable distinct_id**: Priority order - customer ID > cart ID > session ID
+- **Error handling**: Failures logged but don't break user experience
+- **GDPR compliant**: No person profiles created
+
+**API Configuration:**
+- Endpoint: `https://eu.i.posthog.com/capture/`
+- API Key: `phc_WM5MRkqG7AiqOKeTmNKj0fNIl41ZOQex7wRhEswRlTA`
+- Timeout: 5 seconds (non-blocking)
+
+**Benefits:**
+- 100% reliable tracking (no client-side blocking)
+- Better data quality (direct from database)
+- Simpler codebase (no JavaScript event listeners)
 
 ### Category Integration into Catalog (2025-12-23)
 
