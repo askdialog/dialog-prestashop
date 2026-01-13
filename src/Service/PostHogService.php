@@ -98,9 +98,10 @@ class PostHogService
      * Generate a stable distinct_id for the current user
      *
      * Priority:
-     * 1. Customer ID (if logged in)
-     * 2. Cart ID (if guest with cart)
-     * 3. Session ID (fallback)
+     * 1. PostHog frontend distinct_id (from cookie) - ensures continuity with JS SDK
+     * 2. Customer ID (if logged in)
+     * 3. Cart ID (if guest with cart)
+     * 4. Session ID (fallback)
      *
      * @param \Customer|null $customer
      * @param \Cart|null $cart
@@ -108,6 +109,30 @@ class PostHogService
      */
     public function getDistinctId($customer = null, $cart = null)
     {
+        // Priority 1: Use PostHog's frontend distinct_id from cookie
+        // This ensures backend events are linked to the same user as frontend events
+        $cookieName = 'ph_' . self::API_KEY . '_posthog';
+
+        if (isset($_COOKIE[$cookieName])) {
+            try {
+                $posthogData = json_decode($_COOKIE[$cookieName], true);
+                dump($posthogData);
+                die();
+                if (isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
+                    return $posthogData['distinct_id'];
+                }
+            } catch (\Exception $e) {
+                // If JSON parsing fails, continue with fallback logic
+                \PrestaShopLogger::addLog(
+                    'PostHog cookie parsing error: ' . $e->getMessage(),
+                    2,
+                    null,
+                    'PostHogService'
+                );
+            }
+        }
+
+        // Fallback logic when PostHog cookie is not available
         $context = \Context::getContext();
 
         // Use provided customer or get from context
@@ -120,17 +145,17 @@ class PostHogService
             $cart = $context->cart;
         }
 
-        // Priority 1: Customer ID (logged in users)
+        // Priority 2: Customer ID (logged in users)
         if ($customer && $customer->id) {
             return 'customer_' . $customer->id;
         }
 
-        // Priority 2: Cart ID (guest users with cart)
+        // Priority 3: Cart ID (guest users with cart)
         if ($cart && $cart->id) {
             return 'cart_' . $cart->id;
         }
 
-        // Priority 3: Session ID (fallback)
+        // Priority 4: Session ID (fallback)
         if (session_id()) {
             return 'session_' . session_id();
         }

@@ -120,7 +120,9 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 **Key Features:**
 - **Ad-blocker proof**: Server-side tracking cannot be blocked
-- **Stable distinct_id**: Priority order - customer ID > cart ID > session ID
+- **Stable distinct_id**: Priority order - PostHog frontend cookie > customer ID > cart ID > session ID
+- **Frontend/Backend sync**: Reads `distinct_id` from PostHog cookie to link backend events with frontend analytics
+- **Cookie persistence override**: `posthog-cookie-override.js` forces PostHog to use cookies instead of localStorage
 - **Error handling**: Failures logged but don't break user experience
 - **GDPR compliant**: No person profiles created
 
