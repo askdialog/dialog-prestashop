@@ -153,6 +153,20 @@ class AskDialog extends Module
             'attributes' => 'defer'
         ];
 
+        // Shopify compatibility patch - MUST load before instant.js (product pages only)
+        // This monkey-patches fetch/XMLHttpRequest to redirect Shopify API calls to PrestaShop endpoints
+        // WARNING: If additional Shopify errors appear, abandon this approach and create native implementation
+        if ($this->context->controller instanceof \ProductController) {
+            $this->context->controller->registerJavascript(
+                'module-askdialog-shopify-compat-patch',
+                'modules/' . $this->name . '/views/js/shopify-compat-patch.js',
+                [
+                    'position' => 'bottom',
+                    'priority' => 190, // Must load BEFORE instant.js (priority 200)
+                ]
+            );
+        }
+
         // setupModal.js - all pages
         $this->context->controller->registerJavascript(
             'module-askdialog-setupmodal',
