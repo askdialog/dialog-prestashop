@@ -152,7 +152,7 @@ class PostHogService
     {
         // Merge user properties with required PostHog settings
         return array_merge($properties, [
-            '$process_person_profile' => false, // REQUIRED: Don't create person profiles
+            '$process_person_profile' => false,
         ]);
     }
 
