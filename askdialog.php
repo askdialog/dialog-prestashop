@@ -28,6 +28,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 
 use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\PostHogService;
+use Dialog\AskDialog\Helper\ContextHelper;
 
 class AskDialog extends Module
 {
@@ -617,6 +618,10 @@ class AskDialog extends Module
         if (!$cart || !Validate::isLoadedObject($cart)) {
             return;
         }
+
+        // Sync context cart to prevent bugs with uninitialized cart
+        // (Context cart can be out of sync during hooks due to cookie/session timing)
+        ContextHelper::syncContextCart($cart);
 
         // Get product attribute (combination ID)
         $idProductAttribute = isset($params['id_product_attribute']) ? (int) $params['id_product_attribute'] : 0;
