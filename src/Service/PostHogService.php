@@ -208,13 +208,14 @@ class PostHogService
      *
      * @param int $idProduct Product ID
      * @param int $idProductAttribute Combination ID (0 if none)
-     * @param int $quantity Quantity added (can be negative for removal)
+     * @param int $quantity Quantity added (must be positive)
      * @param \Cart $cart Cart object
-     * @return bool
+     * @return bool True if event sent successfully, false otherwise
      */
     public function trackAddToCart($idProduct, $idProductAttribute, $quantity, $cart)
     {
-        // Only track positive quantity (increments, not decrements)
+        // Safety check: should never happen as hook filters operator='up' only
+        // Kept as defensive programming in case method is called directly
         if ($quantity <= 0) {
             return false;
         }
@@ -225,7 +226,9 @@ class PostHogService
         $properties = [
             'productId' => $idProduct,
             'quantity' => $quantity,
-            'currency' => $context->currency->iso_code,
+            'currency' => isset($context->currency) && $context->currency
+                ? $context->currency->iso_code
+                : 'EUR',
         ];
 
         // Add variant ID if it's a combination
