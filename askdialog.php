@@ -102,26 +102,27 @@ class AskDialog extends Module
 
     public function hookActionFrontControllerSetMedia()
     {
-        // Register CSS files
+        // Register CSS files for all pages
+        $this->context->controller->registerStylesheet(
+            'module-askdialog-variables',
+            'modules/' . $this->name . '/views/css/all-pages/variables.css',
+            [
+                'media' => 'all',
+                'priority' => 200,
+            ]
+        );
+
+        // Register CSS files specific to product pages
         if ($this->context->controller instanceof \ProductController) {
             $this->context->controller->registerStylesheet(
-                'module-askdialog-product-style',
-                'modules/' . $this->name . '/views/css/cssForProductPage.css',
+                'module-askdialog-product-instant',
+                'modules/' . $this->name . '/views/css/product-page/instant.css',
                 [
                     'media' => 'all',
                     'priority' => 200,
                 ]
             );
         }
-
-        $this->context->controller->registerStylesheet(
-            'module-askdialog-global-style',
-            'modules/' . $this->name . '/views/css/cssForAllPages.css',
-            [
-                'media' => 'all',
-                'priority' => 200,
-            ]
-        );
 
         // Register JS files
         $this->context->controller->registerJavascript(
