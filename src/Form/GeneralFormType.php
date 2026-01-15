@@ -49,7 +49,6 @@ class GeneralFormType extends TranslatorAwareType
                     ]),
                 ],
                 'attr' => [
-                    'placeholder' => 'pk_...',
                     'autocomplete' => 'off',
                 ],
             ])
@@ -69,7 +68,6 @@ class GeneralFormType extends TranslatorAwareType
                     ]),
                 ],
                 'attr' => [
-                    'placeholder' => 'sk_...',
                     'autocomplete' => 'off',
                 ],
             ])
