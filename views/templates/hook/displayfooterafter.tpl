@@ -34,7 +34,8 @@
     data-cta-border-type="{$appearance_settings.cta_border_type}"
     data-capitalize-ctas="{if $appearance_settings.capitalize_ctas}1{else}0{/if}"
     data-font-family="{$appearance_settings.font_family}"
-    data-highlight-product-name="{if $appearance_settings.highlight_product_name}1{else}0{/if}"></div>
+    data-highlight-product-name="{if $appearance_settings.highlight_product_name}1{else}0{/if}">
+</div>
 
 <div id="dialog-script" data-src="{$index_dot_js_cdn_url}"></div>
 
