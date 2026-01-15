@@ -39,7 +39,7 @@ class AskDialog extends Module
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = [
-            'min' => '1.7.8',
+            'min' => '1.7.7',
             'max' => '8.99.99'
         ];
         $this->bootstrap = true;
@@ -304,7 +304,13 @@ class AskDialog extends Module
      */
     public function getContent(): void
     {
-        $route = $this->get('router')->generate('askdialog_form_configuration');
+        // Router service only available in PrestaShop >= 1.7.8
+        if (version_compare(_PS_VERSION_, '1.7.8.0', '>=')) {
+            $route = $this->get('router')->generate('askdialog_form_configuration');
+        } else {
+            $route = $this->context->link->getAdminLink('AdminAskDialog', true);
+        }
+
         \Tools::redirectAdmin($route);
     }
 }
