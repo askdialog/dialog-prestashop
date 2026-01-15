@@ -11,14 +11,19 @@
     <div class="card-body">
         <div class="form-wrapper">
             {{ form_widget(generalForm) }}
-        </div>
-        <div class="alert alert-info mt-3">
-            <p class="mb-2">
-                {{ 'Don\'t have API keys yet?'|trans({}, 'Modules.Askdialog.Admin') }}
-            </p>
-            <a href="https://app.askdialog.com/onboarding" target="_blank" class="btn btn-info">
-                <i class="material-icons">launch</i> {{ 'Go to AskDialog onboarding'|trans({}, 'Modules.Askdialog.Admin') }}
-            </a>
+            <div class="form-group row">
+                <label class="form-control-label col-sm"></label>
+                <div class="col-sm">
+                    <div class="alert alert-info mb-0">
+                        <p class="mb-2">
+                            {{ 'Don\'t have API keys yet?'|trans({}, 'Modules.Askdialog.Admin') }}
+                        </p>
+                        <a href="https://app.askdialog.com/onboarding" target="_blank" class="btn btn-info btn-sm">
+                            <i class="material-icons">launch</i> {{ 'Go to AskDialog onboarding'|trans({}, 'Modules.Askdialog.Admin') }}
+                        </a>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <div class="card-footer">
