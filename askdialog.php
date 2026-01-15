@@ -74,38 +74,17 @@ class AskDialog extends Module
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('actionFrontControllerInitBefore')
             && $this->registerHook('displayOrderConfirmation')
-            && $this->setDefaultConfigurationValues();
-    }
-
-    private function setDefaultConfigurationValues()
-    {
-        return Configuration::updateValue('ASKDIALOG_API_URL', 'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com') // Dialog API base URL
-            && Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', '#CCCCCC') // Default primary color
-            && Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', '#FFFFFF') // Default background color
-            && Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', '#000000') // Default CTA text color
-            && Configuration::updateValue('ASKDIALOG_CTA_BORDER_TYPE', 'solid') // Default border type
-            && Configuration::updateValue('ASKDIALOG_CAPITALIZE_CTAS', 0) // Default boolean value for capitalizing CTAs
-            && Configuration::updateValue('ASKDIALOG_FONT_FAMILY', 'Arial, sans-serif') // Default font family
-            && Configuration::updateValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', 0) // Default boolean value for highlighting product name
-            && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 1000000); // Default batch size
+            && \Configuration::updateValue('ASKDIALOG_API_URL', 'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com');
     }
 
     public function uninstall()
     {
         return parent::uninstall()
             // Commented for development comfort - uncomment in production to clean all configuration
-            // && Configuration::deleteByName('ASKDIALOG_API_URL')
-            // && Configuration::deleteByName('ASKDIALOG_API_KEY')
-            // && Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
-            // && Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
-            // && Configuration::deleteByName('ASKDIALOG_COLOR_PRIMARY')
-            // && Configuration::deleteByName('ASKDIALOG_COLOR_BACKGROUND')
-            // && Configuration::deleteByName('ASKDIALOG_COLOR_CTA_TEXT')
-            // && Configuration::deleteByName('ASKDIALOG_CTA_BORDER_TYPE')
-            // && Configuration::deleteByName('ASKDIALOG_CAPITALIZE_CTAS')
-            // && Configuration::deleteByName('ASKDIALOG_FONT_FAMILY')
-            // && Configuration::deleteByName('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME')
-            // && Configuration::deleteByName('ASKDIALOG_BATCH_SIZE')
+            // && \Configuration::deleteByName('ASKDIALOG_API_URL')
+            // && \Configuration::deleteByName('ASKDIALOG_API_KEY')
+            // && \Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
+            // && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
             && $this->uninstallDb();
     }
 
