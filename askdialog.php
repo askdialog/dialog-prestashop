@@ -210,17 +210,6 @@ class AskDialog extends Module
                 'priority' => 200,
             ]
         );
-
-        // PostHog cookie override - MUST load after all PostHog files
-        // Forces PostHog to use cookies instead of localStorage for PHP backend sync
-        $this->context->controller->registerJavascript(
-            'module-askdialog-posthog-override',
-            'modules/' . $this->name . '/views/js/posthog-cookie-override.js',
-            [
-                'position' => 'bottom',
-                'priority' => 210,
-            ]
-        );
     }
 
     public function hookDisplayOrderConfirmation($params)
