@@ -3,31 +3,31 @@
 {% form_theme generalForm '@PrestaShop/Admin/TwigTemplateForm/prestashop_ui_kit.html.twig' %}
 
 {% block content %}
-  {{ form_start(generalForm) }}
-  <div class="card">
+{{ form_start(generalForm) }}
+<div class="card">
     <h3 class="card-header">
-      <i class="material-icons">settings</i> {{ 'AskDialog Settings'|trans({}, 'Modules.Askdialog.Admin') }}
+        <i class="material-icons">settings</i> {{ 'AskDialog Settings'|trans({}, 'Modules.Askdialog.Admin') }}
     </h3>
     <div class="card-body">
-      <div class="form-wrapper">
-        {{ form_widget(generalForm) }}
-      </div>
-      <div class="alert alert-info mt-3">
-        <p class="mb-2">
-          {{ 'Don\'t have API keys yet?'|trans({}, 'Modules.Askdialog.Admin') }}
-        </p>
-        <a href="https://app.askdialog.com/onboarding" target="_blank" class="btn btn-info">
-          <i class="material-icons">launch</i> {{ 'Go to AskDialog onboarding'|trans({}, 'Modules.Askdialog.Admin') }}
-        </a>
-      </div>
+        <div class="form-wrapper">
+            {{ form_widget(generalForm) }}
+        </div>
+        <div class="alert alert-info mt-3">
+            <p class="mb-2">
+                {{ 'Don\'t have API keys yet?'|trans({}, 'Modules.Askdialog.Admin') }}
+            </p>
+            <a href="https://app.askdialog.com/onboarding" target="_blank" class="btn btn-info">
+                <i class="material-icons">launch</i> {{ 'Go to AskDialog onboarding'|trans({}, 'Modules.Askdialog.Admin') }}
+            </a>
+        </div>
     </div>
     <div class="card-footer">
-      <div class="d-flex justify-content-end">
-        <button class="btn btn-primary" id="save-button">
-          {{ 'Save'|trans({}, 'Admin.Actions') }}
-        </button>
-      </div>
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-primary" id="save-button">
+                {{ 'Save'|trans({}, 'Admin.Actions') }}
+            </button>
+        </div>
     </div>
-  </div>
-  {{ form_end(generalForm) }}
+</div>
+{{ form_end(generalForm) }}
 {% endblock %}
