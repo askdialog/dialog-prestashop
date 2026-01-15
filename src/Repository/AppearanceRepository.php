@@ -68,21 +68,34 @@ class AppearanceRepository extends AbstractRepository
         }
 
         // Merge with defaults to ensure all keys exist
-        return array_merge(self::DEFAULT_SETTINGS, $settings);
+        // But preserve empty strings (they indicate user wants no value)
+        $merged = self::DEFAULT_SETTINGS;
+        foreach ($settings as $key => $value) {
+            $merged[$key] = $value; // This preserves empty strings
+        }
+        
+        return $merged;
     }
 
     /**
      * Update appearance settings for a specific shop
      *
      * @param int $idShop Shop ID
-     * @param array $settings Appearance settings
+     * @param array $settings Appearance settings (empty string = allow theme override)
      * @return bool True on success, false on failure
      */
     public function updateSettings($idShop, array $settings)
     {
-        // Merge with existing settings to preserve values not being updated
+        // Get existing settings
         $existingSettings = $this->getSettings($idShop);
-        $mergedSettings = array_merge($existingSettings, $settings);
+        
+        // Normalize empty values: null → empty string (for Smarty compatibility)
+        $normalizedSettings = array_map(function($value) {
+            return ($value === null) ? '' : $value;
+        }, $settings);
+        
+        // Merge with existing settings
+        $mergedSettings = array_merge($existingSettings, $normalizedSettings);
 
         // Encode to JSON
         $jsonSettings = json_encode($mergedSettings, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);

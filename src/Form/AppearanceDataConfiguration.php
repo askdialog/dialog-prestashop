@@ -83,29 +83,30 @@ final class AppearanceDataConfiguration implements DataConfigurationInterface
     {
         $normalized = [];
 
-        // Color fields - trim and uppercase
+        // Color fields - trim and uppercase (empty string is preserved)
         $colorFields = ['primary_color', 'background_color', 'cta_text_color'];
         foreach ($colorFields as $field) {
-            if (isset($configuration[$field])) {
-                $normalized[$field] = strtoupper(trim((string) $configuration[$field]));
+            if (array_key_exists($field, $configuration)) {
+                $value = trim((string) $configuration[$field]);
+                $normalized[$field] = $value === '' ? '' : strtoupper($value);
             }
         }
 
-        // String fields - trim
-        if (isset($configuration['cta_border_type'])) {
+        // String fields - trim (empty string is preserved)
+        if (array_key_exists('cta_border_type', $configuration)) {
             $normalized['cta_border_type'] = trim((string) $configuration['cta_border_type']);
         }
 
-        if (isset($configuration['font_family'])) {
+        if (array_key_exists('font_family', $configuration)) {
             $normalized['font_family'] = trim((string) $configuration['font_family']);
         }
 
         // Boolean fields
-        if (isset($configuration['capitalize_ctas'])) {
+        if (array_key_exists('capitalize_ctas', $configuration)) {
             $normalized['capitalize_ctas'] = (bool) $configuration['capitalize_ctas'];
         }
 
-        if (isset($configuration['highlight_product_name'])) {
+        if (array_key_exists('highlight_product_name', $configuration)) {
             $normalized['highlight_product_name'] = (bool) $configuration['highlight_product_name'];
         }
 
@@ -133,17 +134,19 @@ final class AppearanceDataConfiguration implements DataConfigurationInterface
             }
         }
 
-        // Validate border type
+        // Validate border type (empty string allowed for theme override)
         if (isset($configuration['cta_border_type'])) {
+            $borderType = $configuration['cta_border_type'];
             $validBorderTypes = ['solid', 'dashed', 'dotted', 'double', 'none'];
-            if (!in_array($configuration['cta_border_type'], $validBorderTypes)) {
-                $errors[] = 'Invalid border type: ' . $configuration['cta_border_type'];
+            if ($borderType !== '' && !in_array($borderType, $validBorderTypes)) {
+                $errors[] = 'Invalid border type: ' . $borderType;
             }
         }
 
-        // Validate font family length
+        // Validate font family length (empty string allowed for theme override)
         if (isset($configuration['font_family'])) {
-            if (strlen($configuration['font_family']) > 255) {
+            $fontFamily = $configuration['font_family'];
+            if ($fontFamily !== '' && strlen($fontFamily) > 255) {
                 $errors[] = 'Font family is too long (max 255 characters)';
             }
         }
