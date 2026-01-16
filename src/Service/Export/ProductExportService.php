@@ -262,21 +262,21 @@ class ProductExportService
         $productItem['handle'] = $productData['link_rewrite'];
 
         // Handle product price with tax for the country
-        $taxCalculator = null;
-        if ($countryCode != null) {
+        if ($countryCode !== null) {
+            $idCountry = \Country::getByIso($countryCode);
             $addressObj = new \Address();
-            $countryObj = new \Country();
-            $idCountry = $countryObj::getByIso($countryCode);
             $addressObj->id_state = 0;
             $addressObj->postcode = '';
             $addressObj->id_manufacturer = 0;
             $addressObj->id_customer = 0;
             $addressObj->id = 0;
             $addressObj->id_country = $idCountry;
-            $type = 'country';
-            $taxManager = \TaxManagerFactory::getManager($addressObj, $type);
+
+            $idTaxRulesGroup = \Product::getIdTaxRulesGroupByIdProduct($product_id);
+            $taxManager = \TaxManagerFactory::getManager($addressObj, $idTaxRulesGroup);
             $taxCalculator = $taxManager->getTaxCalculator();
-            $productItem['price'] = $taxCalculator->addTaxes(\Product::getPriceStatic($product_id, true, null, 2, null, false, true));
+            $priceWithoutTax = \Product::getPriceStatic($product_id, false, null, 6, null, false, true);
+            $productItem['price'] = round($taxCalculator->addTaxes($priceWithoutTax), 2);
         } else {
             $productItem['price'] = \Product::getPriceStatic($product_id, true, null, 2, null, false, true);
         }
