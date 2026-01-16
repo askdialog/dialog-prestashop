@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for CMS pages data
  * Handles retrieval of CMS page information
@@ -37,7 +41,7 @@ class CmsRepository extends AbstractRepository
      */
     public function findByLanguage($idLang)
     {
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     cl.meta_title,
                     cl.content
                 FROM ' . $this->getPrefix() . 'cms_lang cl

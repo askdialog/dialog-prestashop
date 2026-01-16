@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for product tags
  * Handles bulk loading of tag data
@@ -42,12 +46,12 @@ class TagRepository extends AbstractRepository
             return [];
         }
 
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     pt.id_product,
                     t.name
                 FROM ' . $this->getPrefix() . 'product_tag pt
-                INNER JOIN ' . $this->getPrefix() . 'tag t 
-                    ON pt.id_tag = t.id_tag 
+                INNER JOIN ' . $this->getPrefix() . 'tag t
+                    ON pt.id_tag = t.id_tag
                     AND pt.id_lang = t.id_lang
                 WHERE pt.id_product IN (' . $this->escapeIds($productIds) . ')
                     AND pt.id_lang = ' . (int) $idLang . '

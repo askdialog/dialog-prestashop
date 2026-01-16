@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Trait;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Trait JsonResponseTrait
  *

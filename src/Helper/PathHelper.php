@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Helper;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Class PathHelper
  *

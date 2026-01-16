@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Service;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 use Dialog\AskDialog\Repository\LanguageRepository;
 use Dialog\AskDialog\Service\Export\CategoryExportService;
 use Dialog\AskDialog\Service\Export\CmsExportService;

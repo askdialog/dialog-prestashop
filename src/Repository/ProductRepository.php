@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for product data
  * Handles bulk loading of product information
@@ -43,7 +47,7 @@ class ProductRepository extends AbstractRepository
             return [];
         }
 
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     p.id_product,
                     p.active,
                     p.date_add,
@@ -53,12 +57,12 @@ class ProductRepository extends AbstractRepository
                     pl.description_short,
                     pl.link_rewrite
                 FROM ' . $this->getPrefix() . 'product p
-                INNER JOIN ' . $this->getPrefix() . 'product_lang pl 
-                    ON p.id_product = pl.id_product 
+                INNER JOIN ' . $this->getPrefix() . 'product_lang pl
+                    ON p.id_product = pl.id_product
                     AND pl.id_lang = ' . (int) $idLang . '
                     AND pl.id_shop = ' . (int) $idShop . '
-                INNER JOIN ' . $this->getPrefix() . 'product_shop ps 
-                    ON p.id_product = ps.id_product 
+                INNER JOIN ' . $this->getPrefix() . 'product_shop ps
+                    ON p.id_product = ps.id_product
                     AND ps.id_shop = ' . (int) $idShop . '
                 WHERE p.id_product IN (' . $this->escapeIds($productIds) . ')';
 
@@ -82,7 +86,7 @@ class ProductRepository extends AbstractRepository
     {
         $sql = 'SELECT p.id_product
                 FROM ' . $this->getPrefix() . 'product p
-                INNER JOIN ' . $this->getPrefix() . 'product_shop ps 
+                INNER JOIN ' . $this->getPrefix() . 'product_shop ps
                     ON p.id_product = ps.id_product
                 WHERE ps.id_shop = ' . (int) $idShop;
 

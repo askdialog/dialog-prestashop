@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for language data
  * Handles retrieval of language information
@@ -35,7 +39,7 @@ class LanguageRepository extends AbstractRepository
      */
     public function findAll()
     {
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     l.id_lang,
                     l.name,
                     l.iso_code,

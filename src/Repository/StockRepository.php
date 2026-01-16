@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for stock availability
  * Handles bulk loading of product and combination stock data
@@ -42,7 +46,7 @@ class StockRepository extends AbstractRepository
             return [];
         }
 
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     sa.id_product,
                     sa.quantity,
                     sa.physical_quantity,
@@ -75,7 +79,7 @@ class StockRepository extends AbstractRepository
             return [];
         }
 
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     sa.id_product_attribute,
                     sa.quantity,
                     sa.physical_quantity,

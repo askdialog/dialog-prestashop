@@ -24,6 +24,10 @@ declare(strict_types=1);
 
 namespace Dialog\AskDialog\Form;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 use PrestaShop\PrestaShop\Core\Configuration\DataConfigurationInterface;
 use PrestaShop\PrestaShop\Core\ConfigurationInterface;
 

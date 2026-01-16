@@ -20,10 +20,13 @@
  * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  */
 
-
 declare(strict_types=1);
 
 namespace Dialog\AskDialog\Controller;
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
 use PrestaShopBundle\Controller\Admin\FrameworkBundleAdminController;
 use Symfony\Component\HttpFoundation\Request;

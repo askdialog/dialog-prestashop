@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for product images
  * Handles bulk loading of product and combination images
@@ -42,14 +46,14 @@ class ImageRepository extends AbstractRepository
             return [];
         }
 
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     i.id_image,
                     i.id_product,
                     i.position,
                     COALESCE(ishop.cover, i.cover) AS cover
                 FROM ' . $this->getPrefix() . 'image i
                 LEFT JOIN ' . $this->getPrefix() . 'image_shop ishop
-                    ON i.id_image = ishop.id_image 
+                    ON i.id_image = ishop.id_image
                     AND ishop.id_shop = ' . (int) $idShop . '
                 WHERE i.id_product IN (' . $this->escapeIds($productIds) . ')
                 ORDER BY i.id_product, i.position';
@@ -76,12 +80,12 @@ class ImageRepository extends AbstractRepository
             return [];
         }
 
-        $sql = 'SELECT 
+        $sql = 'SELECT
                     pai.id_product_attribute,
                     pai.id_image,
                     i.position
                 FROM ' . $this->getPrefix() . 'product_attribute_image pai
-                INNER JOIN ' . $this->getPrefix() . 'image i 
+                INNER JOIN ' . $this->getPrefix() . 'image i
                     ON pai.id_image = i.id_image
                 WHERE pai.id_product_attribute IN (' . $this->escapeIds($combinationIds) . ')
                 ORDER BY pai.id_product_attribute, i.position';

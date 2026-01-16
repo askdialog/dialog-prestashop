@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Service\Export;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 use Dialog\AskDialog\Helper\PathHelper;
 use Dialog\AskDialog\Repository\CategoryRepository;
 use Dialog\AskDialog\Repository\CombinationRepository;

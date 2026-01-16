@@ -22,6 +22,10 @@
 
 namespace Dialog\AskDialog\Repository;
 
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 /**
  * Repository for Dialog appearance settings
  * Manages JSON-based appearance configuration in database
@@ -50,7 +54,7 @@ class AppearanceRepository extends AbstractRepository
      */
     public function getSettings($idShop)
     {
-        $sql = 'SELECT settings 
+        $sql = 'SELECT settings
                 FROM `' . $this->getPrefix() . 'askdialog_appearance`
                 WHERE id_shop = ' . (int) $idShop;
 
@@ -106,7 +110,7 @@ class AppearanceRepository extends AbstractRepository
 
         // Check if row exists
         $exists = $this->getDb()->getValue(
-            'SELECT id_appearance 
+            'SELECT id_appearance
              FROM `' . $this->getPrefix() . 'askdialog_appearance`
              WHERE id_shop = ' . (int) $idShop
         );
