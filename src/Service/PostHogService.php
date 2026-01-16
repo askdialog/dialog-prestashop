@@ -113,11 +113,16 @@ class PostHogService
         // This ensures backend events are linked to the same user as frontend events
         $cookieName = 'ph_' . self::API_KEY . '_posthog';
 
+        \PrestaShopLogger::addLog(
+            'PostHog cookie check - Cookie name: ' . $cookieName . ' | Available cookies: ' . implode(', ', array_keys($_COOKIE)),
+            1,
+            null,
+            'PostHogService'
+        );
+
         if (isset($_COOKIE[$cookieName])) {
             try {
                 $posthogData = json_decode($_COOKIE[$cookieName], true);
-                dump($posthogData);
-                die();
                 if (isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
                     return $posthogData['distinct_id'];
                 }
