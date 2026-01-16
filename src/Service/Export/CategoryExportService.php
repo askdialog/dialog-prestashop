@@ -1,26 +1,30 @@
 <?php
-/*
-* 2007-2025 Dialog
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author Axel Paillaud <contact@axelweb.fr>
-*  @copyright  2007-2025 Dialog
-*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*/
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
 
 namespace Dialog\AskDialog\Service\Export;
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
 use Dialog\AskDialog\Helper\PathHelper;
 use Dialog\AskDialog\Repository\CategoryRepository;
@@ -28,8 +32,6 @@ use Dialog\AskDialog\Repository\CategoryRepository;
 /**
  * Service responsible for category data export
  * Handles both file generation and API data retrieval
- *
- * @package Dialog\AskDialog\Service\Export
  */
 class CategoryExportService
 {
@@ -45,6 +47,7 @@ class CategoryExportService
      *
      * @param int $idLang Language ID
      * @param int $idShop Shop ID
+     *
      * @return string Path to generated JSON file
      */
     public function generateFile($idLang, $idShop)
@@ -67,11 +70,13 @@ class CategoryExportService
      *
      * @param int $idShop Shop ID
      * @param int $idLang Language ID
+     *
      * @return array Category tree structure
      */
     public function getData($idShop, $idLang)
     {
         $categories = $this->categoryRepository->findAllForExport($idLang, $idShop);
+
         return $this->buildCategoryTree($categories);
     }
 
@@ -79,6 +84,7 @@ class CategoryExportService
      * Builds nested category tree from flat array
      *
      * @param array $categories Flat array of categories
+     *
      * @return array Nested tree structure
      */
     private function buildCategoryTree($categories)
@@ -124,6 +130,7 @@ class CategoryExportService
      * Recursively remove id_parent field from category tree
      *
      * @param array &$categories Category tree (by reference)
+     *
      * @return void
      */
     private function removeParentIds(&$categories)

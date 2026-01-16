@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file original="admin574jg4jmatammscwb3c" source-language="fr-FR" target-language="fr-FR" datatype="plaintext">
+    <body>
+      <trans-unit id="e076b3797625f90c25ea68245f652c87">
+        <source>Ask Dialog</source>
+        <target>Ask Dialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="1eab41bf33ba4786be720e8d4dd9d7ae">
+        <source>Module to provide the AskDialog assistant on your e-shop</source>
+        <target>Module pour mettre à disposition l'assistant AskDialog sur votre e-shop</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="1c4a84af0da3f5e94d33c1e39ada19a7">
+        <source>AskDialog Assistant</source>
+        <target>Assistant AskDialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="2a915dde548d8380530b554b7cb963ae">
+        <source>How can I help you with this product?</source>
+        <target>Comment puis-je vous aider avec ce produit ?</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="0a6185584a0690adfe9261648531e202">
+        <source>API Key public</source>
+        <target>Clé API publique</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="c39f5f904fd3a94041b587d5333d930a">
+        <source>Public API key provided by AskDialog</source>
+        <target>Clé API publique fournie par AskDialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="b46094a1b5846bf990bc5cf4c7a3644a">
+        <source>Public API key is required</source>
+        <target>Une clé API publique est requise</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="a497b22b2f244ed6f9359d8cd21ad830">
+        <source>API key must be at least {{ limit }} characters long</source>
+        <target>La clé API doit comporter au moins {{ limit }} caractères</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3d84ca60e876a79ff15e65814dead69d">
+        <source>API key cannot be longer than {{ limit }} characters</source>
+        <target>La clé API ne peut pas comporter plus de {{ limit }} caractères</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="dadcd66e40bdade990536fe02a42444a">
+        <source>API Key private</source>
+        <target>Clé API privée</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="4fd4bacf65ebb801bde08d6345c2e014">
+        <source>Private API key provided by AskDialog</source>
+        <target>Clé API privée fournie par AskDialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="5fd7c3eeadce142e5ce7ca8940d4b917">
+        <source>Private API key is required</source>
+        <target>Une clé API privée est requise</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3f18d78787678e9a0ce5f269de2e4ed7">
+        <source>Enable on Product Page</source>
+        <target>Activer sur la page produit</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="fa60c94c8b8cd84421c5286efbb2510b">
+        <source>Enable or disable the AskDialog assistant on the product page</source>
+        <target>Activer ou désactiver l'assistant AskDialog sur la page produit</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="f951a1e1ff1ed0d24a2758b6441a3431">
+        <source>Primary Color</source>
+        <target>Couleur primaire</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="119748e7e3541e9775e131a847dcabf8">
+        <source>Main color for buttons and accents (hex format: #RRGGBB)</source>
+        <target>Couleur principale des boutons et des accents (format hexa : #RRGGBB)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="0c458e5cd3978536b785708482f22500">
+        <source>Please enter a valid hex color (e.g., #CCCCCC)</source>
+        <target>Veuillez entrer une couleur hexadécimale valide (par exemple, #CCCCCC)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="75e7422f2fe253fc69d3f6c148d197ee">
+        <source>Background Color</source>
+        <target>Couleur d'arrière-plan</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="b7dc7cee564efa17173c110b0f184640">
+        <source>Background color for the dialog widget (hex format: #RRGGBB)</source>
+        <target>Couleur d'arrière-plan du widget de dialogue (format hexadécimal : #RRGGBB)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="e1675e49553ef54d562515c76c9cd673">
+        <source>Please enter a valid hex color (e.g., #FFFFFF)</source>
+        <target>Veuillez entrer une couleur hexadécimale valide (par exemple, #FFFFFF)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="d64e3f89ff4ac5da6cfb06cf00824d7e">
+        <source>CTA Text Color</source>
+        <target>Couleur du texte CTA</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="a1b197f4079b537635c38cc8542482ff">
+        <source>Text color for call-to-action buttons (hex format: #RRGGBB)</source>
+        <target>Couleur du texte pour les boutons d'appel à l'action (format hexadécimal : #RRGGBB)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="843cacacf0bff8b4627de46f8f68ab15">
+        <source>Please enter a valid hex color (e.g., #000000)</source>
+        <target>Veuillez entrer une couleur hexadécimale valide (par exemple, #000000)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="5ddd9ea1aec65fd0d5ce02bc728911ae">
+        <source>CTA Border Type</source>
+        <target>Type de bordure CTA</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="bf330774016d7183644f3a05c250799a">
+        <source>Border style for call-to-action buttons</source>
+        <target>Style de bordure pour les boutons d'appel à l'action</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="e41480b6bbfbf7407974a88d3d34f4fa">
+        <source>Solid</source>
+        <target>Solid</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="eb656e41b6da91494775ecf47a51da91">
+        <source>Dashed</source>
+        <target>Dashed</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="90c09393a4c0970bc9a6703ad527781c">
+        <source>Dotted</source>
+        <target>Dotted</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="d909d38d705ce75386dd86e611a82f5b">
+        <source>Double</source>
+        <target>Double</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="6adf97f83acf6453d4a6a4b1070f3754">
+        <source>None</source>
+        <target>None</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="219a213b218bfd961164b09f1b2b3565">
+        <source>Capitalize CTAs</source>
+        <target>Capitalize CTAs</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="29eeabe15c0414ed7acfa56ea5bc5c0b">
+        <source>Automatically capitalize call-to-action button text</source>
+        <target>Mettre automatiquement en majuscule le texte du bouton d'appel à l'action</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="db40a5d4b654151bf70f2e25e73263dc">
+        <source>Font Family</source>
+        <target>Font Family</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="03c1c613ab6dd8b4cb2c2acbfb54222d">
+        <source>CSS font family for the dialog widget (e.g., Arial, sans-serif)</source>
+        <target>Famille de polices CSS pour le widget de dialogue (par exemple, Arial, sans-serif)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="57761ba40fb62895f407f9e33ce2d108">
+        <source>Font family cannot be longer than {{ limit }} characters</source>
+        <target>La famille de polices ne peut pas comporter plus de {{ limit }} caractères</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="a757d59548ea58c9d6b7f02892136a6e">
+        <source>Highlight Product Name</source>
+        <target>Mettre en surbrillance le nom du produit</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="d0b84187a14dc8d539eace5a8da7ae4e">
+        <source>Highlight the product name in the dialog responses</source>
+        <target>Mettez en surbrillance le nom du produit dans les réponses de la boîte de dialogue</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="254f642527b45bc260048e30704edb39">
+        <source>Configuration</source>
+        <target>Configuration</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="a1c58e94227389415de133efdf78ea6e">
+        <source>Appearance</source>
+        <target>Apparence</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="6879d9cee4ba90f94f8bac2543992979">
+        <source>API Configuration</source>
+        <target>Configuration des API</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="414531c4f876faf57860eacf5fd8fcba">
+        <source>Don't have API keys yet?</source>
+        <target>Vous n'avez pas encore de clés API ?</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="6e50a17bdd669f40cabc172dbd5ac2e6">
+        <source>Go to AskDialog onboarding</source>
+        <target>Accédez à l'intégration d'AskDialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="220da65a8d49ad42243005b0105137c5">
+        <source>Widget Appearance</source>
+        <target>Apparence des widgets</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="4c9786659018728fe07ea7e793d4103c">
+        <source>Customize the appearance of the Dialog widget. Leave fields empty to use default values or allow theme overrides.</source>
+        <target>Personnalisez l'apparence du widget Boîte de dialogue. Laissez les champs vides pour utiliser les valeurs par défaut ou autoriser les remplacements de thème.</target>
+        <note>Line: </note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

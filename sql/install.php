@@ -1,6 +1,6 @@
 <?php
 /**
- * 2007-2025 Dialog
+ * 2026 Dialog
  *
  * NOTICE OF LICENSE
  *
@@ -16,10 +16,9 @@
  * needs please refer to http://www.prestashop.com for more information.
  *
  * @author    Axel Paillaud <contact@axelweb.fr>
- * @copyright 2007-2025 Dialog
+ * @copyright 2026 Dialog
  * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  */
-
 if (!defined('_PS_VERSION_')) {
     exit;
 }

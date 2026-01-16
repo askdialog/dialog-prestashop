@@ -1,24 +1,27 @@
 <?php
-/*
-* 2007-2025 Dialog
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author Axel Paillaud <contact@axelweb.fr>
-*  @copyright  2007-2025 Dialog
-*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*/
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
 use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Trait\JsonResponseTrait;
@@ -85,7 +88,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
-                    'message' => 'Invalid action'
+                    'message' => 'Invalid action',
                 ], 400);
         }
     }
@@ -125,10 +128,10 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
      */
     private function handleGetProductData($dataGenerator)
     {
-        $productId = (int)Tools::getValue('id_product');
+        $productId = (int) Tools::getValue('id_product');
 
         // Use context language and country by default
-        $idLang = (int)$this->context->language->id;
+        $idLang = (int) $this->context->language->id;
         $countryCode = $this->context->country->iso_code;
 
         // Allow override via parameters (for Dialog AI API calls)
@@ -142,7 +145,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
             if (!$idLang) {
                 $this->sendJsonResponse([
                     'status' => 'error',
-                    'message' => 'Invalid country code or locale: ' . $paramCountryCode . '-' . $paramLocale
+                    'message' => 'Invalid country code or locale: ' . $paramCountryCode . '-' . $paramLocale,
                 ], 400);
             }
 

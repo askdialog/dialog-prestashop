@@ -1,40 +1,41 @@
 <?php
-/*
-* 2007-2025 Dialog
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author Axel Paillaud <contact@axelweb.fr>
-*  @copyright  2007-2025 Dialog
-*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*/
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
 
 namespace Dialog\AskDialog\Service;
 
-use Dialog\AskDialog\Helper\PathHelper;
-use Dialog\AskDialog\Service\Export\ProductExportService;
-use Dialog\AskDialog\Service\Export\CmsExportService;
-use Dialog\AskDialog\Service\Export\CategoryExportService;
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
+
 use Dialog\AskDialog\Repository\LanguageRepository;
+use Dialog\AskDialog\Service\Export\CategoryExportService;
+use Dialog\AskDialog\Service\Export\CmsExportService;
+use Dialog\AskDialog\Service\Export\ProductExportService;
 
 /**
  * Data Generator Service - Orchestrator for export services
  *
  * This class acts as a facade, delegating export operations to specialized services.
  * Maintains backward compatibility with existing controllers.
- *
- * @package Dialog\AskDialog\Service
  */
 class DataGenerator
 {
@@ -55,6 +56,7 @@ class DataGenerator
      * Generates CMS pages data and saves to JSON file
      *
      * @param int|null $idLang Language ID (default: shop default language)
+     *
      * @return string Path to generated JSON file
      */
     public function generateCMSData($idLang = null)
@@ -67,6 +69,7 @@ class DataGenerator
      *
      * @param int $idLang Language ID
      * @param int $idShop Shop ID
+     *
      * @return string Path to generated JSON file
      */
     public function generateCategoryData($idLang, $idShop)
@@ -82,7 +85,9 @@ class DataGenerator
      * @param int $idShop Shop ID
      * @param int $idLang Language ID
      * @param string $countryCode Country code for tax calculation
+     *
      * @return string Path to generated JSON file
+     *
      * @throws \Exception If no products found or no valid data generated
      */
     public function generateCatalogData($idShop, $idLang, $countryCode = 'fr')
@@ -97,8 +102,8 @@ class DataGenerator
      */
     public function getCategoryData()
     {
-        $idShop = (int)\Context::getContext()->shop->id;
-        $idLang = (int)\Context::getContext()->language->id;
+        $idShop = (int) \Context::getContext()->shop->id;
+        $idLang = (int) \Context::getContext()->language->id;
 
         return $this->categoryExport->getData($idShop, $idLang);
     }
@@ -120,6 +125,7 @@ class DataGenerator
      * @param int $defaultLang Language ID
      * @param \Link $linkObj Link object for URL generation
      * @param string $countryCode Country code for tax calculation
+     *
      * @return array Product data formatted for Dialog AI
      */
     public function getProductData($product_id, $defaultLang, $linkObj, $countryCode = 'fr')
@@ -139,11 +145,11 @@ class DataGenerator
         $languageData = [];
         foreach ($languages as $language) {
             $languageData[] = [
-                'id' => (int)$language['id_lang'],
+                'id' => (int) $language['id_lang'],
                 'name' => $language['name'],
                 'iso_code' => $language['iso_code'],
                 'locale' => $language['locale'],
-                'active' => (bool)$language['active']
+                'active' => (bool) $language['active'],
             ];
         }
 

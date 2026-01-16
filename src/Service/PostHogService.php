@@ -1,26 +1,30 @@
 <?php
-/*
-* 2007-2025 Dialog
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author Axel Paillaud <contact@axelweb.fr>
-*  @copyright  2007-2025 Dialog
-*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*/
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
 
 namespace Dialog\AskDialog\Service;
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
@@ -73,6 +77,7 @@ class PostHogService
      * @param string $event Event name (e.g., 'user_added_to_cart', 'Order Confirmation')
      * @param array $properties Event properties
      * @param string|null $distinctId Unique identifier for the user (if null, will be generated)
+     *
      * @return bool True if event was sent successfully, false otherwise
      */
     public function capture($event, array $properties = [], $distinctId = null)
@@ -105,6 +110,7 @@ class PostHogService
      *
      * @param \Customer|null $customer
      * @param \Cart|null $cart
+     *
      * @return string
      */
     public function getDistinctId($customer = null, $cart = null)
@@ -121,19 +127,9 @@ class PostHogService
         );
 
         if (isset($_COOKIE[$cookieName])) {
-            try {
-                $posthogData = json_decode($_COOKIE[$cookieName], true);
-                if (isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
-                    return $posthogData['distinct_id'];
-                }
-            } catch (\Exception $e) {
-                // If JSON parsing fails, continue with fallback logic
-                \PrestaShopLogger::addLog(
-                    'PostHog cookie parsing error: ' . $e->getMessage(),
-                    2,
-                    null,
-                    'PostHogService'
-                );
+            $posthogData = json_decode($_COOKIE[$cookieName], true);
+            if (is_array($posthogData) && isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
+                return $posthogData['distinct_id'];
             }
         }
 
@@ -176,6 +172,7 @@ class PostHogService
      * creating full user profiles (GDPR compliance + performance)
      *
      * @param array $properties User-defined properties
+     *
      * @return array Complete properties array
      */
     private function buildEventProperties(array $properties)
@@ -190,6 +187,7 @@ class PostHogService
      * Send event payload to PostHog HTTP API using Symfony HttpClient
      *
      * @param array $payload Event payload
+     *
      * @return bool True if successful, false otherwise
      */
     private function sendToPostHog(array $payload)
@@ -209,6 +207,7 @@ class PostHogService
                 $e->getResponse()->getStatusCode(),
                 'PostHogService'
             );
+
             return false;
         } catch (TransportExceptionInterface $e) {
             // Log transport errors but don't break execution
@@ -218,15 +217,7 @@ class PostHogService
                 null,
                 'PostHogService'
             );
-            return false;
-        } catch (\Exception $e) {
-            // Catch any other errors
-            \PrestaShopLogger::addLog(
-                'PostHog API error: ' . $e->getMessage(),
-                3,
-                null,
-                'PostHogService'
-            );
+
             return false;
         }
     }
@@ -240,6 +231,7 @@ class PostHogService
      * @param int $idProductAttribute Combination ID (0 if none)
      * @param int $quantity Quantity added (must be positive)
      * @param \Cart $cart Cart object
+     *
      * @return bool True if event sent successfully, false otherwise
      */
     public function trackAddToCart($idProduct, $idProductAttribute, $quantity, $cart)
@@ -256,7 +248,7 @@ class PostHogService
         $properties = [
             'productId' => $idProduct,
             'quantity' => $quantity,
-            'currency' => isset($context->currency) && $context->currency
+            'currency' => isset($context->currency)
                 ? $context->currency->iso_code
                 : 'EUR',
         ];
@@ -273,6 +265,7 @@ class PostHogService
      * Track order confirmation event
      *
      * @param \Order $order Order object
+     *
      * @return bool
      */
     public function trackOrderConfirmation($order)

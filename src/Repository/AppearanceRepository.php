@@ -1,32 +1,34 @@
 <?php
-/*
-* 2007-2025 Dialog
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author Axel Paillaud <contact@axelweb.fr>
-*  @copyright  2007-2025 Dialog
-*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*/
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
 
 namespace Dialog\AskDialog\Repository;
+
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
 /**
  * Repository for Dialog appearance settings
  * Manages JSON-based appearance configuration in database
- *
- * @package Dialog\AskDialog\Repository
  */
 class AppearanceRepository extends AbstractRepository
 {
@@ -47,11 +49,12 @@ class AppearanceRepository extends AbstractRepository
      * Get appearance settings for a specific shop
      *
      * @param int $idShop Shop ID
+     *
      * @return array Appearance settings (returns defaults if not found)
      */
     public function getSettings($idShop)
     {
-        $sql = 'SELECT settings 
+        $sql = 'SELECT settings
                 FROM `' . $this->getPrefix() . 'askdialog_appearance`
                 WHERE id_shop = ' . (int) $idShop;
 
@@ -62,7 +65,7 @@ class AppearanceRepository extends AbstractRepository
         }
 
         $settings = json_decode($result, true);
-        
+
         if (json_last_error() !== JSON_ERROR_NONE) {
             return self::DEFAULT_SETTINGS;
         }
@@ -73,7 +76,7 @@ class AppearanceRepository extends AbstractRepository
         foreach ($settings as $key => $value) {
             $merged[$key] = $value; // This preserves empty strings
         }
-        
+
         return $merged;
     }
 
@@ -82,18 +85,19 @@ class AppearanceRepository extends AbstractRepository
      *
      * @param int $idShop Shop ID
      * @param array $settings Appearance settings (empty string = allow theme override)
+     *
      * @return bool True on success, false on failure
      */
     public function updateSettings($idShop, array $settings)
     {
         // Get existing settings
         $existingSettings = $this->getSettings($idShop);
-        
+
         // Normalize empty values: null → empty string (for Smarty compatibility)
-        $normalizedSettings = array_map(function($value) {
+        $normalizedSettings = array_map(function ($value) {
             return ($value === null) ? '' : $value;
         }, $settings);
-        
+
         // Merge with existing settings
         $mergedSettings = array_merge($existingSettings, $normalizedSettings);
 
@@ -106,7 +110,7 @@ class AppearanceRepository extends AbstractRepository
 
         // Check if row exists
         $exists = $this->getDb()->getValue(
-            'SELECT id_appearance 
+            'SELECT id_appearance
              FROM `' . $this->getPrefix() . 'askdialog_appearance`
              WHERE id_shop = ' . (int) $idShop
         );
@@ -141,11 +145,13 @@ class AppearanceRepository extends AbstractRepository
      * @param int $idShop Shop ID
      * @param string $key Setting key
      * @param mixed $default Default value if key not found
+     *
      * @return mixed Setting value or default
      */
     public function getSetting($idShop, $key, $default = null)
     {
         $settings = $this->getSettings($idShop);
+
         return isset($settings[$key]) ? $settings[$key] : $default;
     }
 
@@ -155,6 +161,7 @@ class AppearanceRepository extends AbstractRepository
      * @param int $idShop Shop ID
      * @param string $key Setting key
      * @param mixed $value Setting value
+     *
      * @return bool True on success, false on failure
      */
     public function updateSetting($idShop, $key, $value)
@@ -166,6 +173,7 @@ class AppearanceRepository extends AbstractRepository
      * Delete appearance settings for a specific shop
      *
      * @param int $idShop Shop ID
+     *
      * @return bool True on success, false on failure
      */
     public function deleteSettings($idShop)
@@ -190,6 +198,7 @@ class AppearanceRepository extends AbstractRepository
      * Check if a setting key is valid
      *
      * @param string $key Setting key
+     *
      * @return bool True if valid
      */
     public static function isValidSettingKey($key)

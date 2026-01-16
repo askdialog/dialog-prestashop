@@ -1,30 +1,33 @@
 <?php
-/*
-* 2007-2025 Dialog
-*
-* NOTICE OF LICENSE
-*
-* This source file is subject to the Academic Free License (AFL 3.0)
-* that is bundled with this package in the file LICENSE.txt.
-* It is also available through the world-wide-web at this URL:
-* http://opensource.org/licenses/afl-3.0.php
-*
-* DISCLAIMER
-*
-* Do not edit or add to this file if you wish to upgrade PrestaShop to newer
-* versions in the future. If you wish to customize PrestaShop for your
-* needs please refer to http://www.prestashop.com for more information.
-*
-*  @author Axel Paillaud <contact@axelweb.fr>
-*  @copyright  2007-2025 Dialog
-*  @license    http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
-*/
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
-use Dialog\AskDialog\Service\DataGenerator;
-use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Helper\PathHelper;
-use Dialog\AskDialog\Trait\JsonResponseTrait;
 use Dialog\AskDialog\Repository\ExportLogRepository;
+use Dialog\AskDialog\Service\AskDialogClient;
+use Dialog\AskDialog\Service\DataGenerator;
+use Dialog\AskDialog\Trait\JsonResponseTrait;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\Multipart\FormDataPart;
@@ -69,7 +72,9 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      * @param array $fields Additional form fields (from S3 signature)
      * @param string $tempFile Path to file to upload
      * @param string $filename Original filename
-     * @return \Symfony\Contracts\HttpClient\ResponseInterface
+     *
+     * @return Symfony\Contracts\HttpClient\ResponseInterface
+     *
      * @throws TransportExceptionInterface
      */
     private function sendFileToS3($url, $fields, $tempFile, $filename)
@@ -111,7 +116,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
-                    'message' => 'Invalid action'
+                    'message' => 'Invalid action',
                 ], 400);
         }
     }
@@ -127,7 +132,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         // Response sent immediately, then processing continues in background
         $this->sendJsonResponseAsync([
             'status' => 'accepted',
-            'message' => 'Export started'
+            'message' => 'Export started',
         ], 202);
 
         $exportLogRepo = new ExportLogRepository();
@@ -135,8 +140,8 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         // Process export asynchronously (client already received 202)
         try {
-            $idShop = (int)$this->context->shop->id;
-            $idLang = (int)$this->context->language->id;
+            $idShop = (int) $this->context->shop->id;
+            $idLang = (int) $this->context->language->id;
             $countryCode = $this->context->country->iso_code;
 
             // Create export log with 'init' status
@@ -145,7 +150,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 ExportLogRepository::EXPORT_TYPE_CATALOG,
                 [
                     'id_lang' => $idLang,
-                    'country_code' => $countryCode
+                    'country_code' => $countryCode,
                 ]
             );
 
@@ -162,7 +167,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo);
 
             // Log success
-            \PrestaShopLogger::addLog(
+            PrestaShopLogger::addLog(
                 'AskDialog catalog export completed successfully',
                 1, // Info level
                 null,
@@ -170,7 +175,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 null,
                 true
             );
-
         } catch (Exception $e) {
             // Update export log with error status
             if ($exportLogId) {
@@ -182,7 +186,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             }
 
             // Log error since client already received 202 response
-            \PrestaShopLogger::addLog(
+            PrestaShopLogger::addLog(
                 'AskDialog catalog export failed: ' . $e->getMessage(),
                 3, // Error level
                 null,
@@ -200,6 +204,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      * @param string $cmsFile Path to CMS JSON file
      * @param int $exportLogId Export log ID for tracking
      * @param ExportLogRepository $exportLogRepo Repository for updating log
+     *
      * @throws Exception
      */
     private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo)
@@ -239,8 +244,8 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
 
             // Check all uploads succeeded
-            if ($responseCatalog->getStatusCode() === 204 &&
-                $responsePages->getStatusCode() === 204) {
+            if ($responseCatalog->getStatusCode() === 204
+                && $responsePages->getStatusCode() === 204) {
                 // Move files to sent folder
                 rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
                 rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
@@ -251,7 +256,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     ExportLogRepository::STATUS_SUCCESS,
                     [
                         'file_name' => $catalogFilename,
-                        's3_url' => $urlCatalog // Base S3 URL (bucket path)
+                        's3_url' => $urlCatalog, // Base S3 URL (bucket path)
                     ]
                 );
 
@@ -261,7 +266,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }
-
         } catch (HttpExceptionInterface $e) {
             throw new Exception('HTTP error during S3 upload: ' . $e->getMessage());
         } catch (TransportExceptionInterface $e) {

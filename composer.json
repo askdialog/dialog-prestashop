@@ -2,7 +2,7 @@
     "name": "dialog/askdialog",
     "description": "Ask Dialog PrestaShop module",
     "type": "prestashop-module",
-    "license": "AFL-3.0",
+    "license": "OSL-3.0",
     "authors": [
         {
             "name": "Dialog",
@@ -15,12 +15,13 @@
         }
     },
     "require": {
-        "php": ">=7.1"
+        "php": ">=7.2"
     },
     "config": {
-      "prepend-autoloader": false
+        "prepend-autoloader": false
     },
     "require-dev": {
-      "friendsofphp/php-cs-fixer": "^3.89"
+        "friendsofphp/php-cs-fixer": "^3.89",
+        "prestashop/header-stamp": "^2.6"
     }
 }
