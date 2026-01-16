@@ -61,6 +61,11 @@ class AskDialog extends Module
         $this->description = $this->trans('Module to provide the AskDialog assistant on your e-shop', [], 'Modules.Askdialog.Admin');
     }
 
+    public function isUsingNewTranslationSystem()
+    {
+        return true;
+    }
+
     protected function installDb(): bool
     {
         $file = __DIR__ . '/sql/install.php';
