@@ -248,7 +248,7 @@ class PostHogService
         $properties = [
             'productId' => $idProduct,
             'quantity' => $quantity,
-            'currency' => isset($context->currency) && $context->currency
+            'currency' => isset($context->currency)
                 ? $context->currency->iso_code
                 : 'EUR',
         ];
