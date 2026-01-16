@@ -43,6 +43,17 @@ $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_export_log` (
     KEY `idx_started_at` (`started_at`)
 ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 
+// Create table to store Dialog appearance settings (JSON format for flexibility)
+$sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_appearance` (
+    `id_appearance` int(11) NOT NULL AUTO_INCREMENT,
+    `id_shop` int(11) NOT NULL,
+    `settings` JSON NOT NULL,
+    `date_add` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `date_upd` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_appearance`),
+    UNIQUE KEY `idx_id_shop` (`id_shop`)
+) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
+
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {
         return false;

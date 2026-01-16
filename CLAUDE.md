@@ -66,29 +66,115 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ### Database Tables
 - `askdialog_export_log`: Tracks export status (init, pending, success, error) for S3 uploads
+- `askdialog_appearance`: Stores widget appearance settings in JSON format (flexible schema)
 
 ### Configuration (Configuration::get)
 - `ASKDIALOG_API_KEY`: Private API key
 - `ASKDIALOG_API_KEY_PUBLIC`: Public API key
-- `ASKDIALOG_API_URL`: Api URL
+- `ASKDIALOG_API_URL`: API URL (default: defined in `AskDialog::DIALOG_API_URL`)
 - `ASKDIALOG_ENABLE_PRODUCT_HOOK`: Enable on product pages
-- `ASKDIALOG_COLOR_PRIMARY`: Primary color
-- `ASKDIALOG_COLOR_BACKGROUND`: Background color
-- `ASKDIALOG_COLOR_CTA_TEXT`: CTA text color
-- `ASKDIALOG_CTA_BORDER_TYPE`: Border type (solid, dashed, etc.)
-- `ASKDIALOG_CAPITALIZE_CTAS`: Capitalize CTAs
-- `ASKDIALOG_FONT_FAMILY`: Font family
-- `ASKDIALOG_HIGHLIGHT_PRODUCT_NAME`: Highlight product name
-- `ASKDIALOG_BATCH_SIZE`: Batch size for export (default: 1000000)
+
+### Appearance Settings (JSON in `askdialog_appearance` table)
+Stored per shop in JSON format for flexibility:
+- `primary_color`: Primary color (hex: #RRGGBB)
+- `background_color`: Background color (hex: #RRGGBB)
+- `cta_text_color`: CTA text color (hex: #RRGGBB)
+- `cta_border_type`: Border type (solid, dashed, dotted, double, none)
+- `capitalize_ctas`: Capitalize CTAs (boolean)
+- `font_family`: Font family (CSS string)
+- `highlight_product_name`: Highlight product name (boolean)
+
+**CSS Priority System:**
+1. **User settings** (BO) → Inline CSS with `!important`
+2. **Theme overrides** → Normal CSS in theme files
+3. **Module defaults** → CSS Custom Properties fallback in `views/css/all-pages/variables.css`
 
 ### Hooks Used
-- `displayHeader`: Load CSS/JS files
+- `actionFrontControllerSetMedia`: Load CSS/JS files
 - `displayFooterAfter`: Inject Dialog SDK with configuration
 - `displayProductAdditionalInfo`: Display assistant on product pages
 - `actionFrontControllerInitBefore`: Handle CORS (currently commented)
-- `displayOrderConfirmation`: PostHog analytics on order confirmation
+- `actionCartUpdateQuantityBefore`: Track add to cart events (PostHog PHP)
+- `actionValidateOrder`: Track order confirmation events (PostHog PHP)
+- `displayOrderConfirmation`: Display order confirmation message
 
 ## Refactoring History
+
+### Appearance Settings Migration to JSON Table
+
+**Changes:**
+- ✅ Created `askdialog_appearance` table with JSON column for flexible schema
+- ✅ Migrated all appearance settings from `ps_configuration` to dedicated table
+- ✅ Created `AppearanceRepository` for database operations
+- ✅ Implemented Symfony forms with tabs UI (Configuration + Appearance)
+- ✅ Added CSS Custom Properties priority system (User > Theme > Module)
+- ✅ Refactored CSS structure into directories (`all-pages/`, `product-page/`)
+- ✅ Extracted hardcoded URLs into class constants (`DIALOG_API_URL`, `DIALOG_SDK_CDN_URL`)
+- ✅ Removed unused Configuration keys (colors, fonts, batch_size)
+
+**Architecture:**
+```
+src/
+├── Repository/
+│   └── AppearanceRepository.php      (JSON CRUD operations)
+├── Form/
+│   ├── AppearanceFormType.php        (Symfony form with validation)
+│   ├── AppearanceDataConfiguration.php
+│   ├── AppearanceFormDataProvider.php
+│   └── AppearanceFormHandler.php
+└── Controller/
+    └── AdminConfigurationController.php (Tabs: Configuration + Appearance)
+```
+
+**Benefits:**
+- No database migration needed to add new appearance settings
+- Clean separation between API config and appearance
+- Theme can override styles via CSS without BO interference
+- User settings always have priority via `!important`
+
+### PostHog Analytics Migration to PHP
+
+**Problem:** JavaScript PostHog tracking was unreliable and blocked by ad blockers (uBlock Origin, etc.)
+
+**Solution:** Migrated to server-side PHP tracking using PostHog HTTP API
+
+**Changes:**
+- ✅ Created `src/Service/PostHogService.php`: Server-side analytics service
+- ✅ Uses Symfony HttpClient for HTTP requests (consistent with AskDialogClient)
+- ✅ Registered hooks: `actionCartUpdateQuantityBefore`, `actionValidateOrder`
+- ✅ Removed old JavaScript files: `posthog.js`, `posthog_order_confirmation.js`
+- ✅ Sets `$process_person_profile: false` for GDPR compliance
+
+**Tracked Events:**
+1. **user_added_to_cart** (via `actionCartUpdateQuantityBefore`)
+   - `productId`: Product ID
+   - `variantId`: Combination ID (if applicable)
+   - `quantity`: Quantity added
+   - `currency`: ISO currency code
+
+2. **Order Confirmation** (via `actionValidateOrder`)
+   - `order_id`: Order ID
+   - `total_amount`: Total paid
+   - `currency`: ISO currency code
+   - `customer_email`: Customer email
+
+**Key Features:**
+- **Ad-blocker proof**: Server-side tracking cannot be blocked
+- **Stable distinct_id**: Priority order - PostHog frontend cookie > customer ID > cart ID > session ID
+- **Frontend/Backend sync**: Reads `distinct_id` from PostHog cookie to link backend events with frontend analytics
+- **Cookie persistence override**: `posthog-cookie-override.js` forces PostHog to use cookies instead of localStorage
+- **Error handling**: Failures logged but don't break user experience
+- **GDPR compliant**: No person profiles created
+
+**API Configuration:**
+- Endpoint: `https://eu.i.posthog.com/capture/`
+- API Key: `phc_WM5MRkqG7AiqOKeTmNKj0fNIl41ZOQex7wRhEswRlTA`
+- Timeout: 5 seconds (non-blocking)
+
+**Benefits:**
+- 100% reliable tracking (no client-side blocking)
+- Better data quality (direct from database)
+- Simpler codebase (no JavaScript event listeners)
 
 ### Category Integration into Catalog (2025-12-23)
 

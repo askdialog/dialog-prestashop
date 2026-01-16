@@ -1,0 +1,8 @@
+askdialog_form_configuration:
+  path: /askdialog/configuration
+  methods: [GET, POST]
+  defaults:
+    _controller: 'Dialog\AskDialog\Controller\AdminConfigurationController::index'
+    # Needed to work with tab system
+    _legacy_controller: AdminAskDialog
+    _legacy_link: AdminAskDialog

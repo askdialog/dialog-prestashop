@@ -1,0 +1,32 @@
+/**
+ * AskDialog CSS Custom Properties
+ * 
+ * Priority system:
+ * 1. User settings (via BO) - defined inline with !important in displayfooterafter.tpl
+ * 2. Theme overrides - can be defined in theme CSS files
+ * 3. Module defaults - defined below (fallback values)
+ */
+
+:root {
+    /* Default appearance values (fallback) */
+    --askdialog-primary-color: #CCCCCC;
+    --askdialog-bg-color: #FFFFFF;
+    --askdialog-cta-text-color: #000000;
+    --askdialog-cta-border-type: solid;
+    --askdialog-font-family: Arial, sans-serif;
+}
+
+/* Example usage - uncomment and customize as needed */
+/*
+#dialog-shopify-ai {
+    background-color: var(--askdialog-bg-color);
+    font-family: var(--askdialog-font-family);
+}
+
+#dialog-shopify-ai button {
+    background-color: var(--askdialog-primary-color);
+    color: var(--askdialog-cta-text-color);
+    border-style: var(--askdialog-cta-border-type);
+    font-family: var(--askdialog-font-family);
+}
+*/
