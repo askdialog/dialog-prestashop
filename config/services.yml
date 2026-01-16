@@ -25,3 +25,32 @@ services:
       - '@form.factory'
       - '@dialog.askdialog.form.general_form_data_provider'
       - 'Dialog\AskDialog\Form\GeneralFormType'
+
+  # Appearance Repository
+  dialog.askdialog.repository.appearance:
+    class: 'Dialog\AskDialog\Repository\AppearanceRepository'
+
+  # Appearance form type
+  dialog.askdialog.form.type.appearance:
+    class: 'Dialog\AskDialog\Form\AppearanceFormType'
+    parent: 'form.type.translatable.aware'
+    public: true
+    tags:
+      - { name: form.type }
+
+  dialog.askdialog.form.appearance_data_configuration:
+    class: 'Dialog\AskDialog\Form\AppearanceDataConfiguration'
+    arguments: 
+      - '@dialog.askdialog.repository.appearance'
+
+  dialog.askdialog.form.appearance_form_data_provider:
+    class: 'Dialog\AskDialog\Form\AppearanceFormDataProvider'
+    arguments:
+      - '@dialog.askdialog.form.appearance_data_configuration'
+
+  dialog.askdialog.form.appearance_form_data_handler:
+    class: 'Dialog\AskDialog\Form\AppearanceFormHandler'
+    arguments:
+      - '@form.factory'
+      - '@dialog.askdialog.form.appearance_form_data_provider'
+      - 'Dialog\AskDialog\Form\AppearanceFormType'

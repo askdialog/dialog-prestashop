@@ -26,12 +26,23 @@ if (!defined('_PS_VERSION_')) {
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+use Dialog\AskDialog\Repository\AppearanceRepository;
 use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\PostHogService;
 use Dialog\AskDialog\Helper\ContextHelper;
 
 class AskDialog extends Module
 {
+    /**
+     * Dialog API base URL
+     */
+    private const DIALOG_API_URL = 'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com';
+
+    /**
+     * Dialog SDK CDN URL
+     */
+    private const DIALOG_SDK_CDN_URL = 'https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js';
+
     public function __construct()
     {
         $this->name = 'askdialog';
@@ -74,40 +85,17 @@ class AskDialog extends Module
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('actionFrontControllerInitBefore')
             && $this->registerHook('displayOrderConfirmation')
-            && $this->registerHook('actionCartUpdateQuantityBefore')
-            && $this->registerHook('actionValidateOrder')
-            && $this->setDefaultConfigurationValues();
-    }
-
-    private function setDefaultConfigurationValues()
-    {
-        return Configuration::updateValue('ASKDIALOG_API_URL', 'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com') // Dialog API base URL
-            && Configuration::updateValue('ASKDIALOG_COLOR_PRIMARY', '#CCCCCC') // Default primary color
-            && Configuration::updateValue('ASKDIALOG_COLOR_BACKGROUND', '#FFFFFF') // Default background color
-            && Configuration::updateValue('ASKDIALOG_COLOR_CTA_TEXT', '#000000') // Default CTA text color
-            && Configuration::updateValue('ASKDIALOG_CTA_BORDER_TYPE', 'solid') // Default border type
-            && Configuration::updateValue('ASKDIALOG_CAPITALIZE_CTAS', 0) // Default boolean value for capitalizing CTAs
-            && Configuration::updateValue('ASKDIALOG_FONT_FAMILY', 'Arial, sans-serif') // Default font family
-            && Configuration::updateValue('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME', 0) // Default boolean value for highlighting product name
-            && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 1000000); // Default batch size
+            && \Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL);
     }
 
     public function uninstall()
     {
         return parent::uninstall()
             // Commented for development comfort - uncomment in production to clean all configuration
-            // && Configuration::deleteByName('ASKDIALOG_API_URL')
-            // && Configuration::deleteByName('ASKDIALOG_API_KEY')
-            // && Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
-            // && Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
-            // && Configuration::deleteByName('ASKDIALOG_COLOR_PRIMARY')
-            // && Configuration::deleteByName('ASKDIALOG_COLOR_BACKGROUND')
-            // && Configuration::deleteByName('ASKDIALOG_COLOR_CTA_TEXT')
-            // && Configuration::deleteByName('ASKDIALOG_CTA_BORDER_TYPE')
-            // && Configuration::deleteByName('ASKDIALOG_CAPITALIZE_CTAS')
-            // && Configuration::deleteByName('ASKDIALOG_FONT_FAMILY')
-            // && Configuration::deleteByName('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME')
-            // && Configuration::deleteByName('ASKDIALOG_BATCH_SIZE')
+            // && \Configuration::deleteByName('ASKDIALOG_API_URL')
+            // && \Configuration::deleteByName('ASKDIALOG_API_KEY')
+            // && \Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
+            // && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
             && $this->uninstallDb();
     }
 
@@ -125,11 +113,21 @@ class AskDialog extends Module
 
     public function hookActionFrontControllerSetMedia()
     {
-        // Register CSS files (local files)
+        // Register CSS files for all pages
+        $this->context->controller->registerStylesheet(
+            'module-askdialog-variables',
+            'modules/' . $this->name . '/views/css/all-pages/variables.css',
+            [
+                'media' => 'all',
+                'priority' => 200,
+            ]
+        );
+
+        // Register CSS files specific to product pages
         if ($this->context->controller instanceof \ProductController) {
             $this->context->controller->registerStylesheet(
-                'module-askdialog-product-style',
-                'modules/' . $this->name . '/views/css/cssForProductPage.css',
+                'module-askdialog-product-instant',
+                'modules/' . $this->name . '/views/css/product-page/instant.css',
                 [
                     'media' => 'all',
                     'priority' => 200,
@@ -137,40 +135,7 @@ class AskDialog extends Module
             );
         }
 
-        $this->context->controller->registerStylesheet(
-            'module-askdialog-global-style',
-            'modules/' . $this->name . '/views/css/cssForAllPages.css',
-            [
-                'media' => 'all',
-                'priority' => 200,
-            ]
-        );
-
-        // Register JS files from CDN
-        // Note: CDN URLs are temporary and will be updated in future versions
-        // Version parameter forces cache invalidation when module is updated
-        $jsParams = [
-            'position' => 'bottom',
-            'priority' => 200,
-            'server' => 'remote',
-            'version' => $this->version,
-            'attributes' => 'defer'
-        ];
-
-        // Shopify compatibility patch - MUST load before instant.js (product pages only)
-        // This monkey-patches fetch/XMLHttpRequest to redirect Shopify API calls to PrestaShop endpoints
-        if ($this->context->controller instanceof \ProductController) {
-            $this->context->controller->registerJavascript(
-                'module-askdialog-shopify-compat-patch',
-                'modules/' . $this->name . '/views/js/shopify-compat-patch.js',
-                [
-                    'position' => 'bottom',
-                    'priority' => 190,
-                ]
-            );
-        }
-
-        // setupModal.js - all pages
+        // Register JS files
         $this->context->controller->registerJavascript(
             'module-askdialog-setupmodal',
             'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/setupModal.js',
@@ -269,39 +234,31 @@ class AskDialog extends Module
 
     public function hookDisplayFooterAfter($params)
     {
-        //Include view
-        $this->context->smarty->assign('module_dir', $this->_path);
         $customer = $this->context->customer;
         $customerId = $customer->isLogged() ? $customer->id : 'anonymous';
-        $this->context->smarty->assign('customer_id', $customerId);
-        $publicApiKey = Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
+        
+        $publicApiKey = \Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
         $countryCode = $this->context->country->iso_code;
         $languageCode = $this->context->language->iso_code;
-
         $languageName = $this->context->language->name;
-        $primaryColor = Configuration::get('ASKDIALOG_COLOR_PRIMARY');
-        $backgroundColor = Configuration::get('ASKDIALOG_COLOR_BACKGROUND');
-        $ctaTextColor = Configuration::get('ASKDIALOG_COLOR_CTA_TEXT');
-        $ctaBorderType = Configuration::get('ASKDIALOG_CTA_BORDER_TYPE');
-        $capitalizeCtas = Configuration::get('ASKDIALOG_CAPITALIZE_CTAS');
-        $fontFamily = Configuration::get('ASKDIALOG_FONT_FAMILY');
-        $highlightProductName = Configuration::get('ASKDIALOG_HIGHLIGHT_PRODUCT_NAME');
+
+        // Get appearance settings from database (JSON-based)
+        $appearanceRepository = new AppearanceRepository();
+        $idShop = (int) $this->context->shop->id;
+        $appearanceSettings = $appearanceRepository->getSettings($idShop);
 
         $this->context->smarty->assign([
+            'module_dir' => $this->_path,
+            'customer_id' => $customerId,
             'public_api_key' => $publicApiKey,
             'country_code' => $countryCode,
             'language_code' => $languageCode,
             'language_name' => $languageName,
-            'primary_color' => $primaryColor,
-            'background_color' => $backgroundColor,
-            'cta_text_color' => $ctaTextColor,
-            'cta_border_type' => $ctaBorderType,
-            'capitalize_ctas' => $capitalizeCtas,
-            'font_family' => $fontFamily,
-            'highlight_product_name' => $highlightProductName
+            'appearance_settings' => $appearanceSettings,
+            'index_dot_js_cdn_url' => self::DIALOG_SDK_CDN_URL,
         ]);
+        
         return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl');
-
     }
 
     /**
