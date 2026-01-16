@@ -196,21 +196,14 @@ class AskDialog extends Module
         // index.js - all pages (main Dialog SDK from CDN)
         $this->context->controller->registerJavascript(
             'module-askdialog-index',
-            'https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js',
+            self::DIALOG_SDK_CDN_URL,
             $jsParams
         );
 
-        // askdialog.js - PrestaShop-specific cart integration (must stay local)
+        // cart-integration.js - PrestaShop-specific cart integration (must stay local)
         $this->context->controller->registerJavascript(
-            'module-askdialog-index',
-            'https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js',
-            $jsParams
-        );
-
-        // askdialog.js - PrestaShop-specific cart integration (must stay local)
-        $this->context->controller->registerJavascript(
-            'module-askdialog-main',
-            'modules/' . $this->name . '/views/js/askdialog.js',
+            'module-askdialog-cart-integration',
+            'modules/' . $this->name . '/views/js/cart-integration.js',
             [
                 'position' => 'bottom',
                 'priority' => 200,
