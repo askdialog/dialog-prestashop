@@ -127,19 +127,9 @@ class PostHogService
         );
 
         if (isset($_COOKIE[$cookieName])) {
-            try {
-                $posthogData = json_decode($_COOKIE[$cookieName], true);
-                if (isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
-                    return $posthogData['distinct_id'];
-                }
-            } catch (\Exception $e) {
-                // If JSON parsing fails, continue with fallback logic
-                \PrestaShopLogger::addLog(
-                    'PostHog cookie parsing error: ' . $e->getMessage(),
-                    2,
-                    null,
-                    'PostHogService'
-                );
+            $posthogData = json_decode($_COOKIE[$cookieName], true);
+            if (is_array($posthogData) && isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
+                return $posthogData['distinct_id'];
             }
         }
 
@@ -223,16 +213,6 @@ class PostHogService
             // Log transport errors but don't break execution
             \PrestaShopLogger::addLog(
                 'PostHog API transport error: ' . $e->getMessage(),
-                3,
-                null,
-                'PostHogService'
-            );
-
-            return false;
-        } catch (\Exception $e) {
-            // Catch any other errors
-            \PrestaShopLogger::addLog(
-                'PostHog API error: ' . $e->getMessage(),
                 3,
                 null,
                 'PostHogService'
