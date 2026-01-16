@@ -35,7 +35,7 @@
     data-handle="{$product_slug}"
     data-selected-variant-id="{$selected_variant_id}"></div>
 
-<div class="dialog-instant" id="dialog-instant">
+<div class="dialog-instant" id="dialog-instant" data-product-id="{$product_id}">
     <div class="dialog-instant-text">
         <span id="assistant-name" class="dialog-question-text-title">
             {$assistant_name}
