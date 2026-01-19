@@ -55,7 +55,7 @@ class AppearanceFormHandler
     public function __construct(
         FormFactoryInterface $formFactory,
         FormDataProviderInterface $formDataProvider,
-        string $formType,
+        string $formType
     ) {
         $this->formFactory = $formFactory;
         $this->formDataProvider = $formDataProvider;
