@@ -28,6 +28,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use Dialog\AskDialog\Service\AskDialogClient;
 use PrestaShop\PrestaShop\Core\Configuration\DataConfigurationInterface;
 use PrestaShop\PrestaShop\Core\ConfigurationInterface;
 
@@ -80,6 +81,18 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
         $this->configuration->set(static::ASKDIALOG_API_KEY_PUBLIC, $normalized['api_key_public']);
         $this->configuration->set(static::ASKDIALOG_API_KEY, $normalized['api_key']);
         $this->configuration->set(static::ASKDIALOG_ENABLE_PRODUCT_HOOK, $normalized['enable_product_hook']);
+
+        // Register domain with Dialog API after saving API keys
+        try {
+            $apiClient = new AskDialogClient();
+            $result = $apiClient->sendDomainHost();
+
+            if ($result['statusCode'] !== 200) {
+                return ['Domain registration failed: ' . $result['body']];
+            }
+        } catch (\Exception $e) {
+            return ['Failed to connect to Dialog API: ' . $e->getMessage()];
+        }
 
         return [];
     }
