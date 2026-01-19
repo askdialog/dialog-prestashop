@@ -24,7 +24,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 use Dialog\AskDialog\Service\DataGenerator;
-use Dialog\AskDialog\Trait\JsonResponseTrait;
+use Dialog\AskDialog\Traits\JsonResponseTrait;
 
 /**
  * Class AskDialogApiModuleFrontController
