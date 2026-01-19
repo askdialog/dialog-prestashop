@@ -87,36 +87,63 @@ class ProductExportService
      */
     public function generateFile($idShop, $idLang, $countryCode = 'fr')
     {
+        $startTime = microtime(true);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: START', 1);
+
         // Get all product IDs for current shop using Repository
         $productIds = $this->productRepository->getProductIdsByShop($idShop);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: Found ' . count($productIds) . ' product IDs', 1);
 
         if (empty($productIds)) {
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: ERROR - No products found for shop ID ' . $idShop, 3);
             throw new \Exception('No products found for shop ID ' . $idShop);
         }
 
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: Starting bulkLoadData...', 1);
         $this->bulkLoadData($productIds, $idLang, $idShop);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: bulkLoadData completed', 1);
 
         // Generate catalog data, uses preloaded data
         $catalogData = [];
         $linkObj = new \Link();
 
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: Starting product transformation...', 1);
         foreach ($productIds as $productId) {
             $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
             if (!empty($productData)) {
                 $catalogData[] = $productData;
             }
         }
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: Transformed ' . count($catalogData) . '/' . count($productIds) . ' products', 1);
 
         if (empty($catalogData)) {
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: ERROR - No valid product data generated', 3);
             throw new \Exception('No valid product data generated');
         }
 
         // Generate unique file path
         $tmpFile = PathHelper::generateTmpFilePath('catalog');
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: Writing to file ' . $tmpFile, 1);
 
         // JSON optimized for LLM: unescaped unicode/slashes, pretty print for readability
         $jsonData = json_encode($catalogData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-        file_put_contents($tmpFile, $jsonData);
+
+        if ($jsonData === false) {
+            $jsonError = json_last_error_msg();
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: ERROR - JSON encoding failed: ' . $jsonError, 3);
+            throw new \Exception('JSON encoding failed: ' . $jsonError);
+        }
+
+        $bytesWritten = file_put_contents($tmpFile, $jsonData);
+
+        if ($bytesWritten === false) {
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: ERROR - Failed to write file ' . $tmpFile . ' - check permissions on var/modules/', 3);
+            throw new \Exception('Failed to write catalog file. Check permissions on var/modules/askdialog/');
+        }
+
+        $duration = round(microtime(true) - $startTime, 2);
+        $fileSizeMb = round($bytesWritten / 1024 / 1024, 2);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFile: SUCCESS - ' . $fileSizeMb . 'MB written in ' . $duration . 's', 1);
 
         return $tmpFile;
     }
@@ -183,37 +210,53 @@ class ProductExportService
     private function bulkLoadData(array $productIds, $idLang, $idShop)
     {
         if (empty($productIds)) {
+            \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: No product IDs provided', 2);
+
             return;
         }
 
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: START - ' . count($productIds) . ' products, idLang=' . $idLang . ', idShop=' . $idShop, 1);
+
         // 1. Load products with multilingual data
         $this->productsData = $this->productRepository->findByIdsWithLang($productIds, $idLang, $idShop);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [1/10] Products loaded: ' . count($this->productsData), 1);
 
         // 2. Load combinations
         $this->combinationsData = $this->combinationRepository->findByProductIds($productIds);
+        $combinationsCount = array_sum(array_map('count', $this->combinationsData));
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [2/10] Combinations loaded: ' . $combinationsCount, 1);
 
         // Get all combination IDs for next queries
         $combinationIds = $this->combinationRepository->getCombinationIdsByProductIds($productIds);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: Combination IDs: ' . count($combinationIds), 1);
 
         if (!empty($combinationIds)) {
             // 3. Load combination attributes
             $this->combinationAttributesData = $this->combinationRepository->findAttributesByCombinationIds($combinationIds, $idLang);
+            \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [3/10] Combination attributes loaded: ' . count($this->combinationAttributesData), 1);
 
             // 4. Load combination images
             $this->combinationImagesData = $this->imageRepository->findByCombinationIds($combinationIds);
+            \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [4/10] Combination images loaded: ' . count($this->combinationImagesData), 1);
 
             // 5. Load combination stock
             $this->combinationStockData = $this->stockRepository->findByCombinationIds($combinationIds, $idShop);
+            \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [5/10] Combination stock loaded: ' . count($this->combinationStockData), 1);
+        } else {
+            \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [3-5/10] Skipped (no combinations)', 1);
         }
 
         // 6. Load product images
         $this->productImagesData = $this->imageRepository->findByProductIds($productIds, $idShop);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [6/10] Product images loaded: ' . count($this->productImagesData), 1);
 
         // 7. Load product stock
         $this->productStockData = $this->stockRepository->findByProductIds($productIds, $idShop);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [7/10] Product stock loaded: ' . count($this->productStockData), 1);
 
         // 8. Load product-category relations
         $this->productCategoriesData = $this->categoryRepository->findCategoryIdsByProductIds($productIds);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [8/10] Product categories loaded: ' . count($this->productCategoriesData), 1);
 
         // Get all unique category IDs and load category details
         $categoryIds = [];
@@ -226,13 +269,18 @@ class ProductExportService
 
         if (!empty($categoryIds)) {
             $this->categoriesData = $this->categoryRepository->findByIds($categoryIds, $idLang, $idShop);
+            \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: Categories details loaded: ' . count($this->categoriesData), 1);
         }
 
         // 9. Load product tags
         $this->productTagsData = $this->tagRepository->findByProductIds($productIds, $idLang);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [9/10] Product tags loaded: ' . count($this->productTagsData), 1);
 
         // 10. Load product features
         $this->productFeaturesData = $this->featureRepository->findByProductIds($productIds, $idLang);
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: [10/10] Product features loaded: ' . count($this->productFeaturesData), 1);
+
+        \PrestaShopLogger::addLog('[AskDialog] bulkLoadData: COMPLETED', 1);
     }
 
     /**
