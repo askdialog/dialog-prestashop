@@ -126,6 +126,47 @@ class DataGenerator
     }
 
     /**
+     * Generates product catalog data using batch processing
+     * Memory-efficient version for large catalogs
+     *
+     * @param int $idShop Shop ID
+     * @param int $idLang Language ID
+     * @param string $countryCode Country code for tax calculation
+     * @param int $batchSize Number of products per batch
+     * @param callable|null $progressCallback Callback for progress updates
+     *
+     * @return string Path to generated JSON file
+     *
+     * @throws \Exception If no products found or no valid data generated
+     */
+    public function generateCatalogDataBatched($idShop, $idLang, $countryCode = 'fr', $batchSize = 5000, $progressCallback = null)
+    {
+        \PrestaShopLogger::addLog('[AskDialog] generateCatalogDataBatched: START - idShop=' . $idShop . ', idLang=' . $idLang . ', countryCode=' . $countryCode . ', batchSize=' . $batchSize, 1);
+
+        try {
+            $result = $this->productExport->generateFileBatched($idShop, $idLang, $countryCode, $batchSize, $progressCallback);
+            \PrestaShopLogger::addLog('[AskDialog] generateCatalogDataBatched: SUCCESS - file=' . $result, 1);
+
+            return $result;
+        } catch (\Exception $e) {
+            \PrestaShopLogger::addLog('[AskDialog] generateCatalogDataBatched: ERROR - ' . $e->getMessage(), 3);
+            throw $e;
+        }
+    }
+
+    /**
+     * Get total product count for a shop
+     *
+     * @param int $idShop Shop ID
+     *
+     * @return int Total number of products
+     */
+    public function getProductCount($idShop)
+    {
+        return $this->productExport->getProductCount($idShop);
+    }
+
+    /**
      * Returns category data for API consumption (no file generation)
      *
      * @return array Category tree structure

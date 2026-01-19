@@ -112,6 +112,39 @@ class ExportLogRepository extends AbstractRepository
     }
 
     /**
+     * Update metadata fields without changing status
+     * Merges new metadata with existing metadata
+     *
+     * @param int $idExportLog Export log ID
+     * @param array $newMetadata Metadata fields to update/add
+     *
+     * @return bool True on success
+     */
+    public function updateMetadata($idExportLog, array $newMetadata)
+    {
+        // Get existing metadata
+        $existingLog = $this->findById($idExportLog);
+        if (!$existingLog) {
+            return false;
+        }
+
+        $existingMetadata = [];
+        if (!empty($existingLog['metadata'])) {
+            $existingMetadata = json_decode($existingLog['metadata'], true) ?: [];
+        }
+
+        // Merge new metadata with existing
+        $mergedMetadata = array_merge($existingMetadata, $newMetadata);
+        $metadataJson = json_encode($mergedMetadata);
+
+        $sql = 'UPDATE `' . $this->getPrefix() . 'askdialog_export_log`
+                SET `metadata` = "' . pSQL($metadataJson) . '"
+                WHERE `id_export_log` = ' . (int) $idExportLog;
+
+        return $this->getDb()->execute($sql);
+    }
+
+    /**
      * Find export log by ID
      *
      * @param int $idExportLog Export log ID

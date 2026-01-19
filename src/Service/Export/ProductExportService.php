@@ -63,6 +63,11 @@ class ProductExportService
     private $productTagsData = [];
     private $productFeaturesData = [];
 
+    /**
+     * Default batch size for batched export
+     */
+    private const DEFAULT_BATCH_SIZE = 5000;
+
     public function __construct()
     {
         $this->productRepository = new ProductRepository();
@@ -72,6 +77,140 @@ class ProductExportService
         $this->categoryRepository = new CategoryRepository();
         $this->tagRepository = new TagRepository();
         $this->featureRepository = new FeatureRepository();
+    }
+
+    /**
+     * Clear all preloaded data to free memory
+     * Must be called after processing each batch
+     *
+     * @return void
+     */
+    private function clearLoadedData()
+    {
+        $this->productsData = [];
+        $this->combinationsData = [];
+        $this->combinationAttributesData = [];
+        $this->productImagesData = [];
+        $this->combinationImagesData = [];
+        $this->productStockData = [];
+        $this->combinationStockData = [];
+        $this->productCategoriesData = [];
+        $this->categoriesData = [];
+        $this->productTagsData = [];
+        $this->productFeaturesData = [];
+
+        // Force garbage collection
+        if (function_exists('gc_collect_cycles')) {
+            gc_collect_cycles();
+        }
+    }
+
+    /**
+     * Get total product count for a shop
+     *
+     * @param int $idShop Shop ID
+     *
+     * @return int Total number of products
+     */
+    public function getProductCount($idShop)
+    {
+        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+
+        return count($productIds);
+    }
+
+    /**
+     * Generates catalog data using batch processing and streaming to file
+     * Memory-efficient: processes products in batches and writes directly to file
+     *
+     * @param int $idShop Shop ID
+     * @param int $idLang Language ID
+     * @param string $countryCode Country code for tax calculation
+     * @param int $batchSize Number of products per batch
+     * @param callable|null $progressCallback Callback called after each batch: function(int $batchCompleted, int $totalBatches)
+     *
+     * @return string Path to generated JSON file
+     *
+     * @throws \Exception If no products found or file write fails
+     */
+    public function generateFileBatched($idShop, $idLang, $countryCode = 'fr', $batchSize = null, $progressCallback = null)
+    {
+        $batchSize = $batchSize ?? self::DEFAULT_BATCH_SIZE;
+        $startTime = microtime(true);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: START (batchSize=' . $batchSize . ')', 1);
+
+        // Get all product IDs for current shop
+        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+        $totalProducts = count($productIds);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: Found ' . $totalProducts . ' products', 1);
+
+        if (empty($productIds)) {
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: ERROR - No products found for shop ID ' . $idShop, 3);
+            throw new \Exception('No products found for shop ID ' . $idShop);
+        }
+
+        // Split into batches
+        $batches = array_chunk($productIds, $batchSize);
+        $totalBatches = count($batches);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: Split into ' . $totalBatches . ' batches', 1);
+
+        // Generate unique file path and open for streaming write
+        $tmpFile = PathHelper::generateTmpFilePath('catalog');
+        $handle = fopen($tmpFile, 'w');
+
+        if ($handle === false) {
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: ERROR - Failed to open file ' . $tmpFile, 3);
+            throw new \Exception('Failed to open catalog file for writing. Check permissions on var/modules/askdialog/');
+        }
+
+        // Start JSON array
+        fwrite($handle, '[');
+
+        $firstProduct = true;
+        $processedCount = 0;
+
+        foreach ($batches as $batchIndex => $batchProductIds) {
+            $batchNumber = $batchIndex + 1;
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: Processing batch ' . $batchNumber . '/' . $totalBatches, 1);
+
+            // Load data for this batch only
+            $this->bulkLoadData($batchProductIds, $idLang, $idShop);
+
+            // Process and write each product
+            $linkObj = new \Link();
+            foreach ($batchProductIds as $productId) {
+                $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
+                if (!empty($productData)) {
+                    if (!$firstProduct) {
+                        fwrite($handle, ',');
+                    }
+                    fwrite($handle, json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+                    $firstProduct = false;
+                    $processedCount++;
+                }
+            }
+
+            // Free memory after each batch
+            $this->clearLoadedData();
+            unset($linkObj);
+
+            \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: Batch ' . $batchNumber . ' completed, ' . $processedCount . ' products processed', 1);
+
+            // Progress callback
+            if ($progressCallback !== null) {
+                $progressCallback($batchNumber, $totalBatches);
+            }
+        }
+
+        // End JSON array
+        fwrite($handle, ']');
+        fclose($handle);
+
+        $duration = round(microtime(true) - $startTime, 2);
+        $fileSizeMb = round(filesize($tmpFile) / 1024 / 1024, 2);
+        \PrestaShopLogger::addLog('[AskDialog] ProductExport::generateFileBatched: SUCCESS - ' . $fileSizeMb . 'MB, ' . $processedCount . ' products in ' . $duration . 's', 1);
+
+        return $tmpFile;
     }
 
     /**
