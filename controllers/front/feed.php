@@ -159,7 +159,8 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      */
     private function handleCatalogExport()
     {
-        PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: START', 1);
+        $maxExecutionTime = (int) ini_get('max_execution_time');
+        PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: START (max_execution_time=' . $maxExecutionTime . 's)', 1);
 
         $stateRepo = new ExportStateRepository();
         $productExport = new ProductExportService();
