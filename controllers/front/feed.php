@@ -55,7 +55,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     /**
      * Default time limit if max_execution_time is 0 (unlimited)
      */
-    private const DEFAULT_TIME_LIMIT = 25;
+    private const DEFAULT_TIME_LIMIT = 115;
 
     /**
      * Initialize controller and verify API key authentication
