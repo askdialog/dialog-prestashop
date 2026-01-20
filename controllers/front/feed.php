@@ -26,8 +26,10 @@ if (!defined('_PS_VERSION_')) {
 use Dialog\AskDialog\Form\GeneralDataConfiguration;
 use Dialog\AskDialog\Helper\PathHelper;
 use Dialog\AskDialog\Repository\ExportLogRepository;
+use Dialog\AskDialog\Repository\ExportStateRepository;
 use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\DataGenerator;
+use Dialog\AskDialog\Service\Export\ProductExportService;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mime\Part\DataPart;
@@ -39,10 +41,21 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
  * Class AskDialogFeedModuleFrontController
  *
  * Handles catalog data export and upload to Dialog AI platform via S3
+ * Supports resumable exports with polling for large catalogs
  */
 class AskDialogFeedModuleFrontController extends ModuleFrontController
 {
     use JsonResponseTrait;
+
+    /**
+     * Safety margin in seconds before max_execution_time
+     */
+    private const TIME_SAFETY_MARGIN = 5;
+
+    /**
+     * Default time limit if max_execution_time is 0 (unlimited)
+     */
+    private const DEFAULT_TIME_LIMIT = 25;
 
     /**
      * Initialize controller and verify API key authentication
@@ -64,6 +77,25 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         }
 
         $this->ajax = true;
+    }
+
+    /**
+     * Calculate safe time limit based on max_execution_time
+     *
+     * @return int Time limit in seconds
+     */
+    private function getSafeTimeLimit()
+    {
+        $maxExecutionTime = (int) ini_get('max_execution_time');
+
+        if ($maxExecutionTime <= 0) {
+            // Unlimited or CLI mode
+            return self::DEFAULT_TIME_LIMIT;
+        }
+
+        $safeLimit = $maxExecutionTime - self::TIME_SAFETY_MARGIN;
+
+        return max(5, $safeLimit); // Minimum 5 seconds
     }
 
     /**
@@ -107,11 +139,10 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     public function displayAjax()
     {
         $action = Tools::getValue('action');
-        $dataGenerator = new DataGenerator();
 
         switch ($action) {
             case 'sendCatalogData':
-                $this->handleCatalogExport($dataGenerator);
+                $this->handleCatalogExport();
                 break;
 
             default:
@@ -123,105 +154,207 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     }
 
     /**
-     * Handles catalog export: generate data, upload to S3
-     * Uses batch processing for memory efficiency on large catalogs
-     *
-     * @param DataGenerator $dataGenerator
+     * Handles catalog export with polling support
+     * Can be called multiple times to resume an interrupted export
      */
-    private function handleCatalogExport($dataGenerator)
+    private function handleCatalogExport()
     {
         PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: START', 1);
 
-        // Send immediate async response to Dialog API (HTTP 202 Accepted)
-        // Response sent immediately, then processing continues in background
-        $this->sendJsonResponseAsync([
-            'status' => 'accepted',
-            'message' => 'Export started',
-        ], 202);
+        $stateRepo = new ExportStateRepository();
+        $productExport = new ProductExportService();
 
-        PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Async response 202 sent to client', 1);
+        $idShop = (int) $this->context->shop->id;
+        $idLang = (int) $this->context->language->id;
+        $countryCode = $this->context->country->iso_code;
 
-        $exportLogRepo = new ExportLogRepository();
-        $exportLogId = null;
+        // Get batch size from configuration
+        $configBatchSize = Configuration::get(GeneralDataConfiguration::ASKDIALOG_BATCH_SIZE);
+        $batchSize = $configBatchSize !== false ? (int) $configBatchSize : GeneralDataConfiguration::DEFAULT_BATCH_SIZE;
 
-        // Process export asynchronously (client already received 202)
         try {
-            $idShop = (int) $this->context->shop->id;
-            $idLang = (int) $this->context->language->id;
-            $countryCode = $this->context->country->iso_code;
+            // Check for existing in-progress export
+            $existingState = $stateRepo->findInProgress($idShop, ExportStateRepository::EXPORT_TYPE_CATALOG);
 
-            // Get batch size from configuration
-            $configBatchSize = Configuration::get(GeneralDataConfiguration::ASKDIALOG_BATCH_SIZE);
-            $batchSize = $configBatchSize !== false ? (int) $configBatchSize : GeneralDataConfiguration::DEFAULT_BATCH_SIZE;
+            if ($existingState) {
+                // Resume existing export
+                PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Resuming export ID=' . $existingState['id_export_state'] . ', offset=' . $existingState['products_exported'], 1);
+                $this->processExportBatch($existingState, $stateRepo, $productExport, $batchSize);
+            } else {
+                // Start new export
+                $totalProducts = $productExport->getProductCount($idShop);
+                PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Starting new export, ' . $totalProducts . ' products', 1);
 
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Context - idShop=' . $idShop . ', idLang=' . $idLang . ', countryCode=' . $countryCode . ', batchSize=' . $batchSize, 1);
+                if ($totalProducts === 0) {
+                    $this->sendJsonResponse([
+                        'status' => 'error',
+                        'message' => 'No products found',
+                    ], 400);
 
-            // Get product count for batch calculation
-            $totalProducts = $dataGenerator->getProductCount($idShop);
-            $totalBatches = (int) ceil($totalProducts / $batchSize);
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: ' . $totalProducts . ' products, ' . $totalBatches . ' batches', 1);
+                    return;
+                }
 
-            // Create export log with 'init' status and batch info
-            $exportLogId = $exportLogRepo->createLog(
-                $idShop,
-                ExportLogRepository::EXPORT_TYPE_CATALOG,
-                [
-                    'id_lang' => $idLang,
-                    'country_code' => $countryCode,
-                    'batch_size' => $batchSize,
-                    'total_products' => $totalProducts,
-                    'total_batches' => $totalBatches,
-                    'batches_completed' => 0,
-                    'current_batch' => 0,
-                ]
-            );
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Export log created, ID=' . $exportLogId, 1);
-
-            // Update status to 'pending' - starting generation
-            $exportLogRepo->updateStatus($exportLogId, ExportLogRepository::STATUS_PENDING);
-
-            // Progress callback to update metadata after each batch
-            $progressCallback = function ($batchCompleted, $totalBatches) use ($exportLogRepo, $exportLogId) {
-                $exportLogRepo->updateMetadata($exportLogId, [
-                    'batches_completed' => $batchCompleted,
-                    'current_batch' => $batchCompleted,
-                ]);
-                PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Progress ' . $batchCompleted . '/' . $totalBatches, 1);
-            };
-
-            // Generate catalog data with batch processing
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Generating catalog data (batched)...', 1);
-            $catalogFile = $dataGenerator->generateCatalogDataBatched($idShop, $idLang, $countryCode, $batchSize, $progressCallback);
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Catalog file generated: ' . $catalogFile, 1);
-
-            // Generate CMS pages export (Service handles everything)
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Generating CMS data...', 1);
-            $cmsFile = $dataGenerator->generateCMSData($idLang);
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: CMS file generated: ' . $cmsFile, 1);
-
-            // Upload files to S3 (this will update log on success)
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Starting S3 upload...', 1);
-            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo);
-
-            // Log success
-            PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: SUCCESS - Export completed', 1);
-        } catch (Exception $e) {
-            // Update export log with error status
-            if ($exportLogId) {
-                $exportLogRepo->updateStatus(
-                    $exportLogId,
-                    ExportLogRepository::STATUS_ERROR,
-                    ['error_message' => $e->getMessage()]
+                // Create export state
+                $stateId = $stateRepo->create(
+                    $idShop,
+                    ExportStateRepository::EXPORT_TYPE_CATALOG,
+                    $totalProducts,
+                    $batchSize,
+                    $idLang,
+                    $countryCode
                 );
-            }
 
-            // Log error since client already received 202 response
+                if ($stateId === false) {
+                    // Race condition: another export started, try to resume it
+                    $existingState = $stateRepo->findInProgress($idShop, ExportStateRepository::EXPORT_TYPE_CATALOG);
+                    if ($existingState) {
+                        PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: Race condition, resuming existing export', 1);
+                        $this->processExportBatch($existingState, $stateRepo, $productExport, $batchSize);
+
+                        return;
+                    }
+
+                    throw new Exception('Failed to create export state');
+                }
+
+                $newState = $stateRepo->findById($stateId);
+                $this->processExportBatch($newState, $stateRepo, $productExport, $batchSize);
+            }
+        } catch (Exception $e) {
             PrestaShopLogger::addLog('[AskDialog] Feed::handleCatalogExport: ERROR - ' . $e->getMessage(), 3);
+
+            $this->sendJsonResponse([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 
     /**
-     * Uploads catalog (with embedded categories) and CMS files to S3
+     * Process a batch of products within time limit
+     *
+     * @param array $state Current export state
+     * @param ExportStateRepository $stateRepo State repository
+     * @param ProductExportService $productExport Product export service
+     * @param int $batchSize Batch size
+     */
+    private function processExportBatch($state, $stateRepo, $productExport, $batchSize)
+    {
+        $timeLimit = $this->getSafeTimeLimit();
+        PrestaShopLogger::addLog('[AskDialog] Feed::processExportBatch: timeLimit=' . $timeLimit . 's', 1);
+
+        $result = $productExport->processResumableBatch(
+            (int) $state['id_shop'],
+            (int) $state['id_lang'],
+            $state['country_code'],
+            (int) $state['products_exported'],
+            $batchSize,
+            $timeLimit,
+            $state['tmp_file_path']
+        );
+
+        // Update state with progress
+        $newProductsExported = (int) $state['products_exported'] + $result['productsProcessed'];
+        $stateRepo->updateProgress(
+            (int) $state['id_export_state'],
+            $newProductsExported,
+            $result['tmpFilePath']
+        );
+
+        if ($result['isComplete']) {
+            // Export complete - finalize
+            PrestaShopLogger::addLog('[AskDialog] Feed::processExportBatch: Export complete, finalizing...', 1);
+            $this->finalizeExport($state, $stateRepo, $productExport, $result['tmpFilePath']);
+        } else {
+            // Export not complete - return progress for polling
+            $progress = round(($newProductsExported / $result['totalProducts']) * 100);
+            PrestaShopLogger::addLog('[AskDialog] Feed::processExportBatch: Progress ' . $progress . '% (' . $newProductsExported . '/' . $result['totalProducts'] . ')', 1);
+
+            $this->sendJsonResponse([
+                'status' => 'in_progress',
+                'stepDone' => false,
+                'progress' => $progress,
+                'productsExported' => $newProductsExported,
+                'totalProducts' => $result['totalProducts'],
+                'message' => $newProductsExported . '/' . $result['totalProducts'] . ' products exported',
+            ], 200);
+        }
+    }
+
+    /**
+     * Finalize export: convert NDJSON, generate CMS, upload to S3
+     *
+     * @param array $state Export state
+     * @param ExportStateRepository $stateRepo State repository
+     * @param ProductExportService $productExport Product export service
+     * @param string $ndjsonFilePath Path to NDJSON file
+     */
+    private function finalizeExport($state, $stateRepo, $productExport, $ndjsonFilePath)
+    {
+        $exportLogRepo = new ExportLogRepository();
+        $dataGenerator = new DataGenerator();
+
+        $idShop = (int) $state['id_shop'];
+        $idLang = (int) $state['id_lang'];
+
+        // Create export log entry
+        $exportLogId = $exportLogRepo->createLog(
+            $idShop,
+            ExportLogRepository::EXPORT_TYPE_CATALOG,
+            [
+                'id_lang' => $idLang,
+                'country_code' => $state['country_code'],
+                'total_products' => $state['total_products'],
+            ]
+        );
+        $exportLogRepo->updateStatus($exportLogId, ExportLogRepository::STATUS_PENDING);
+
+        try {
+            // Convert NDJSON to final JSON
+            PrestaShopLogger::addLog('[AskDialog] Feed::finalizeExport: Converting NDJSON to JSON...', 1);
+            $catalogFile = $productExport->convertNdjsonToJson($ndjsonFilePath);
+
+            // Generate CMS pages
+            PrestaShopLogger::addLog('[AskDialog] Feed::finalizeExport: Generating CMS data...', 1);
+            $cmsFile = $dataGenerator->generateCMSData($idLang);
+
+            // Upload to S3
+            PrestaShopLogger::addLog('[AskDialog] Feed::finalizeExport: Uploading to S3...', 1);
+            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo);
+
+            // Mark state as completed and delete it
+            $stateRepo->markCompleted((int) $state['id_export_state']);
+            $stateRepo->delete((int) $state['id_export_state']);
+
+            PrestaShopLogger::addLog('[AskDialog] Feed::finalizeExport: SUCCESS', 1);
+
+            $this->sendJsonResponse([
+                'status' => 'success',
+                'stepDone' => true,
+                'progress' => 100,
+                'message' => 'Export completed and uploaded to S3',
+            ], 200);
+        } catch (Exception $e) {
+            // Mark export as failed
+            $stateRepo->markFailed((int) $state['id_export_state']);
+            $exportLogRepo->updateStatus(
+                $exportLogId,
+                ExportLogRepository::STATUS_ERROR,
+                ['error_message' => $e->getMessage()]
+            );
+
+            PrestaShopLogger::addLog('[AskDialog] Feed::finalizeExport: ERROR - ' . $e->getMessage(), 3);
+
+            $this->sendJsonResponse([
+                'status' => 'error',
+                'stepDone' => true,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Uploads catalog and CMS files to S3
      *
      * @param string $catalogFile Path to catalog JSON file
      * @param string $cmsFile Path to CMS JSON file
@@ -235,27 +368,20 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         PrestaShopLogger::addLog('[AskDialog] S3Upload: START', 1);
 
         // Get signed URLs from Dialog API
-        PrestaShopLogger::addLog('[AskDialog] S3Upload: Requesting signed URLs from Dialog API...', 1);
         $askDialogClient = new AskDialogClient();
         $result = $askDialogClient->prepareServerTransfer();
 
         if ($result['statusCode'] !== 200) {
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: ERROR - Failed to get signed URLs, statusCode=' . $result['statusCode'], 3);
             throw new Exception('Failed to get S3 upload URLs: ' . $result['body']);
         }
 
-        PrestaShopLogger::addLog('[AskDialog] S3Upload: Signed URLs received successfully', 1);
-
         $uploadUrls = json_decode($result['body'], true);
         if ($uploadUrls === null) {
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: ERROR - Invalid JSON response from prepareServerTransfer', 3);
             throw new Exception('Invalid response from prepareServerTransfer');
         }
 
-        // Extract upload URLs (validate presence)
         if (!isset($uploadUrls['catalogUploadUrl']) || !isset($uploadUrls['pageUploadUrl'])) {
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: ERROR - Missing upload URLs in API response', 3);
-            throw new Exception('Dialog API missing required upload URLs. Expected: catalogUploadUrl, pageUploadUrl');
+            throw new Exception('Dialog API missing required upload URLs');
         }
 
         $bodyCatalog = $uploadUrls['catalogUploadUrl'];
@@ -267,52 +393,43 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             $fieldsCatalog = $bodyCatalog['fields'];
             $catalogFilename = basename($catalogFile);
             $catalogSize = round(filesize($catalogFile) / 1024 / 1024, 2);
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: Uploading catalog (' . $catalogSize . 'MB) to S3...', 1);
+            PrestaShopLogger::addLog('[AskDialog] S3Upload: Uploading catalog (' . $catalogSize . 'MB)...', 1);
             $responseCatalog = $this->sendFileToS3($urlCatalog, $fieldsCatalog, $catalogFile, $catalogFilename);
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: Catalog upload response: HTTP ' . $responseCatalog->getStatusCode(), 1);
 
             // Send CMS pages to S3
             $urlPages = $bodyPages['url'];
             $fieldsPages = $bodyPages['fields'];
             $cmsFilename = basename($cmsFile);
-            $cmsSize = round(filesize($cmsFile) / 1024, 2);
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: Uploading CMS pages (' . $cmsSize . 'KB) to S3...', 1);
+            PrestaShopLogger::addLog('[AskDialog] S3Upload: Uploading CMS pages...', 1);
             $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: CMS upload response: HTTP ' . $responsePages->getStatusCode(), 1);
 
             // Check all uploads succeeded
-            if ($responseCatalog->getStatusCode() === 204
-                && $responsePages->getStatusCode() === 204) {
-                PrestaShopLogger::addLog('[AskDialog] S3Upload: Both uploads successful (HTTP 204)', 1);
+            if ($responseCatalog->getStatusCode() === 204 && $responsePages->getStatusCode() === 204) {
+                PrestaShopLogger::addLog('[AskDialog] S3Upload: Both uploads successful', 1);
 
                 // Move files to sent folder
                 rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
                 rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
-                PrestaShopLogger::addLog('[AskDialog] S3Upload: Files moved to sent/ folder', 1);
 
-                // Update export log with success status
+                // Update export log
                 $exportLogRepo->updateStatus(
                     $exportLogId,
                     ExportLogRepository::STATUS_SUCCESS,
                     [
                         'file_name' => $catalogFilename,
-                        's3_url' => $urlCatalog, // Base S3 URL (bucket path)
+                        's3_url' => $urlCatalog,
                     ]
                 );
 
-                // Clean up old files after successful export
+                // Cleanup old files
                 PathHelper::cleanTmpFiles(86400);
                 PathHelper::cleanSentFilesKeepRecent(20);
-                PrestaShopLogger::addLog('[AskDialog] S3Upload: Cleanup completed', 1);
             } else {
-                PrestaShopLogger::addLog('[AskDialog] S3Upload: ERROR - Unexpected status codes: catalog=' . $responseCatalog->getStatusCode() . ', cms=' . $responsePages->getStatusCode(), 3);
                 throw new Exception('S3 upload failed - unexpected status code');
             }
         } catch (HttpExceptionInterface $e) {
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: ERROR - HTTP exception: ' . $e->getMessage(), 3);
             throw new Exception('HTTP error during S3 upload: ' . $e->getMessage());
         } catch (TransportExceptionInterface $e) {
-            PrestaShopLogger::addLog('[AskDialog] S3Upload: ERROR - Transport exception: ' . $e->getMessage(), 3);
             throw new Exception('Network error during S3 upload: ' . $e->getMessage());
         }
 
