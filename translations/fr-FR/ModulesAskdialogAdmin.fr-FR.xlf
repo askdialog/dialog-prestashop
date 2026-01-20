@@ -207,6 +207,16 @@
         <target>La taille du lot doit être comprise entre {{ min }} et {{ max }}.</target>
         <note>Line: </note>
       </trans-unit>
+      <trans-unit id="8d5835375be1cba5d6481936388836a9">
+        <source>Enable Debug Logs</source>
+        <target>Activer les journaux de débogage</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3c9db7407c56d4940cafbb83aba32d85">
+        <source><![CDATA[Enable detailed logging in PrestaShop logs (Advanced Parameters > Logs). Useful for debugging export issues.]]></source>
+        <target><![CDATA[Activez la journalisation détaillée dans les journaux de PrestaShop (Paramètres avancés > Journaux). Utile pour le débogage des problèmes d'exportation.]]></target>
+        <note>Line: </note>
+      </trans-unit>
       <trans-unit id="254f642527b45bc260048e30704edb39">
         <source>Configuration</source>
         <target>Configuration</target>

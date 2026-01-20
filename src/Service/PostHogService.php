@@ -26,6 +26,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use Dialog\AskDialog\Helper\Logger;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -119,7 +120,7 @@ class PostHogService
         // This ensures backend events are linked to the same user as frontend events
         $cookieName = 'ph_' . self::API_KEY . '_posthog';
 
-        \PrestaShopLogger::addLog(
+        Logger::log(
             'PostHog cookie check - Cookie name: ' . $cookieName . ' | Available cookies: ' . implode(', ', array_keys($_COOKIE)),
             1,
             null,
@@ -201,7 +202,7 @@ class PostHogService
             return $response->getStatusCode() === 200;
         } catch (HttpExceptionInterface $e) {
             // Log HTTP errors but don't break execution
-            \PrestaShopLogger::addLog(
+            Logger::log(
                 'PostHog API HTTP error: ' . $e->getMessage(),
                 3,
                 $e->getResponse()->getStatusCode(),
@@ -211,7 +212,7 @@ class PostHogService
             return false;
         } catch (TransportExceptionInterface $e) {
             // Log transport errors but don't break execution
-            \PrestaShopLogger::addLog(
+            Logger::log(
                 'PostHog API transport error: ' . $e->getMessage(),
                 3,
                 null,

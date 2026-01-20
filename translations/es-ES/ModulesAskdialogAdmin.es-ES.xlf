@@ -207,6 +207,16 @@
         <target>El tamaño del lote debe estar entre {{ min }} y {{ max }}</target>
         <note>Line: </note>
       </trans-unit>
+      <trans-unit id="8d5835375be1cba5d6481936388836a9">
+        <source>Enable Debug Logs</source>
+        <target>Habilitar registros de depuración</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3c9db7407c56d4940cafbb83aba32d85">
+        <source><![CDATA[Enable detailed logging in PrestaShop logs (Advanced Parameters > Logs). Useful for debugging export issues.]]></source>
+        <target><![CDATA[Habilite el registro detallado en los registros de PrestaShop (Parámetros avanzados > Registros). Resulta útil para depurar problemas de exportación.]]></target>
+        <note>Line: </note>
+      </trans-unit>
       <trans-unit id="254f642527b45bc260048e30704edb39">
         <source>Configuration</source>
         <target>Configuración</target>

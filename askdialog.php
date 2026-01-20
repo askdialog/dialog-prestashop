@@ -26,6 +26,7 @@ if (!defined('_PS_VERSION_')) {
 require_once __DIR__ . '/vendor/autoload.php';
 
 use Dialog\AskDialog\Helper\ContextHelper;
+use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Repository\AppearanceRepository;
 use Dialog\AskDialog\Service\PostHogService;
 
@@ -45,7 +46,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.2';
+        $this->version = '1.0.3';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = [
@@ -86,31 +87,21 @@ class AskDialog extends Module
             && $this->registerHook('actionFrontControllerSetMedia')
             && $this->registerHook('displayFooterAfter')
             && $this->registerHook('displayProductAdditionalInfo')
-            && $this->registerHook('actionFrontControllerInitBefore')
             && $this->registerHook('displayOrderConfirmation')
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
-            && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000);
+            && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
+            && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false);
     }
 
     public function uninstall()
     {
         return parent::uninstall()
-            // Commented for development comfort - uncomment in production to clean all configuration
-            // && \Configuration::deleteByName('ASKDIALOG_API_URL')
-            // && \Configuration::deleteByName('ASKDIALOG_API_KEY')
-            // && \Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
-            // && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
+            && \Configuration::deleteByName('ASKDIALOG_API_URL')
+            && \Configuration::deleteByName('ASKDIALOG_API_KEY')
+            && \Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
+            && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
+            && \Configuration::deleteByName('ASKDIALOG_ENABLE_LOGS')
             && $this->uninstallDb();
-    }
-
-    public function hookActionFrontControllerInitBefore()
-    {
-        // header("Access-Control-Allow-Origin: *");
-        // header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-        // header("Access-Control-Allow-Headers: Content-Type, Authorization");
-        // if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-        //     exit;
-        // }
     }
 
     public function hookActionFrontControllerSetMedia()
@@ -364,11 +355,9 @@ class AskDialog extends Module
             );
         } catch (Exception $e) {
             // Log error but don't break cart functionality
-            PrestaShopLogger::addLog(
-                'PostHog trackAddToCart error: ' . $e->getMessage(),
-                3,
-                null,
-                'AskDialog'
+            Logger::log(
+                '[AskDialog] PostHog trackAddToCart error: ' . $e->getMessage(),
+                3
             );
         }
     }

@@ -41,6 +41,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
     public const ASKDIALOG_API_KEY = 'ASKDIALOG_API_KEY';
     public const ASKDIALOG_ENABLE_PRODUCT_HOOK = 'ASKDIALOG_ENABLE_PRODUCT_HOOK';
     public const ASKDIALOG_BATCH_SIZE = 'ASKDIALOG_BATCH_SIZE';
+    public const ASKDIALOG_ENABLE_LOGS = 'ASKDIALOG_ENABLE_LOGS';
 
     public const DEFAULT_BATCH_SIZE = 5000;
     private const BATCH_SIZE_MIN = 100;
@@ -68,6 +69,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
             'api_key' => (string) $this->configuration->get(static::ASKDIALOG_API_KEY),
             'enable_product_hook' => (bool) $this->configuration->get(static::ASKDIALOG_ENABLE_PRODUCT_HOOK),
             'batch_size' => $batchSize !== false ? (int) $batchSize : self::DEFAULT_BATCH_SIZE,
+            'enable_logs' => (bool) $this->configuration->get(static::ASKDIALOG_ENABLE_LOGS),
         ];
     }
 
@@ -79,6 +81,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
             'api_key' => isset($configuration['api_key']) ? trim((string) $configuration['api_key']) : '',
             'enable_product_hook' => isset($configuration['enable_product_hook']) ? (bool) $configuration['enable_product_hook'] : false,
             'batch_size' => isset($configuration['batch_size']) ? (int) $configuration['batch_size'] : self::DEFAULT_BATCH_SIZE,
+            'enable_logs' => isset($configuration['enable_logs']) ? (bool) $configuration['enable_logs'] : false,
         ];
 
         // Validate
@@ -91,6 +94,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
         $this->configuration->set(static::ASKDIALOG_API_KEY, $normalized['api_key']);
         $this->configuration->set(static::ASKDIALOG_ENABLE_PRODUCT_HOOK, $normalized['enable_product_hook']);
         $this->configuration->set(static::ASKDIALOG_BATCH_SIZE, $normalized['batch_size']);
+        $this->configuration->set(static::ASKDIALOG_ENABLE_LOGS, $normalized['enable_logs']);
 
         // Register domain with Dialog API after saving API keys
         try {

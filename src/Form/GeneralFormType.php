@@ -99,6 +99,11 @@ class GeneralFormType extends TranslatorAwareType
                     'max' => 50000,
                     'step' => 100,
                 ],
+            ])
+            ->add('enable_logs', SwitchType::class, [
+                'label' => $this->trans('Enable Debug Logs', 'Modules.Askdialog.Admin'),
+                'help' => $this->trans('Enable detailed logging in PrestaShop logs (Advanced Parameters > Logs). Useful for debugging export issues.', 'Modules.Askdialog.Admin'),
+                'required' => false,
             ]);
     }
 }

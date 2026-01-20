@@ -26,6 +26,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Repository\LanguageRepository;
 use Dialog\AskDialog\Service\Export\CategoryExportService;
 use Dialog\AskDialog\Service\Export\CmsExportService;
@@ -61,15 +62,15 @@ class DataGenerator
      */
     public function generateCMSData($idLang = null)
     {
-        \PrestaShopLogger::addLog('[AskDialog] generateCMSData: START - idLang=' . ($idLang ?? 'default'), 1);
+        Logger::log('[AskDialog] generateCMSData: START - idLang=' . ($idLang ?? 'default'), 1);
 
         try {
             $result = $this->cmsExport->generateFile($idLang);
-            \PrestaShopLogger::addLog('[AskDialog] generateCMSData: SUCCESS - file=' . $result, 1);
+            Logger::log('[AskDialog] generateCMSData: SUCCESS - file=' . $result, 1);
 
             return $result;
         } catch (\Exception $e) {
-            \PrestaShopLogger::addLog('[AskDialog] generateCMSData: ERROR - ' . $e->getMessage(), 3);
+            Logger::log('[AskDialog] generateCMSData: ERROR - ' . $e->getMessage(), 3);
             throw $e;
         }
     }
@@ -84,15 +85,15 @@ class DataGenerator
      */
     public function generateCategoryData($idLang, $idShop)
     {
-        \PrestaShopLogger::addLog('[AskDialog] generateCategoryData: START - idLang=' . $idLang . ', idShop=' . $idShop, 1);
+        Logger::log('[AskDialog] generateCategoryData: START - idLang=' . $idLang . ', idShop=' . $idShop, 1);
 
         try {
             $result = $this->categoryExport->generateFile($idLang, $idShop);
-            \PrestaShopLogger::addLog('[AskDialog] generateCategoryData: SUCCESS - file=' . $result, 1);
+            Logger::log('[AskDialog] generateCategoryData: SUCCESS - file=' . $result, 1);
 
             return $result;
         } catch (\Exception $e) {
-            \PrestaShopLogger::addLog('[AskDialog] generateCategoryData: ERROR - ' . $e->getMessage(), 3);
+            Logger::log('[AskDialog] generateCategoryData: ERROR - ' . $e->getMessage(), 3);
             throw $e;
         }
     }
@@ -112,15 +113,15 @@ class DataGenerator
      */
     public function generateCatalogData($idShop, $idLang, $countryCode = 'fr')
     {
-        \PrestaShopLogger::addLog('[AskDialog] generateCatalogData: START - idShop=' . $idShop . ', idLang=' . $idLang . ', countryCode=' . $countryCode, 1);
+        Logger::log('[AskDialog] generateCatalogData: START - idShop=' . $idShop . ', idLang=' . $idLang . ', countryCode=' . $countryCode, 1);
 
         try {
             $result = $this->productExport->generateFile($idShop, $idLang, $countryCode);
-            \PrestaShopLogger::addLog('[AskDialog] generateCatalogData: SUCCESS - file=' . $result, 1);
+            Logger::log('[AskDialog] generateCatalogData: SUCCESS - file=' . $result, 1);
 
             return $result;
         } catch (\Exception $e) {
-            \PrestaShopLogger::addLog('[AskDialog] generateCatalogData: ERROR - ' . $e->getMessage(), 3);
+            Logger::log('[AskDialog] generateCatalogData: ERROR - ' . $e->getMessage(), 3);
             throw $e;
         }
     }
@@ -141,15 +142,15 @@ class DataGenerator
      */
     public function generateCatalogDataBatched($idShop, $idLang, $countryCode = 'fr', $batchSize = 5000, $progressCallback = null)
     {
-        \PrestaShopLogger::addLog('[AskDialog] generateCatalogDataBatched: START - idShop=' . $idShop . ', idLang=' . $idLang . ', countryCode=' . $countryCode . ', batchSize=' . $batchSize, 1);
+        Logger::log('[AskDialog] generateCatalogDataBatched: START - idShop=' . $idShop . ', idLang=' . $idLang . ', countryCode=' . $countryCode . ', batchSize=' . $batchSize, 1);
 
         try {
             $result = $this->productExport->generateFileBatched($idShop, $idLang, $countryCode, $batchSize, $progressCallback);
-            \PrestaShopLogger::addLog('[AskDialog] generateCatalogDataBatched: SUCCESS - file=' . $result, 1);
+            Logger::log('[AskDialog] generateCatalogDataBatched: SUCCESS - file=' . $result, 1);
 
             return $result;
         } catch (\Exception $e) {
-            \PrestaShopLogger::addLog('[AskDialog] generateCatalogDataBatched: ERROR - ' . $e->getMessage(), 3);
+            Logger::log('[AskDialog] generateCatalogDataBatched: ERROR - ' . $e->getMessage(), 3);
             throw $e;
         }
     }
