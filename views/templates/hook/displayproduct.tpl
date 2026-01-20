@@ -40,18 +40,15 @@
         <span id="assistant-name" class="dialog-question-text-title">
             {$assistant_name}
         </span>
-        {if $enableProductQuestion}
-            <span id="description" class="dialog-question-text-description">
-                {$assistant_description}
-            </span>
-        {/if}
+        <span id="description" class="dialog-question-text-description">
+            {$assistant_description}
+        </span>
     </div>
 
     <div class="dialog-suggestion-wrapper">
-        {if true || $enableProductQuestion}
-            <div class="dialog-suggestions-container" id="dialog-suggestions-container">
-            {foreach from=$suggestions item=suggestion}
-                <button
+        <div class="dialog-suggestions-container" id="dialog-suggestions-container">
+        {foreach from=$suggestions item=suggestion}
+            <button
                 class="dialog-suggestion"
                 id="dialog-{$suggestion}"
                 type="button">
@@ -59,10 +56,9 @@
                 <div class="dialog-suggestion-child">
                     <div class="dialog-suggestion-skeleton"></div>
                 </div>
-                </button>
-            {/foreach}
-            </div>
-        {/if}
+            </button>
+        {/foreach}
+        </div>
         {if $defaultDesign || true}
             <div class="dialog-input-wrapper">
                 <div class="dialog-input-container">

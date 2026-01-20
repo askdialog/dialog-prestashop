@@ -248,8 +248,8 @@ class AskDialog extends Module
         $product_title = $product['name'];
         $product_slug = $product['link_rewrite'];
         $selected_variant_id = $product['id_product_attribute'];
-        $assistant_name = $this->trans('AskDialog Assistant', [], 'Modules.Askdialog.Admin');
-        $assistant_description = $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin');
+        $assistant_name = $this->trans('Your Expert', [], 'Modules.Askdialog.Admin');
+        $assistant_description = $this->trans('A question about this product?', [], 'Modules.Askdialog.Admin');
         $ask_anything_placeholder = $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin');
 
         $this->context->smarty->assign([
@@ -260,7 +260,6 @@ class AskDialog extends Module
             'assistant_name' => $assistant_name,
             'assistant_description' => $assistant_description,
             'ask_anything_placeholder' => $ask_anything_placeholder,
-            'enableProductQuestion' => Configuration::get('ASKDIALOG_ENABLE_PRODUCT_QUESTION'),
             'defaultDesign' => Configuration::get('ASKDIALOG_DEFAULT_DESIGN'),
             'suggestions' => ['suggestion-0', 'suggestion-1'],
         ]);

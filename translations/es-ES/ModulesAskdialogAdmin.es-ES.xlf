@@ -12,9 +12,14 @@
         <target>Módulo para dotar del asistente AskDialog a tu tienda online</target>
         <note>Line: </note>
       </trans-unit>
-      <trans-unit id="1c4a84af0da3f5e94d33c1e39ada19a7">
-        <source>AskDialog Assistant</source>
-        <target>Asistente de AskDialog</target>
+      <trans-unit id="bcce0020d5d8a204aa4ef5842febf2a4">
+        <source>Your Expert</source>
+        <target>Su experto</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="ed44774b82274672f67c85ffe21cfcdb">
+        <source>A question about this product?</source>
+        <target>¿Alguna pregunta sobre este producto?</target>
         <note>Line: </note>
       </trans-unit>
       <trans-unit id="2a915dde548d8380530b554b7cb963ae">
@@ -185,6 +190,21 @@
       <trans-unit id="fa60c94c8b8cd84421c5286efbb2510b">
         <source>Enable or disable the AskDialog assistant on the product page</source>
         <target>Habilitar o deshabilitar el asistente AskDialog en la página del producto</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="934da5c785b4f00dcce545bdde4dee93">
+        <source>Export Batch Size</source>
+        <target>Tamaño del lote de exportación</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="bc351608c7ba85d02dfee0373c491410">
+        <source>Number of products to process per batch during catalog export. Lower values reduce memory usage and timeout risk on large catalogs. Default: 5000</source>
+        <target>Número de productos a procesar por lote durante la exportación del catálogo. Valores bajos reducen el uso de memoria y el riesgo de tiempo de espera en catálogos grandes. Valor predeterminado: 5000</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="2bda430fd395826960c50157d2d24043">
+        <source>Batch size must be between {{ min }} and {{ max }}</source>
+        <target>El tamaño del lote debe estar entre {{ min }} y {{ max }}</target>
         <note>Line: </note>
       </trans-unit>
       <trans-unit id="254f642527b45bc260048e30704edb39">

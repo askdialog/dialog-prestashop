@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
-  <file original="admin574jg4jmatammscwb3c" source-language="fr-FR" target-language="fr-FR" datatype="plaintext">
+  <file original="admin378ifjviwhqamqgttga" source-language="fr-FR" target-language="fr-FR" datatype="plaintext">
     <body>
       <trans-unit id="e076b3797625f90c25ea68245f652c87">
         <source>Ask Dialog</source>
@@ -12,64 +12,19 @@
         <target>Module pour mettre à disposition l'assistant AskDialog sur votre e-shop</target>
         <note>Line: </note>
       </trans-unit>
-      <trans-unit id="1c4a84af0da3f5e94d33c1e39ada19a7">
-        <source>AskDialog Assistant</source>
-        <target>Assistant AskDialog</target>
+      <trans-unit id="bcce0020d5d8a204aa4ef5842febf2a4">
+        <source>Your Expert</source>
+        <target>Votre Expert</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="ed44774b82274672f67c85ffe21cfcdb">
+        <source>A question about this product?</source>
+        <target>Une question concernant ce produit ?</target>
         <note>Line: </note>
       </trans-unit>
       <trans-unit id="2a915dde548d8380530b554b7cb963ae">
         <source>How can I help you with this product?</source>
         <target>Comment puis-je vous aider avec ce produit ?</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="0a6185584a0690adfe9261648531e202">
-        <source>API Key public</source>
-        <target>Clé API publique</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="c39f5f904fd3a94041b587d5333d930a">
-        <source>Public API key provided by AskDialog</source>
-        <target>Clé API publique fournie par AskDialog</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="b46094a1b5846bf990bc5cf4c7a3644a">
-        <source>Public API key is required</source>
-        <target>Une clé API publique est requise</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="a497b22b2f244ed6f9359d8cd21ad830">
-        <source>API key must be at least {{ limit }} characters long</source>
-        <target>La clé API doit comporter au moins {{ limit }} caractères</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="3d84ca60e876a79ff15e65814dead69d">
-        <source>API key cannot be longer than {{ limit }} characters</source>
-        <target>La clé API ne peut pas comporter plus de {{ limit }} caractères</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="dadcd66e40bdade990536fe02a42444a">
-        <source>API Key private</source>
-        <target>Clé API privée</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="4fd4bacf65ebb801bde08d6345c2e014">
-        <source>Private API key provided by AskDialog</source>
-        <target>Clé API privée fournie par AskDialog</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="5fd7c3eeadce142e5ce7ca8940d4b917">
-        <source>Private API key is required</source>
-        <target>Une clé API privée est requise</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="3f18d78787678e9a0ce5f269de2e4ed7">
-        <source>Enable on Product Page</source>
-        <target>Activer sur la page produit</target>
-        <note>Line: </note>
-      </trans-unit>
-      <trans-unit id="fa60c94c8b8cd84421c5286efbb2510b">
-        <source>Enable or disable the AskDialog assistant on the product page</source>
-        <target>Activer ou désactiver l'assistant AskDialog sur la page produit</target>
         <note>Line: </note>
       </trans-unit>
       <trans-unit id="f951a1e1ff1ed0d24a2758b6441a3431">
@@ -185,6 +140,71 @@
       <trans-unit id="d0b84187a14dc8d539eace5a8da7ae4e">
         <source>Highlight the product name in the dialog responses</source>
         <target>Mettez en surbrillance le nom du produit dans les réponses de la boîte de dialogue</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="0a6185584a0690adfe9261648531e202">
+        <source>API Key public</source>
+        <target>Clé API publique</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="c39f5f904fd3a94041b587d5333d930a">
+        <source>Public API key provided by AskDialog</source>
+        <target>Clé API publique fournie par AskDialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="b46094a1b5846bf990bc5cf4c7a3644a">
+        <source>Public API key is required</source>
+        <target>Une clé API publique est requise</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="a497b22b2f244ed6f9359d8cd21ad830">
+        <source>API key must be at least {{ limit }} characters long</source>
+        <target>La clé API doit comporter au moins {{ limit }} caractères</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3d84ca60e876a79ff15e65814dead69d">
+        <source>API key cannot be longer than {{ limit }} characters</source>
+        <target>La clé API ne peut pas comporter plus de {{ limit }} caractères</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="dadcd66e40bdade990536fe02a42444a">
+        <source>API Key private</source>
+        <target>Clé API privée</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="4fd4bacf65ebb801bde08d6345c2e014">
+        <source>Private API key provided by AskDialog</source>
+        <target>Clé API privée fournie par AskDialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="5fd7c3eeadce142e5ce7ca8940d4b917">
+        <source>Private API key is required</source>
+        <target>Une clé API privée est requise</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3f18d78787678e9a0ce5f269de2e4ed7">
+        <source>Enable on Product Page</source>
+        <target>Activer sur la page produit</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="fa60c94c8b8cd84421c5286efbb2510b">
+        <source>Enable or disable the AskDialog assistant on the product page</source>
+        <target>Activer ou désactiver l'assistant AskDialog sur la page produit</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="934da5c785b4f00dcce545bdde4dee93">
+        <source>Export Batch Size</source>
+        <target>Taille du lot d'exportation</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="bc351608c7ba85d02dfee0373c491410">
+        <source>Number of products to process per batch during catalog export. Lower values reduce memory usage and timeout risk on large catalogs. Default: 5000</source>
+        <target>Nombre de produits à traiter par lot lors de l'exportation du catalogue. Des valeurs plus faibles réduisent la consommation de mémoire et le risque de dépassement de délai pour les catalogues volumineux. Valeur par défaut : 5000</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="2bda430fd395826960c50157d2d24043">
+        <source>Batch size must be between {{ min }} and {{ max }}</source>
+        <target>La taille du lot doit être comprise entre {{ min }} et {{ max }}.</target>
         <note>Line: </note>
       </trans-unit>
       <trans-unit id="254f642527b45bc260048e30704edb39">
