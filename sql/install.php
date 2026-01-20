@@ -53,6 +53,24 @@ $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_appearance` (
     UNIQUE KEY `idx_id_shop` (`id_shop`)
 ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 
+// Create table to track export state for resumable exports (handles timeout/interruptions)
+$sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_export_state` (
+    `id_export_state` int(11) NOT NULL AUTO_INCREMENT,
+    `id_shop` int(11) NOT NULL,
+    `export_type` varchar(50) NOT NULL,
+    `status` enum(\'in_progress\',\'completed\',\'failed\') NOT NULL DEFAULT \'in_progress\',
+    `total_products` int(11) NOT NULL,
+    `products_exported` int(11) NOT NULL DEFAULT 0,
+    `batch_size` int(11) NOT NULL,
+    `tmp_file_path` varchar(255) DEFAULT NULL,
+    `id_lang` int(11) NOT NULL,
+    `country_code` varchar(10) NOT NULL,
+    `started_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id_export_state`),
+    UNIQUE KEY `idx_shop_type` (`id_shop`, `export_type`)
+) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
+
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {
         return false;
