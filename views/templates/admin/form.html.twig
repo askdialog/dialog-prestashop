@@ -24,6 +24,17 @@
 {% form_theme generalForm '@PrestaShop/Admin/TwigTemplateForm/prestashop_ui_kit.html.twig' %}
 {% form_theme appearanceForm '@PrestaShop/Admin/TwigTemplateForm/prestashop_ui_kit.html.twig' %}
 
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    $(document).ready(function() {
+      $('.colorpicker input[type="text"]').each(function() {
+        $(this).colorpicker();
+      });
+    });
+  </script>
+{% endblock %}
+
 {% block content %}
 <div>
     <ul class="nav nav-tabs" role="tablist">
