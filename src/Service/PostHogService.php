@@ -178,9 +178,28 @@ class PostHogService
      */
     private function buildEventProperties(array $properties)
     {
+        $context = \Context::getContext();
+
+        // $host: shop domain
+        $host = '';
+        if (isset($context->shop) && !empty($context->shop->domain)) {
+            $host = $context->shop->domain;
+        } elseif (isset($_SERVER['HTTP_HOST'])) {
+            $host = $_SERVER['HTTP_HOST'];
+        }
+
+        // $pathname: extract from referer (original page where user triggered the action)
+        // Note: URL fragment (#...) is never sent to server, but variantId is tracked separately
+        $pathname = '';
+        if (isset($_SERVER['HTTP_REFERER'])) {
+            $pathname = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH) ?: '';
+        }
+
         // Merge user properties with required PostHog settings
         return array_merge($properties, [
             '$process_person_profile' => false,
+            '$host' => $host,
+            '$pathname' => $pathname,
         ]);
     }
 
