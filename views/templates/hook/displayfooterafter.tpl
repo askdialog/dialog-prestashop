@@ -58,6 +58,8 @@
     data-highlight-product-name="{if $appearance_settings.highlight_product_name}1{else}0{/if}">
 </div>
 
+<div id="dialog-script" data-src="{$index_dot_js_cdn_url}"></div>
+
 {* Load Dialog SDK with type="module" to prevent global scope pollution *}
 <script type="module" src="{$index_dot_js_cdn_url}"></script>
 
