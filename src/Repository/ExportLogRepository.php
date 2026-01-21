@@ -235,6 +235,29 @@ class ExportLogRepository extends AbstractRepository
     }
 
     /**
+     * Get the most recent successful export log for a shop and type
+     *
+     * @param int $idShop Shop ID
+     * @param string $exportType Export type
+     *
+     * @return array|false Most recent successful export log or false if none found
+     */
+    public function findLatestSuccessfulByType($idShop, $exportType)
+    {
+        $sql = 'SELECT *
+                FROM `' . $this->getPrefix() . 'askdialog_export_log`
+                WHERE `id_shop` = ' . (int) $idShop . '
+                  AND `export_type` = "' . pSQL($exportType) . '"
+                  AND `status` = "' . self::STATUS_SUCCESS . '"
+                ORDER BY `completed_at` DESC
+                LIMIT 1';
+
+        $result = $this->executeS($sql);
+
+        return !empty($result) ? $result[0] : false;
+    }
+
+    /**
      * Delete export logs older than specified days
      *
      * @param int $days Number of days to keep

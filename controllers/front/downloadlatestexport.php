@@ -24,6 +24,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 use Dialog\AskDialog\Helper\PathHelper;
+use Dialog\AskDialog\Repository\ExportLogRepository;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 
 /**
@@ -64,25 +65,33 @@ class AskDialogDownloadlatestexportModuleFrontController extends ModuleFrontCont
     }
 
     /**
-     * Find the most recent catalog JSON file in sent directory
+     * Find the most recent successful catalog export file
+     * Uses database to find latest successful export, then verifies file exists
      *
      * @return string|null Full path to the latest file, or null if none found
      */
     private function findLatestCatalogFile()
     {
-        $sentDir = PathHelper::getSentDir();
-        $files = glob($sentDir . 'catalog_*.json');
+        $idShop = (int) $this->context->shop->id;
+        $exportLogRepo = new ExportLogRepository();
 
-        if ($files === false || empty($files)) {
+        $latestExport = $exportLogRepo->findLatestSuccessfulByType(
+            $idShop,
+            ExportLogRepository::EXPORT_TYPE_CATALOG
+        );
+
+        if (!$latestExport || empty($latestExport['file_name'])) {
             return null;
         }
 
-        // Sort by modification time (newest first)
-        usort($files, function ($a, $b) {
-            return filemtime($b) - filemtime($a);
-        });
+        $filePath = PathHelper::getSentDir() . $latestExport['file_name'];
 
-        return $files[0];
+        // Verify file still exists on disk
+        if (!file_exists($filePath)) {
+            return null;
+        }
+
+        return $filePath;
     }
 
     /**
