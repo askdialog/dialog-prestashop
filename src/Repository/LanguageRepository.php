@@ -43,7 +43,9 @@ class LanguageRepository extends AbstractRepository
                     l.id_lang,
                     l.name,
                     l.iso_code,
-                    l.active
+                    l.active,
+                    l.language_code,
+                    l.locale
                 FROM ' . $this->getPrefix() . 'lang l
                 ORDER BY l.id_lang ASC';
 
