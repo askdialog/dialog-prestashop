@@ -186,13 +186,7 @@ class AskDialog extends Module
             );
         }
 
-        // index.js - all pages (main Dialog SDK from CDN)
-        // Uses type="module" to prevent global scope pollution (fixes conflict with Amazzing Filter's "af" variable)
-        $this->context->controller->registerJavascript(
-            'module-askdialog-index',
-            self::DIALOG_SDK_CDN_URL,
-            array_merge($jsParams, ['attributes' => 'type="module"'])
-        );
+        // index.js - loaded directly in displayfooterafter.tpl with type="module"
 
         // cart-integration.js - PrestaShop-specific cart integration (must stay local)
         $this->context->controller->registerJavascript(
