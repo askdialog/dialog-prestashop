@@ -613,7 +613,7 @@ class ProductExportService
 
     /**
      * Process products in a resumable way with time limit protection
-     * Uses NDJSON (newline-delimited JSON) as intermediate format for safe appending
+     * Writes to JSON file in streaming mode (memory-efficient)
      *
      * @param int $idShop Shop ID
      * @param int $idLang Language ID
@@ -621,7 +621,7 @@ class ProductExportService
      * @param int $offset Number of products already exported (resume point)
      * @param int $batchSize Number of products per batch
      * @param int $timeLimit Max seconds to run (should be max_execution_time - safety margin)
-     * @param string|null $tmpFilePath Existing NDJSON temp file to append to, or null to create new
+     * @param string|null $tmpFilePath Existing JSON temp file to append to, or null to create new
      *
      * @return array{
      *     productsProcessed: int,
@@ -658,9 +658,16 @@ class ProductExportService
             ];
         }
 
-        // Create new file if needed (NDJSON format: .ndjson extension)
-        if ($tmpFilePath === null) {
-            $tmpFilePath = PathHelper::generateTmpFilePath('catalog', 'ndjson');
+        // Create new file if needed, write opening bracket
+        $isNewFile = ($tmpFilePath === null);
+        if ($isNewFile) {
+            $tmpFilePath = PathHelper::generateTmpFilePath('catalog', 'json');
+            $bytesWritten = file_put_contents($tmpFilePath, "[\n", LOCK_EX);
+            if ($bytesWritten === false) {
+                Logger::log('[AskDialog] ProductExport::processResumableBatch: ERROR - Failed to create JSON file: ' . $tmpFilePath, 3);
+                throw new \Exception('Failed to create JSON file: ' . $tmpFilePath);
+            }
+            Logger::log('[AskDialog] ProductExport::processResumableBatch: Created JSON file: ' . $tmpFilePath, 1);
         }
 
         // Get products to process (from offset)
@@ -668,6 +675,7 @@ class ProductExportService
         $batches = array_chunk($remainingProductIds, $batchSize);
 
         $processedCount = 0;
+        $isFirstProduct = ($offset === 0);
         $linkObj = new \Link();
 
         foreach ($batches as $batchProductIds) {
@@ -681,19 +689,29 @@ class ProductExportService
             // Load and process batch
             $this->bulkLoadData($batchProductIds, $idLang, $idShop);
 
-            // Build NDJSON content for this batch
-            $ndjsonLines = '';
+            // Build JSON content for this batch
+            $jsonContent = '';
             foreach ($batchProductIds as $productId) {
                 $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
                 if (!empty($productData)) {
-                    $ndjsonLines .= json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
+                    // Add comma before product (except for first product)
+                    if (!$isFirstProduct) {
+                        $jsonContent .= ",\n";
+                    }
+                    $isFirstProduct = false;
+
+                    $jsonContent .= json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
                     $processedCount++;
                 }
             }
 
             // Append to file (atomic write for this batch)
-            if (!empty($ndjsonLines)) {
-                file_put_contents($tmpFilePath, $ndjsonLines, FILE_APPEND | LOCK_EX);
+            if (!empty($jsonContent)) {
+                $bytesWritten = file_put_contents($tmpFilePath, $jsonContent, FILE_APPEND | LOCK_EX);
+                if ($bytesWritten === false) {
+                    Logger::log('[AskDialog] ProductExport::processResumableBatch: ERROR - Failed to append to JSON file: ' . $tmpFilePath, 3);
+                    throw new \Exception('Failed to append to JSON file: ' . $tmpFilePath);
+                }
             }
 
             // Free memory
@@ -706,6 +724,16 @@ class ProductExportService
         $newOffset = $offset + $processedCount;
         $isComplete = ($newOffset >= $totalProducts);
 
+        // If complete, write closing bracket
+        if ($isComplete) {
+            $bytesWritten = file_put_contents($tmpFilePath, "\n]", FILE_APPEND | LOCK_EX);
+            if ($bytesWritten === false) {
+                Logger::log('[AskDialog] ProductExport::processResumableBatch: ERROR - Failed to write closing bracket', 3);
+                throw new \Exception('Failed to write closing bracket to JSON file');
+            }
+            Logger::log('[AskDialog] ProductExport::processResumableBatch: Wrote closing bracket, file complete', 1);
+        }
+
         Logger::log('[AskDialog] ProductExport::processResumableBatch: END processed=' . $processedCount . ', newOffset=' . $newOffset . '/' . $totalProducts . ', isComplete=' . ($isComplete ? 'true' : 'false'), 1);
 
         return [
@@ -716,63 +744,4 @@ class ProductExportService
         ];
     }
 
-    /**
-     * Convert NDJSON file to final JSON array file
-     * Called once export is complete
-     *
-     * @param string $ndjsonFilePath Path to NDJSON file
-     *
-     * @return string Path to final JSON file
-     *
-     * @throws \Exception If conversion fails
-     */
-    public function convertNdjsonToJson($ndjsonFilePath)
-    {
-        Logger::log('[AskDialog] ProductExport::convertNdjsonToJson: START', 1);
-
-        if (!file_exists($ndjsonFilePath)) {
-            throw new \Exception('NDJSON file not found: ' . $ndjsonFilePath);
-        }
-
-        // Read NDJSON file line by line
-        $products = [];
-        $handle = fopen($ndjsonFilePath, 'r');
-        if ($handle === false) {
-            throw new \Exception('Failed to open NDJSON file');
-        }
-
-        while (($line = fgets($handle)) !== false) {
-            $line = trim($line);
-            if (!empty($line)) {
-                $product = json_decode($line, true);
-                if ($product !== null) {
-                    $products[] = $product;
-                }
-            }
-        }
-        fclose($handle);
-
-        Logger::log('[AskDialog] ProductExport::convertNdjsonToJson: Read ' . count($products) . ' products', 1);
-
-        // Generate final JSON file
-        $finalFilePath = PathHelper::generateTmpFilePath('catalog', 'json');
-        $jsonContent = json_encode($products, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-
-        if ($jsonContent === false) {
-            throw new \Exception('JSON encoding failed: ' . json_last_error_msg());
-        }
-
-        $bytesWritten = file_put_contents($finalFilePath, $jsonContent);
-        if ($bytesWritten === false) {
-            throw new \Exception('Failed to write final JSON file');
-        }
-
-        // Delete NDJSON temp file
-        unlink($ndjsonFilePath);
-
-        $fileSizeMb = round($bytesWritten / 1024 / 1024, 2);
-        Logger::log('[AskDialog] ProductExport::convertNdjsonToJson: SUCCESS - ' . $fileSizeMb . 'MB', 1);
-
-        return $finalFilePath;
-    }
 }

@@ -325,9 +325,9 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      * @param array $state Export state
      * @param ExportStateRepository $stateRepo State repository
      * @param ProductExportService $productExport Product export service
-     * @param string $ndjsonFilePath Path to NDJSON file
+     * @param string $catalogFile Path to catalog JSON file
      */
-    private function finalizeExport($state, $stateRepo, $productExport, $ndjsonFilePath)
+    private function finalizeExport($state, $stateRepo, $productExport, $catalogFile)
     {
         $exportLogRepo = new ExportLogRepository();
         $dataGenerator = new DataGenerator();
@@ -348,10 +348,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         $exportLogRepo->updateStatus($exportLogId, ExportLogRepository::STATUS_PENDING);
 
         try {
-            // Convert NDJSON to final JSON
-            Logger::log('[AskDialog] Feed::finalizeExport: Converting NDJSON to JSON...', 1);
-            $catalogFile = $productExport->convertNdjsonToJson($ndjsonFilePath);
-
             // Generate CMS pages
             Logger::log('[AskDialog] Feed::finalizeExport: Generating CMS data...', 1);
             $cmsFile = $dataGenerator->generateCMSData($idLang);
