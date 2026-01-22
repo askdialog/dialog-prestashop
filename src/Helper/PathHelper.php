@@ -81,29 +81,6 @@ class PathHelper
     }
 
     /**
-     * Gets the cache directory path for module
-     * Creates directory if it doesn't exist
-     *
-     * @return string Absolute path to cache directory (with trailing slash)
-     *
-     * @throws \Exception If directory creation fails
-     */
-    public static function getCacheDir(): string
-    {
-        $dir = _PS_ROOT_DIR_ . '/var/modules/askdialog/cache/';
-
-        if (!file_exists($dir)) {
-            if (!mkdir($dir, 0775, true)) {
-                Logger::log('[AskDialog] PathHelper::getCacheDir: ERROR - Failed to create directory: ' . $dir, 3);
-                throw new \Exception('Failed to create directory: ' . $dir . ' - check permissions on /var/modules/');
-            }
-            Logger::log('[AskDialog] PathHelper::getCacheDir: Created directory: ' . $dir, 1);
-        }
-
-        return $dir;
-    }
-
-    /**
      * Cleans up temporary files older than specified age
      *
      * @param int $maxAge Maximum age in seconds (default: 24h)
@@ -207,7 +184,6 @@ class PathHelper
         try {
             self::getTmpDir();
             self::getSentDir();
-            self::getCacheDir();
 
             return true;
         } catch (\Exception $e) {
