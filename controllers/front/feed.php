@@ -167,7 +167,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         return $httpClient->request('POST', $url, [
             'headers' => $headers,
-            'body' => $formData->bodyToString(),
+            'body' => $formData->bodyToIterable(),
         ]);
     }
 
