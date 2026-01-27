@@ -310,6 +310,27 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         );
         $exportLogRepo->updateStatus($exportLogId, ExportLogRepository::STATUS_PENDING);
 
+        // Catch fatal errors (e.g. memory exhausted) that bypass try/catch
+        // and would leave the export stuck in "pending" forever
+        register_shutdown_function(function () use ($exportLogId, $exportLogRepo, $stateRepo, $state) {
+            $error = error_get_last();
+            if ($error !== null && in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR])) {
+                $errorMessage = $error['message'] . ' in ' . $error['file'] . ':' . $error['line'];
+                Logger::error('[AskDialog] Feed::finalizeExport: FATAL ERROR - ' . $errorMessage);
+
+                try {
+                    $exportLogRepo->updateStatus(
+                        $exportLogId,
+                        ExportLogRepository::STATUS_ERROR,
+                        ['error_message' => 'Fatal: ' . $errorMessage]
+                    );
+                    $stateRepo->markFailed((int) $state['id_export_state']);
+                } catch (\Throwable $e) {
+                    Logger::error('[AskDialog] Feed::finalizeExport: Could not update status after fatal - ' . $e->getMessage());
+                }
+            }
+        });
+
         try {
             // Generate CMS pages
             Logger::log('[AskDialog] Feed::finalizeExport: Generating CMS data...', 1);
