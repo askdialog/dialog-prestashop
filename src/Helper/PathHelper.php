@@ -221,4 +221,20 @@ class PathHelper
 
         return self::getTmpDir() . $filename;
     }
+
+    /**
+     * Format a file size in bytes to a human-readable string (KB or MB)
+     *
+     * @param int $bytes File size in bytes
+     *
+     * @return string Formatted size (e.g. "45.2KB" or "12.5MB")
+     */
+    public static function formatFileSize($bytes)
+    {
+        if ($bytes < 1024 * 1024) {
+            return round($bytes / 1024, 1) . 'KB';
+        }
+
+        return round($bytes / 1024 / 1024, 2) . 'MB';
+    }
 }

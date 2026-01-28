@@ -95,6 +95,8 @@ class ExportStateRepository extends AbstractRepository
      */
     public function create($idShop, $exportType, $totalProducts, $batchSize, $idLang, $countryCode, $tmpFilePath = null)
     {
+        $this->deleteFinished($idShop, $exportType);
+
         $sql = 'INSERT INTO `' . $this->getPrefix() . 'askdialog_export_state`
                 (`id_shop`, `export_type`, `status`, `total_products`, `products_exported`,
                  `batch_size`, `tmp_file_path`, `id_lang`, `country_code`, `started_at`, `updated_at`)
@@ -174,6 +176,25 @@ class ExportStateRepository extends AbstractRepository
                 SET `status` = "' . self::STATUS_FAILED . '",
                     `updated_at` = NOW()
                 WHERE `id_export_state` = ' . (int) $idExportState;
+
+        return $this->getDb()->execute($sql);
+    }
+
+    /**
+     * Delete finished (completed/failed) export state for a shop and type.
+     * Used before creating a new export to avoid UNIQUE constraint violation.
+     *
+     * @param int $idShop Shop ID
+     * @param string $exportType Export type (catalog, cms)
+     *
+     * @return bool True on success
+     */
+    public function deleteFinished($idShop, $exportType)
+    {
+        $sql = 'DELETE FROM `' . $this->getPrefix() . 'askdialog_export_state`
+                WHERE `id_shop` = ' . (int) $idShop . '
+                  AND `export_type` = "' . pSQL($exportType) . '"
+                  AND `status` != "' . self::STATUS_IN_PROGRESS . '"';
 
         return $this->getDb()->execute($sql);
     }

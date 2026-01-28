@@ -26,7 +26,11 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use Dialog\AskDialog\Helper\Logger;
+use Dialog\AskDialog\Helper\PathHelper;
 use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Component\Mime\Part\DataPart;
+use Symfony\Component\Mime\Part\Multipart\FormDataPart;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
@@ -137,5 +141,57 @@ class AskDialogClient
                 'body' => 'Transport error: ' . $e->getMessage(),
             ];
         }
+    }
+
+    /**
+     * Upload a file to S3 using a signed URL with multipart/form-data
+     *
+     * Uses a separate HttpClient instance (not the base_uri one)
+     * since S3 URLs are absolute and external.
+     *
+     * @param string $url S3 signed URL
+     * @param array $fields Form fields from S3 signature (policy, key, etc.)
+     * @param string $filePath Absolute path to the file to upload
+     * @param string $filename Filename to send to S3
+     *
+     * @return \Symfony\Contracts\HttpClient\ResponseInterface
+     *
+     * @throws \Exception If file not found
+     * @throws TransportExceptionInterface
+     */
+    public function uploadFileToS3($url, array $fields, $filePath, $filename)
+    {
+        if (!file_exists($filePath)) {
+            Logger::error('[AskDialog] AskDialogClient::uploadFileToS3: File not found: ' . $filePath);
+            throw new \Exception('File not found: ' . $filePath);
+        }
+
+        $fileSize = PathHelper::formatFileSize(filesize($filePath));
+        Logger::info('[AskDialog] AskDialogClient::uploadFileToS3: Uploading ' . $filename . ' (' . $fileSize . ')...');
+
+        // Use a separate client for S3 (no base_uri, no auth headers)
+        $s3Client = HttpClient::create(['verify_peer' => false]);
+
+        // Build form fields
+        $formFields = $fields;
+
+        // Add explicit Content-Type field for S3 policy validation
+        $formFields['Content-Type'] = 'application/json';
+
+        // Add file with application/json Content-Type
+        $formFields['file'] = DataPart::fromPath($filePath, $filename, 'application/json');
+
+        // Create multipart form
+        $formData = new FormDataPart($formFields);
+        $headers = $formData->getPreparedHeaders()->toArray();
+
+        $response = $s3Client->request('POST', $url, [
+            'headers' => $headers,
+            'body' => $formData->bodyToString(),
+        ]);
+
+        Logger::info('[AskDialog] AskDialogClient::uploadFileToS3: Upload complete, status=' . $response->getStatusCode());
+
+        return $response;
     }
 }

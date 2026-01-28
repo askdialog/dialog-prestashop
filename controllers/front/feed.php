@@ -24,6 +24,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 use Dialog\AskDialog\Form\GeneralDataConfiguration;
+use Dialog\AskDialog\Helper\GzipHelper;
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Helper\PathHelper;
 use Dialog\AskDialog\Repository\ExportLogRepository;
@@ -32,9 +33,6 @@ use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\Export\ProductExportService;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\Mime\Part\DataPart;
-use Symfony\Component\Mime\Part\Multipart\FormDataPart;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
@@ -134,41 +132,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         $safeLimit = $maxExecutionTime - self::TIME_SAFETY_MARGIN;
 
         return max(5, $safeLimit); // Minimum 5 seconds
-    }
-
-    /**
-     * Sends a file to S3 using signed URL with multipart/form-data
-     *
-     * @param string $url S3 signed URL
-     * @param array $fields Additional form fields (from S3 signature)
-     * @param string $tempFile Path to file to upload
-     * @param string $filename Original filename
-     *
-     * @return Symfony\Contracts\HttpClient\ResponseInterface
-     *
-     * @throws TransportExceptionInterface
-     */
-    private function sendFileToS3($url, $fields, $tempFile, $filename)
-    {
-        $httpClient = HttpClient::create(['verify_peer' => false]);
-
-        // Build form fields
-        $formFields = $fields;
-
-        // Add explicit Content-Type field for S3 policy validation
-        $formFields['Content-Type'] = 'application/json';
-
-        // Add file with application/json Content-Type
-        $formFields['file'] = DataPart::fromPath($tempFile, $filename, 'application/json');
-
-        // Create multipart form
-        $formData = new FormDataPart($formFields);
-        $headers = $formData->getPreparedHeaders()->toArray();
-
-        return $httpClient->request('POST', $url, [
-            'headers' => $headers,
-            'body' => $formData->bodyToString(),
-        ]);
     }
 
     /**
@@ -347,6 +310,27 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         );
         $exportLogRepo->updateStatus($exportLogId, ExportLogRepository::STATUS_PENDING);
 
+        // Catch fatal errors (e.g. memory exhausted) that bypass try/catch
+        // and would leave the export stuck in "pending" forever
+        register_shutdown_function(function () use ($exportLogId, $exportLogRepo, $stateRepo, $state) {
+            $error = error_get_last();
+            if ($error !== null && in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR])) {
+                $errorMessage = $error['message'] . ' in ' . $error['file'] . ':' . $error['line'];
+                Logger::error('[AskDialog] Feed::finalizeExport: FATAL ERROR - ' . $errorMessage);
+
+                try {
+                    $exportLogRepo->updateStatus(
+                        $exportLogId,
+                        ExportLogRepository::STATUS_ERROR,
+                        ['error_message' => 'Fatal: ' . $errorMessage]
+                    );
+                    $stateRepo->markFailed((int) $state['id_export_state']);
+                } catch (\Throwable $e) {
+                    Logger::error('[AskDialog] Feed::finalizeExport: Could not update status after fatal - ' . $e->getMessage());
+                }
+            }
+        });
+
         try {
             // Generate CMS pages
             Logger::log('[AskDialog] Feed::finalizeExport: Generating CMS data...', 1);
@@ -420,35 +404,38 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
         $bodyPages = $uploadUrls['pageUploadUrl'];
 
         try {
+            // Compress files with gzip before upload
+            $catalogGzFile = GzipHelper::compress($catalogFile);
+            $cmsGzFile = GzipHelper::compress($cmsFile);
+
             // Send catalog to S3
             $urlCatalog = $bodyCatalog['url'];
             $fieldsCatalog = $bodyCatalog['fields'];
-            $catalogFilename = basename($catalogFile);
-            $catalogSize = round(filesize($catalogFile) / 1024 / 1024, 2);
-            Logger::log('[AskDialog] S3Upload: Uploading catalog (' . $catalogSize . 'MB)...', 1);
-            $responseCatalog = $this->sendFileToS3($urlCatalog, $fieldsCatalog, $catalogFile, $catalogFilename);
+            $catalogGzFilename = basename($catalogGzFile);
+            $responseCatalog = $askDialogClient->uploadFileToS3($urlCatalog, $fieldsCatalog, $catalogGzFile, $catalogGzFilename);
 
             // Send CMS pages to S3
             $urlPages = $bodyPages['url'];
             $fieldsPages = $bodyPages['fields'];
-            $cmsFilename = basename($cmsFile);
-            Logger::log('[AskDialog] S3Upload: Uploading CMS pages...', 1);
-            $responsePages = $this->sendFileToS3($urlPages, $fieldsPages, $cmsFile, $cmsFilename);
+            $cmsGzFilename = basename($cmsGzFile);
+            $responsePages = $askDialogClient->uploadFileToS3($urlPages, $fieldsPages, $cmsGzFile, $cmsGzFilename);
 
             // Check all uploads succeeded
             if ($responseCatalog->getStatusCode() === 204 && $responsePages->getStatusCode() === 204) {
                 Logger::log('[AskDialog] S3Upload: Both uploads successful', 1);
 
-                // Move files to sent folder
-                rename($catalogFile, PathHelper::getSentDir() . $catalogFilename);
-                rename($cmsFile, PathHelper::getSentDir() . $cmsFilename);
+                // Move original and compressed files to sent folder
+                rename($catalogFile, PathHelper::getSentDir() . basename($catalogFile));
+                rename($cmsFile, PathHelper::getSentDir() . basename($cmsFile));
+                rename($catalogGzFile, PathHelper::getSentDir() . $catalogGzFilename);
+                rename($cmsGzFile, PathHelper::getSentDir() . $cmsGzFilename);
 
                 // Update export log
                 $exportLogRepo->updateStatus(
                     $exportLogId,
                     ExportLogRepository::STATUS_SUCCESS,
                     [
-                        'file_name' => $catalogFilename,
+                        'file_name' => $catalogGzFilename,
                         's3_url' => $urlCatalog,
                     ]
                 );
