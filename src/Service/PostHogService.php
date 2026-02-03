@@ -300,6 +300,6 @@ class PostHogService
             'customer_email' => $customer->email,
         ];
 
-        return $this->capture('Order Confirmation', $properties, $distinctId);
+        return $this->capture('user_submitted_checkout', $properties, $distinctId);
     }
 }
