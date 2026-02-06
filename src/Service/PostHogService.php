@@ -293,11 +293,30 @@ class PostHogService
         $customer = new \Customer($order->id_customer);
         $distinctId = $this->getDistinctId($customer);
 
+        $currency = $order->id_currency ? (new \Currency($order->id_currency))->iso_code : 'EUR';
+        $orderProducts = $order->getProducts();
+
+        $items = [];
+        foreach ($orderProducts as $product) {
+            $item = [
+                'currency' => $currency,
+                'price' => (float) $product['product_price_wt'],
+                'productId' => (string) $product['product_id'],
+                'productTitle' => $product['product_name'],
+                'quantity' => (int) $product['product_quantity'],
+            ];
+
+            if (!empty($product['product_attribute_id'])) {
+                $item['variantId'] = (string) $product['product_attribute_id'];
+            }
+
+            $items[] = $item;
+        }
+
         $properties = [
-            'order_id' => $order->id,
-            'total_amount' => (float) $order->total_paid,
-            'currency' => $order->id_currency ? (new \Currency($order->id_currency))->iso_code : 'EUR',
-            'customer_email' => $customer->email,
+            'items' => $items,
+            'orderValue' => (float) $order->total_paid,
+            'currency' => $currency,
         ];
 
         return $this->capture('user_submitted_checkout', $properties, $distinctId);
