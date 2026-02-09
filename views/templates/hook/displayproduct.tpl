@@ -26,6 +26,27 @@
           selectedVariantId: "{$selected_variant_id}"
         }
       });
+
+      function registerVariantListener() {
+        if (typeof prestashop !== 'undefined') {
+          prestashop.on('updatedProduct', function(e) {
+            var variantId = e.id_product_attribute || 0;
+
+            window.DIALOG_PRODUCT_VARIABLES.selectedVariantId = variantId;
+
+            var el = document.getElementById('dialog-shopify-ai-product');
+            if (el) {
+              el.setAttribute('data-selected-variant-id', variantId);
+            }
+          });
+        }
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', registerVariantListener);
+      } else {
+        registerVariantListener();
+      }
 </script>
 
 <div
