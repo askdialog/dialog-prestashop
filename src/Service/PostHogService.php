@@ -317,6 +317,7 @@ class PostHogService
             'items' => $items,
             'orderValue' => (float) $order->total_paid,
             'currency' => $currency,
+            'order_reference' => $order->reference,
         ];
 
         return $this->capture('user_submitted_checkout', $properties, $distinctId);

@@ -89,7 +89,6 @@ class AskDialog extends Module
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('displayOrderConfirmation')
             && $this->registerHook('actionCartUpdateQuantityBefore')
-            && $this->registerHook('actionValidateOrder')
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
             && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
             && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false);
@@ -205,6 +204,10 @@ class AskDialog extends Module
     {
         $order = $params['order'];
         $customer = $this->context->customer;
+
+        // Track to PostHog (browser-side hook, cookies are available)
+        $postHogService = new PostHogService();
+        $postHogService->trackOrderConfirmation($order);
 
         $this->context->smarty->assign([
             'order_reference' => $order->reference,
@@ -359,24 +362,4 @@ class AskDialog extends Module
         }
     }
 
-    /**
-     * Hook: actionValidateOrder
-     *
-     * Triggered when an order is validated (payment confirmed)
-     * Tracks order confirmation events to PostHog
-     *
-     * @param array $params Hook parameters containing order information
-     */
-    public function hookActionValidateOrder($params)
-    {
-        $order = isset($params['order']) ? $params['order'] : null;
-
-        if (!$order || !Validate::isLoadedObject($order)) {
-            return;
-        }
-
-        // Track to PostHog
-        $postHogService = new PostHogService();
-        $postHogService->trackOrderConfirmation($order);
-    }
 }
