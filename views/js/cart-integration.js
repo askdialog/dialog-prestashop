@@ -36,6 +36,7 @@
 
         jQuery.ajax({
             type: 'POST',
+            dataType: 'text',
             headers: { 'cache-control': 'no-cache' },
             url: prestashop.urls.pages.cart,
             data: {
@@ -48,6 +49,9 @@
                 id_product_attribute: idProductAttribute
             },
             success: function(data) {
+                var resp = {};
+                try { resp = JSON.parse(data); } catch(e) {}
+
                 // Emit PrestaShop event to update cart UI
                 prestashop.emit('updateCart', {
                     reason: {
@@ -58,7 +62,7 @@
                         token: prestashop.static_token,
                         action: 'add-to-cart'
                     },
-                    resp: data
+                    resp: resp
                 });
             },
             error: function(jqXHR, textStatus, errorThrown) {
