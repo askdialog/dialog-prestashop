@@ -562,6 +562,7 @@ class ProductExportService
                     }
 
                     $categories[] = [
+                        'id' => (int) $categoryId,
                         'title' => $category['name'],
                         'description' => $description,
                     ];
