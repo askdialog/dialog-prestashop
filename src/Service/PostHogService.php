@@ -101,6 +101,31 @@ class PostHogService
     }
 
     /**
+     * Parse the PostHog frontend cookie
+     *
+     * @return array|null Parsed cookie data or null if not available
+     */
+    private function parsePostHogCookie()
+    {
+        $cookieName = 'ph_' . self::API_KEY . '_posthog';
+
+        Logger::log(
+            'PostHog cookie check - Cookie name: ' . $cookieName . ' | Available cookies: ' . implode(', ', array_keys($_COOKIE)),
+            1,
+            null,
+            'PostHogService'
+        );
+
+        if (!isset($_COOKIE[$cookieName])) {
+            return null;
+        }
+
+        $posthogData = json_decode($_COOKIE[$cookieName], true);
+
+        return is_array($posthogData) ? $posthogData : null;
+    }
+
+    /**
      * Generate a stable distinct_id for the current user
      *
      * Priority:
@@ -116,22 +141,9 @@ class PostHogService
      */
     public function getDistinctId($customer = null, $cart = null)
     {
-        // Priority 1: Use PostHog's frontend distinct_id from cookie
-        // This ensures backend events are linked to the same user as frontend events
-        $cookieName = 'ph_' . self::API_KEY . '_posthog';
-
-        Logger::log(
-            'PostHog cookie check - Cookie name: ' . $cookieName . ' | Available cookies: ' . implode(', ', array_keys($_COOKIE)),
-            1,
-            null,
-            'PostHogService'
-        );
-
-        if (isset($_COOKIE[$cookieName])) {
-            $posthogData = json_decode($_COOKIE[$cookieName], true);
-            if (is_array($posthogData) && isset($posthogData['distinct_id']) && !empty($posthogData['distinct_id'])) {
-                return $posthogData['distinct_id'];
-            }
+        $cookieData = $this->parsePostHogCookie();
+        if ($cookieData !== null && isset($cookieData['distinct_id']) && !empty($cookieData['distinct_id'])) {
+            return $cookieData['distinct_id'];
         }
 
         // Fallback logic when PostHog cookie is not available
@@ -167,6 +179,23 @@ class PostHogService
     }
 
     /**
+     * Get the PostHog session ID from the frontend cookie
+     *
+     * The cookie stores session info in the $sesid field as [timestamp, sessionId, startTimestamp].
+     *
+     * @return string|null Session ID or null if not available
+     */
+    public function getSessionId()
+    {
+        $cookieData = $this->parsePostHogCookie();
+        if ($cookieData === null || !isset($cookieData['$sesid'][1])) {
+            return null;
+        }
+
+        return $cookieData['$sesid'][1];
+    }
+
+    /**
      * Build event properties with required PostHog settings
      *
      * IMPORTANT: Always sets $process_person_profile to false to avoid
@@ -195,12 +224,21 @@ class PostHogService
             $pathname = parse_url($_SERVER['HTTP_REFERER'], PHP_URL_PATH) ?: '';
         }
 
-        // Merge user properties with required PostHog settings
-        return array_merge($properties, [
+        // $session_id: PostHog session ID from frontend cookie for cross-page journey linking
+        $sessionId = $this->getSessionId();
+
+        $requiredProperties = [
             '$process_person_profile' => false,
             '$host' => $host,
             '$pathname' => $pathname,
-        ]);
+        ];
+
+        if ($sessionId !== null) {
+            $requiredProperties['$session_id'] = $sessionId;
+        }
+
+        // Merge user properties with required PostHog settings
+        return array_merge($properties, $requiredProperties);
     }
 
     /**
