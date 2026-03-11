@@ -46,7 +46,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.0.7';
+        $this->version = '1.0.8';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = [
