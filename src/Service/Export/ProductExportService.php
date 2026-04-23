@@ -448,6 +448,18 @@ class ProductExportService
         $productItem['title'] = $productData['name'];
         $productItem['handle'] = $productData['link_rewrite'];
 
+        $defaultCategoryId = (int) $productData['id_category_default'];
+        $defaultCategoryLinkRewrite = isset($this->categoriesData[$defaultCategoryId])
+            ? $this->categoriesData[$defaultCategoryId]['link_rewrite']
+            : null;
+        $productItem['url'] = $linkObj->getProductLink(
+            (int) $product_id,
+            $productData['link_rewrite'],
+            $defaultCategoryLinkRewrite,
+            null,
+            $defaultLang
+        );
+
         // Handle product price with tax for the country
         $idCountry = \Country::getByIso($countryCode);
         $addressObj = new \Address();
