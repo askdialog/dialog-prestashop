@@ -32,6 +32,8 @@ if (!defined('_PS_VERSION_')) {
  */
 class StockRepository extends AbstractRepository
 {
+    /** @var string|null Cached SQL fragment, computed once per instance */
+    private $shopRestriction = null;
     /**
      * Bulk load product stock (without combinations)
      *
@@ -54,7 +56,7 @@ class StockRepository extends AbstractRepository
                 FROM ' . $this->getPrefix() . 'stock_available sa
                 WHERE sa.id_product IN (' . $this->escapeIds($productIds) . ')
                     AND sa.id_product_attribute = 0
-                    AND sa.id_shop = ' . (int) $idShop;
+                    AND ' . $this->getStockShopRestriction($idShop);
 
         $results = $this->executeS($sql);
 
@@ -87,7 +89,7 @@ class StockRepository extends AbstractRepository
                 FROM ' . $this->getPrefix() . 'stock_available sa
                 WHERE sa.id_product_attribute IN (' . $this->escapeIds($combinationIds) . ')
                     AND sa.id_product_attribute <> 0
-                    AND sa.id_shop = ' . (int) $idShop;
+                    AND ' . $this->getStockShopRestriction($idShop);
 
         $results = $this->executeS($sql);
 
@@ -96,5 +98,27 @@ class StockRepository extends AbstractRepository
         }
 
         return $this->indexBy($results, 'id_product_attribute');
+    }
+
+    /**
+     * WHERE fragment for ps_stock_available.
+     * When share_stock is on, PS uses id_shop = 0 / id_shop_group = X instead of id_shop = X.
+     */
+    private function getStockShopRestriction($idShop)
+    {
+        if ($this->shopRestriction !== null) {
+            return $this->shopRestriction;
+        }
+
+        $idShopGroup = (int) \Shop::getGroupFromShop($idShop);
+        $shopGroup = new \ShopGroup($idShopGroup);
+
+        if (\Shop::isFeatureActive() && $shopGroup->share_stock) {
+            $this->shopRestriction = 'sa.id_shop_group = ' . $idShopGroup . ' AND sa.id_shop = 0';
+        } else {
+            $this->shopRestriction = 'sa.id_shop = ' . (int) $idShop;
+        }
+
+        return $this->shopRestriction;
     }
 }
