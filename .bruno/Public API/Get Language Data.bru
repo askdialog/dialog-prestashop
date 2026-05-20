@@ -1,0 +1,19 @@
+meta {
+  name: Get Language Data
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/module/askdialog/api?action=getLanguageData
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getLanguageData
+}
+
+headers {
+  X-Api-Key: {{api_key_public}}
+}

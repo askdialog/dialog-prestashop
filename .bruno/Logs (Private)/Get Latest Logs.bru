@@ -1,0 +1,22 @@
+meta {
+  name: Get Latest Logs
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/module/askdialog/logs
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getLatest
+  ~limit: 100
+  ~severity: 3
+  ~search: AskDialog
+}
+
+headers {
+  X-Api-Key: {{api_key_private}}
+}
