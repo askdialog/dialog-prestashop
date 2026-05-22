@@ -189,7 +189,7 @@ class ProductExportService
                     }
                     fwrite($handle, json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
                     $firstProduct = false;
-                    $processedCount++;
+                    ++$processedCount;
                 }
             }
 
@@ -751,7 +751,7 @@ class ProductExportService
             // Build JSON content for this batch
             $jsonContent = '';
             foreach ($batchProductIds as $productId) {
-                $attemptedCount++;
+                ++$attemptedCount;
                 $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
                 if (!empty($productData)) {
                     // Add comma before product (except for first product)
@@ -761,7 +761,7 @@ class ProductExportService
                     $isFirstProduct = false;
 
                     $jsonContent .= json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-                    $successCount++;
+                    ++$successCount;
                 }
             }
 
@@ -803,5 +803,4 @@ class ProductExportService
             'totalProducts' => $totalProducts,
         ];
     }
-
 }

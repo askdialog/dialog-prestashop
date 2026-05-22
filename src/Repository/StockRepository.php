@@ -33,7 +33,8 @@ if (!defined('_PS_VERSION_')) {
 class StockRepository extends AbstractRepository
 {
     /** @var string|null Cached SQL fragment, computed once per instance */
-    private $shopRestriction = null;
+    private $shopRestriction;
+
     /**
      * Bulk load product stock (without combinations)
      *
