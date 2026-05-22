@@ -383,6 +383,45 @@ GET /module/askdialog/exportstatus?action=cleanupOldLogs&days=90
 3. **success**: Files uploaded to S3 successfully
 4. **error**: Export failed (error_message field contains details)
 
+### Multistore Catalog Evolution (2026-05-22)
+
+**Context:** Built on top of `fix/multistore_stock_0`. Branch: `feature/multistore-catalog-export`.
+
+**Changes:**
+- ✅ Single unified `catalog.json` generated instead of one per shop
+- ✅ Each product now has a `shops` field listing active shops where it's available
+- ✅ Condition: `shops` field is only added when `\Shop::isFeatureActive()` returns true — no-op for single-shop installs
+- ✅ Stock behavior unchanged (shared stock logic from fix/multistore_stock_0 still applies)
+
+**New methods in ProductRepository:**
+- `getAllProductIds()`: returns all active product IDs across all active shops (multistore)
+- `getActiveShopsByProductIds(array $productIds)`: returns active shops per product, grouped by id_product
+- `findByIdsWithLangAllShops(array $productIds, $idLang, $idShop)`: loads product data without shop restriction on ps_product_shop
+
+**Changes in ProductExportService:**
+- New property `$productShopsData` preloaded per batch
+- All product ID queries use `getAllProductIds()` when multistore active
+- Product data loading uses `findByIdsWithLangAllShops()` when multistore active (so products from all shops are included, not just the triggering shop's)
+- `getProductData()` adds `shops` field only when multistore active
+
+**JSON output (multistore active):**
+```json
+{
+  "id": 123,
+  "title": "Product Name",
+  "shops": [
+    {"id": 1, "name": "Boutique FR"},
+    {"id": 2, "name": "Boutique B2B"}
+  ],
+  ...
+}
+```
+
+**Design decisions:**
+- Price/stock at root level remain from triggering shop context (acceptable, stock is mutualized)
+- `shops[]` contains only `id` + `name` — sufficient for Dialog AI to filter by shop without per-shop stock complexity
+- Language/content data uses the triggering shop's ID as source for `product_lang`
+
 ## TODO: Current Sprint
 
 ### 1. Testing & Validation

@@ -52,6 +52,9 @@ class ProductExportService
     private $tagRepository;
     private $featureRepository;
 
+    /** @var bool Cached result of Shop::isFeatureActive() — computed once in constructor */
+    private $isMultistore;
+
     // Preloaded data (indexed for O(1) lookup)
     private $productsData = [];
     private $combinationsData = [];
@@ -64,6 +67,7 @@ class ProductExportService
     private $categoriesData = [];
     private $productTagsData = [];
     private $productFeaturesData = [];
+    private $productShopsData = [];
 
     public function __construct()
     {
@@ -74,6 +78,7 @@ class ProductExportService
         $this->categoryRepository = new CategoryRepository();
         $this->tagRepository = new TagRepository();
         $this->featureRepository = new FeatureRepository();
+        $this->isMultistore = \Shop::isFeatureActive();
     }
 
     /**
@@ -95,6 +100,7 @@ class ProductExportService
         $this->categoriesData = [];
         $this->productTagsData = [];
         $this->productFeaturesData = [];
+        $this->productShopsData = [];
 
         // Force garbage collection
         if (function_exists('gc_collect_cycles')) {
@@ -111,9 +117,7 @@ class ProductExportService
      */
     public function getProductCount($idShop)
     {
-        $productIds = $this->productRepository->getProductIdsByShop($idShop);
-
-        return count($productIds);
+        return count($this->resolveProductIds($idShop));
     }
 
     /**
@@ -139,8 +143,7 @@ class ProductExportService
         $startTime = microtime(true);
         Logger::log('[AskDialog] ProductExport::generateFileBatched: START (batchSize=' . $batchSize . ')', 1);
 
-        // Get all product IDs for current shop
-        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+        $productIds = $this->resolveProductIds($idShop);
         $totalProducts = count($productIds);
         Logger::log('[AskDialog] ProductExport::generateFileBatched: Found ' . $totalProducts . ' products', 1);
 
@@ -229,8 +232,7 @@ class ProductExportService
         $startTime = microtime(true);
         Logger::log('[AskDialog] ProductExport::generateFile: START', 1);
 
-        // Get all product IDs for current shop using Repository
-        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+        $productIds = $this->resolveProductIds($idShop);
         Logger::log('[AskDialog] ProductExport::generateFile: Found ' . count($productIds) . ' product IDs', 1);
 
         if (empty($productIds)) {
@@ -357,7 +359,12 @@ class ProductExportService
         Logger::log('[AskDialog] bulkLoadData: START - ' . count($productIds) . ' products, idLang=' . $idLang . ', idShop=' . $idShop, 1);
 
         // 1. Load products with multilingual data
-        $this->productsData = $this->productRepository->findByIdsWithLang($productIds, $idLang, $idShop);
+        // In multistore mode, skip the shop filter on ps_product_shop so all shops' products are loaded
+        if ($this->isMultistore) {
+            $this->productsData = $this->productRepository->findByIdsWithLangAllShops($productIds, $idLang);
+        } else {
+            $this->productsData = $this->productRepository->findByIdsWithLang($productIds, $idLang, $idShop);
+        }
         Logger::log('[AskDialog] bulkLoadData: [1/10] Products loaded: ' . count($this->productsData), 1);
 
         // 2. Load combinations
@@ -418,6 +425,12 @@ class ProductExportService
         // 10. Load product features
         $this->productFeaturesData = $this->featureRepository->findByProductIds($productIds, $idLang);
         Logger::log('[AskDialog] bulkLoadData: [10/10] Product features loaded: ' . count($this->productFeaturesData), 1);
+
+        // 11. Load shops per product (multistore only)
+        if ($this->isMultistore) {
+            $this->productShopsData = $this->productRepository->getActiveShopsByProductIds($productIds);
+            Logger::log('[AskDialog] bulkLoadData: [11/11] Product shops loaded: ' . count($this->productShopsData), 1);
+        }
 
         Logger::log('[AskDialog] bulkLoadData: COMPLETED', 1);
     }
@@ -609,6 +622,20 @@ class ProductExportService
         }
         $productItem['id'] = (int) $product_id;
 
+        // Add shops availability field in multistore mode
+        if ($this->isMultistore) {
+            $shops = [];
+            if (isset($this->productShopsData[$product_id])) {
+                foreach ($this->productShopsData[$product_id] as $shopRow) {
+                    $shops[] = [
+                        'id' => (int) $shopRow['id_shop'],
+                        'name' => $shopRow['shop_name'],
+                    ];
+                }
+            }
+            $productItem['shops'] = $shops;
+        }
+
         return $productItem;
     }
 
@@ -621,6 +648,24 @@ class ProductExportService
      */
     public function getProductIds($idShop)
     {
+        return $this->resolveProductIds($idShop);
+    }
+
+    /**
+     * Resolve product IDs based on multistore mode
+     * In multistore mode, returns all active products across all active shops.
+     * In single-shop mode, returns products for the given shop only.
+     *
+     * @param int $idShop Shop ID (ignored in multistore mode)
+     *
+     * @return array Array of product IDs
+     */
+    private function resolveProductIds($idShop)
+    {
+        if ($this->isMultistore) {
+            return $this->productRepository->getAllProductIds();
+        }
+
         return $this->productRepository->getProductIdsByShop($idShop);
     }
 
@@ -650,8 +695,7 @@ class ProductExportService
         $startTime = time();
         Logger::log('[AskDialog] ProductExport::processResumableBatch: START offset=' . $offset . ', batchSize=' . $batchSize . ', timeLimit=' . $timeLimit . 's', 1);
 
-        // Get all product IDs
-        $productIds = $this->productRepository->getProductIdsByShop($idShop);
+        $productIds = $this->resolveProductIds($idShop);
         $totalProducts = count($productIds);
 
         if (empty($productIds)) {
@@ -687,7 +731,9 @@ class ProductExportService
         $remainingProductIds = array_slice($productIds, $offset);
         $batches = array_chunk($remainingProductIds, $batchSize);
 
-        $processedCount = 0;
+        // attemptedCount tracks all IDs consumed (for offset), successCount tracks written products (for progress)
+        $attemptedCount = 0;
+        $successCount = 0;
         $isFirstProduct = ($offset === 0);
         $linkObj = new \Link();
 
@@ -705,6 +751,7 @@ class ProductExportService
             // Build JSON content for this batch
             $jsonContent = '';
             foreach ($batchProductIds as $productId) {
+                $attemptedCount++;
                 $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
                 if (!empty($productData)) {
                     // Add comma before product (except for first product)
@@ -714,7 +761,7 @@ class ProductExportService
                     $isFirstProduct = false;
 
                     $jsonContent .= json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-                    $processedCount++;
+                    $successCount++;
                 }
             }
 
@@ -730,11 +777,11 @@ class ProductExportService
             // Free memory
             $this->clearLoadedData();
 
-            Logger::log('[AskDialog] ProductExport::processResumableBatch: Batch done, processed=' . $processedCount . ', elapsed=' . (time() - $startTime) . 's', 1);
+            Logger::log('[AskDialog] ProductExport::processResumableBatch: Batch done, attempted=' . $attemptedCount . ', success=' . $successCount . ', elapsed=' . (time() - $startTime) . 's', 1);
         }
 
-        // Check if complete
-        $newOffset = $offset + $processedCount;
+        // Offset advances by all attempted IDs (including skipped ones) to prevent infinite loops
+        $newOffset = $offset + $attemptedCount;
         $isComplete = ($newOffset >= $totalProducts);
 
         // If complete, write closing bracket
@@ -747,10 +794,10 @@ class ProductExportService
             Logger::log('[AskDialog] ProductExport::processResumableBatch: Wrote closing bracket, file complete', 1);
         }
 
-        Logger::log('[AskDialog] ProductExport::processResumableBatch: END processed=' . $processedCount . ', newOffset=' . $newOffset . '/' . $totalProducts . ', isComplete=' . ($isComplete ? 'true' : 'false'), 1);
+        Logger::log('[AskDialog] ProductExport::processResumableBatch: END attempted=' . $attemptedCount . ', written=' . $successCount . ', newOffset=' . $newOffset . '/' . $totalProducts . ', isComplete=' . ($isComplete ? 'true' : 'false'), 1);
 
         return [
-            'productsProcessed' => $processedCount,
+            'productsProcessed' => $attemptedCount,
             'isComplete' => $isComplete,
             'tmpFilePath' => $tmpFilePath,
             'totalProducts' => $totalProducts,
