@@ -396,7 +396,7 @@ GET /module/askdialog/exportstatus?action=cleanupOldLogs&days=90
 **New methods in ProductRepository:**
 - `getAllProductIds()`: returns all active product IDs across all active shops (multistore)
 - `getActiveShopsByProductIds(array $productIds)`: returns active shops per product, grouped by id_product
-- `findByIdsWithLangAllShops(array $productIds, $idLang, $idShop)`: loads product data without shop restriction on ps_product_shop
+- `findByIdsWithLangAllShops(array $productIds, $idLang)`: loads product data without shop restriction on ps_product_shop
 
 **Changes in ProductExportService:**
 - New property `$productShopsData` preloaded per batch
