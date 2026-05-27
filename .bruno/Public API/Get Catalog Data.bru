@@ -1,0 +1,19 @@
+meta {
+  name: Get Catalog Data
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/module/askdialog/api?action=getCatalogData
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getCatalogData
+}
+
+headers {
+  X-Api-Key: {{api_key_public}}
+}

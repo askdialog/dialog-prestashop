@@ -1,0 +1,19 @@
+meta {
+  name: Send Catalog Data
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{base_url}}/module/askdialog/feed?action=sendCatalogData
+  body: none
+  auth: none
+}
+
+params:query {
+  action: sendCatalogData
+}
+
+headers {
+  X-Api-Key: {{api_key_private}}
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Get Status Summary
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/module/askdialog/exportstatus
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getStatusSummary
+}
+
+headers {
+  X-Api-Key: {{api_key_private}}
+}

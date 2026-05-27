@@ -1,0 +1,20 @@
+meta {
+  name: Cleanup Old Logs
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/module/askdialog/exportstatus
+  body: none
+  auth: none
+}
+
+params:query {
+  action: cleanupOldLogs
+  ~days: 90
+}
+
+headers {
+  X-Api-Key: {{api_key_private}}
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Get Export History
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{base_url}}/module/askdialog/exportstatus
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getExportHistory
+  ~limit: 10
+  ~export_type: catalog
+}
+
+headers {
+  X-Api-Key: {{api_key_private}}
+}

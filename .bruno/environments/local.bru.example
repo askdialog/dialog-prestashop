@@ -1,0 +1,7 @@
+vars {
+  base_url: http://localhost
+}
+vars:secret [
+  api_key_public,
+  api_key_private
+]

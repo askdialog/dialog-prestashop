@@ -1,0 +1,20 @@
+meta {
+  name: Get Latest Status
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{base_url}}/module/askdialog/exportstatus
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getLatestStatus
+  ~export_type: catalog
+}
+
+headers {
+  X-Api-Key: {{api_key_private}}
+}

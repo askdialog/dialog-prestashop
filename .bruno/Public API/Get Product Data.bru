@@ -1,0 +1,22 @@
+meta {
+  name: Get Product Data
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{base_url}}/module/askdialog/api
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getProductData
+  id_product: 1
+  ~locale: fr
+  ~country_code: FR
+}
+
+headers {
+  X-Api-Key: {{api_key_public}}
+}

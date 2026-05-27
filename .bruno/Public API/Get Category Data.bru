@@ -1,0 +1,19 @@
+meta {
+  name: Get Category Data
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{base_url}}/module/askdialog/api?action=getCategoryData
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getCategoryData
+}
+
+headers {
+  X-Api-Key: {{api_key_public}}
+}
