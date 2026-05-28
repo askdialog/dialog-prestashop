@@ -32,8 +32,9 @@ if (!defined('_PS_VERSION_')) {
  */
 class StockRepository extends AbstractRepository
 {
-    /** @var string|null Cached SQL fragment, computed once per instance */
-    private $shopRestriction = null;
+    /** @var array<int, string> SQL fragments cached by id_shop */
+    private $shopRestrictions = [];
+
     /**
      * Bulk load product stock (without combinations)
      *
@@ -106,19 +107,19 @@ class StockRepository extends AbstractRepository
      */
     private function getStockShopRestriction($idShop)
     {
-        if ($this->shopRestriction !== null) {
-            return $this->shopRestriction;
+        if (isset($this->shopRestrictions[$idShop])) {
+            return $this->shopRestrictions[$idShop];
         }
 
         $idShopGroup = (int) \Shop::getGroupFromShop($idShop);
         $shopGroup = new \ShopGroup($idShopGroup);
 
         if (\Shop::isFeatureActive() && $shopGroup->share_stock) {
-            $this->shopRestriction = 'sa.id_shop_group = ' . $idShopGroup . ' AND sa.id_shop = 0';
+            $this->shopRestrictions[$idShop] = 'sa.id_shop_group = ' . $idShopGroup . ' AND sa.id_shop = 0';
         } else {
-            $this->shopRestriction = 'sa.id_shop = ' . (int) $idShop;
+            $this->shopRestrictions[$idShop] = 'sa.id_shop = ' . (int) $idShop;
         }
 
-        return $this->shopRestriction;
+        return $this->shopRestrictions[$idShop];
     }
 }
