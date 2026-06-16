@@ -529,7 +529,7 @@ class ProductExportService
 
             // Calculate price with tax if needed
             if ($taxCalculator != null) {
-                $variant['price'] = $taxCalculator->addTaxes(\Product::getPriceStatic($product_id, true, $combinationId, 2, null, false, true));
+                $variant['price'] = round($taxCalculator->addTaxes(\Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true)), 2);
             } else {
                 $variant['price'] = \Product::getPriceStatic($product_id, false, $combinationId, 2, null, false, true);
             }
