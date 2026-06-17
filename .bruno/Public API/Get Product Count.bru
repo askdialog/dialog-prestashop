@@ -1,0 +1,19 @@
+meta {
+  name: Get Product Count
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{base_url}}/module/askdialog/api?action=getProductCount
+  body: none
+  auth: none
+}
+
+params:query {
+  action: getProductCount
+}
+
+headers {
+  X-Api-Key: {{api_key_public}}
+}

@@ -119,6 +119,10 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
                 $this->handleGetCategoryData($dataGenerator);
                 break;
 
+            case 'getProductCount':
+                $this->handleGetProductCount($dataGenerator);
+                break;
+
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
@@ -207,5 +211,17 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
     {
         $categoryData = $dataGenerator->getCategoryData();
         $this->sendJsonResponse($categoryData);
+    }
+
+    /**
+     * Handles getProductCount action
+     * Returns the number of exportable products for the current shop
+     *
+     * @param DataGenerator $dataGenerator
+     */
+    private function handleGetProductCount($dataGenerator)
+    {
+        $idShop = (int) $this->context->shop->id;
+        $this->sendJsonResponse(['count' => $dataGenerator->getProductCount($idShop)]);
     }
 }
