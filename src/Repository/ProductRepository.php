@@ -172,8 +172,10 @@ class ProductRepository extends AbstractRepository
             return [];
         }
 
-        // No id_shop filter on product_lang: a product may exist only in shop 2 or 3
-        // but not in the triggering shop. GROUP BY ensures one row per product.
+        // Scope to the product's default shop so the row is deterministic
+        // (one per product) and coherent with the per-locale translations,
+        // instead of a GROUP BY that picks an arbitrary shop's name. Using
+        // id_shop_default still covers products absent from the triggering shop.
         $sql = 'SELECT
                     p.id_product,
                     p.active,
@@ -187,8 +189,8 @@ class ProductRepository extends AbstractRepository
                 INNER JOIN ' . $this->getPrefix() . 'product_lang pl
                     ON p.id_product = pl.id_product
                     AND pl.id_lang = ' . (int) $idLang . '
-                WHERE p.id_product IN (' . $this->escapeIds($productIds) . ')
-                GROUP BY p.id_product';
+                    AND pl.id_shop = p.id_shop_default
+                WHERE p.id_product IN (' . $this->escapeIds($productIds) . ')';
 
         $results = $this->executeS($sql);
 
@@ -197,5 +199,55 @@ class ProductRepository extends AbstractRepository
         }
 
         return $this->indexBy($results, 'id_product');
+    }
+
+    /**
+     * Bulk load product names for ALL active languages.
+     * Used to emit per-locale translations (translationsByLocale).
+     *
+     * @param array $productIds Array of product IDs
+     * @param int|null $idShop Shop ID to scope names to, or null for all shops (multistore)
+     *
+     * @return array Nested: [id_product => [id_lang => name]]
+     */
+    public function findNamesByIdsAllLanguages(array $productIds, $idShop = null)
+    {
+        if (empty($productIds)) {
+            return [];
+        }
+
+        // Scope names to a single shop so there is exactly one row per
+        // (product, lang): the triggering shop in single-shop mode, or the
+        // product's default shop in multistore. Avoids a GROUP BY that would
+        // pick an arbitrary shop's name (or fail under ONLY_FULL_GROUP_BY).
+        $shopCondition = $idShop !== null
+            ? 'pl.id_shop = ' . (int) $idShop
+            : 'pl.id_shop = p.id_shop_default';
+
+        $sql = 'SELECT
+                    pl.id_product,
+                    pl.id_lang,
+                    pl.name
+                FROM ' . $this->getPrefix() . 'product p
+                INNER JOIN ' . $this->getPrefix() . 'product_lang pl
+                    ON pl.id_product = p.id_product
+                    AND ' . $shopCondition . '
+                INNER JOIN ' . $this->getPrefix() . 'lang l
+                    ON pl.id_lang = l.id_lang
+                    AND l.active = 1
+                WHERE p.id_product IN (' . $this->escapeIds($productIds) . ')';
+
+        $results = $this->executeS($sql);
+
+        if (!$results) {
+            return [];
+        }
+
+        $namesByProduct = [];
+        foreach ($results as $row) {
+            $namesByProduct[(int) $row['id_product']][(int) $row['id_lang']] = $row['name'];
+        }
+
+        return $namesByProduct;
     }
 }

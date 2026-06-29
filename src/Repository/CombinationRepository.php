@@ -108,6 +108,110 @@ class CombinationRepository extends AbstractRepository
     }
 
     /**
+     * Bulk load combination attribute names for ALL active languages.
+     * Used to emit per-locale variant translations (translationsByLocale).
+     *
+     * @param array $combinationIds Array of combination IDs (id_product_attribute)
+     *
+     * @return array Nested: [id_product_attribute => [id_lang => [['group_name', 'attribute_name'], ...]]]
+     */
+    public function findAttributesByCombinationIdsAllLanguages(array $combinationIds)
+    {
+        if (empty($combinationIds)) {
+            return [];
+        }
+
+        $sql = 'SELECT
+                    pac.id_product_attribute,
+                    al.id_lang,
+                    al.name AS attribute_name,
+                    agl.public_name AS group_name
+                FROM ' . $this->getPrefix() . 'product_attribute_combination pac
+                INNER JOIN ' . $this->getPrefix() . 'attribute a
+                    ON pac.id_attribute = a.id_attribute
+                INNER JOIN ' . $this->getPrefix() . 'attribute_lang al
+                    ON a.id_attribute = al.id_attribute
+                INNER JOIN ' . $this->getPrefix() . 'lang l
+                    ON al.id_lang = l.id_lang
+                    AND l.active = 1
+                INNER JOIN ' . $this->getPrefix() . 'attribute_group ag
+                    ON a.id_attribute_group = ag.id_attribute_group
+                INNER JOIN ' . $this->getPrefix() . 'attribute_group_lang agl
+                    ON ag.id_attribute_group = agl.id_attribute_group
+                    AND agl.id_lang = al.id_lang
+                WHERE pac.id_product_attribute IN (' . $this->escapeIds($combinationIds) . ')
+                ORDER BY pac.id_product_attribute, al.id_lang, ag.position, a.position';
+
+        $results = $this->executeS($sql);
+
+        if (!$results) {
+            return [];
+        }
+
+        $attributesByCombination = [];
+        foreach ($results as $row) {
+            $attributesByCombination[(int) $row['id_product_attribute']][(int) $row['id_lang']][] = [
+                'group_name' => $row['group_name'],
+                'attribute_name' => $row['attribute_name'],
+            ];
+        }
+
+        return $attributesByCombination;
+    }
+
+    /**
+     * Bulk load a product's options (attribute groups) and their values for ALL
+     * active languages, ordered by group + attribute position. Used to emit a
+     * structured product-level options[] with per-locale translations.
+     *
+     * @param array $productIds Array of product IDs
+     *
+     * @return array Grouped by id_product; each row has id_attribute_group, group_position,
+     *               id_attribute, attr_position, id_lang, group_name, attr_name
+     */
+    public function findOptionsByProductIdsAllLanguages(array $productIds)
+    {
+        if (empty($productIds)) {
+            return [];
+        }
+
+        $sql = 'SELECT DISTINCT
+                    pa.id_product,
+                    ag.id_attribute_group,
+                    ag.position AS group_position,
+                    a.id_attribute,
+                    a.position AS attr_position,
+                    al.id_lang,
+                    agl.public_name AS group_name,
+                    al.name AS attr_name
+                FROM ' . $this->getPrefix() . 'product_attribute pa
+                INNER JOIN ' . $this->getPrefix() . 'product_attribute_combination pac
+                    ON pa.id_product_attribute = pac.id_product_attribute
+                INNER JOIN ' . $this->getPrefix() . 'attribute a
+                    ON pac.id_attribute = a.id_attribute
+                INNER JOIN ' . $this->getPrefix() . 'attribute_group ag
+                    ON a.id_attribute_group = ag.id_attribute_group
+                INNER JOIN ' . $this->getPrefix() . 'lang l
+                    ON l.active = 1
+                INNER JOIN ' . $this->getPrefix() . 'attribute_lang al
+                    ON a.id_attribute = al.id_attribute
+                    AND al.id_lang = l.id_lang
+                INNER JOIN ' . $this->getPrefix() . 'attribute_group_lang agl
+                    ON ag.id_attribute_group = agl.id_attribute_group
+                    AND agl.id_lang = l.id_lang
+                WHERE pa.id_product IN (' . $this->escapeIds($productIds) . ')
+                ORDER BY pa.id_product, ag.position, a.position, al.id_lang';
+
+        $results = $this->executeS($sql);
+
+        if (!$results) {
+            return [];
+        }
+
+        return $this->groupBy($results, 'id_product');
+    }
+
+    /**
      * Get all combination IDs for multiple products
      *
      * @param array $productIds Array of product IDs

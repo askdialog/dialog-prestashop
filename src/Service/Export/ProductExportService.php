@@ -33,6 +33,7 @@ use Dialog\AskDialog\Repository\CategoryRepository;
 use Dialog\AskDialog\Repository\CombinationRepository;
 use Dialog\AskDialog\Repository\FeatureRepository;
 use Dialog\AskDialog\Repository\ImageRepository;
+use Dialog\AskDialog\Repository\LanguageRepository;
 use Dialog\AskDialog\Repository\ProductRepository;
 use Dialog\AskDialog\Repository\StockRepository;
 use Dialog\AskDialog\Repository\TagRepository;
@@ -51,9 +52,13 @@ class ProductExportService
     private $categoryRepository;
     private $tagRepository;
     private $featureRepository;
+    private $languageRepository;
 
     /** @var bool Cached result of Shop::isFeatureActive() — computed once in constructor */
     private $isMultistore;
+
+    /** @var array Active languages as id_lang => locale; loaded once across batches */
+    private $activeLanguages = [];
 
     // Preloaded data (indexed for O(1) lookup)
     private $productsData = [];
@@ -69,6 +74,11 @@ class ProductExportService
     private $productFeaturesData = [];
     private $productShopsData = [];
 
+    // Per-language data for translationsByLocale (indexed for O(1) lookup)
+    private $productNamesByLanguage = [];
+    private $combinationAttributesByLanguage = [];
+    private $productOptionsByLanguage = [];
+
     public function __construct()
     {
         $this->productRepository = new ProductRepository();
@@ -78,6 +88,7 @@ class ProductExportService
         $this->categoryRepository = new CategoryRepository();
         $this->tagRepository = new TagRepository();
         $this->featureRepository = new FeatureRepository();
+        $this->languageRepository = new LanguageRepository();
         $this->isMultistore = \Shop::isFeatureActive();
     }
 
@@ -101,6 +112,10 @@ class ProductExportService
         $this->productTagsData = [];
         $this->productFeaturesData = [];
         $this->productShopsData = [];
+        $this->productNamesByLanguage = [];
+        $this->combinationAttributesByLanguage = [];
+        $this->productOptionsByLanguage = [];
+        // $activeLanguages is intentionally NOT cleared — it is shop-wide and reused across batches
 
         // Force garbage collection
         if (function_exists('gc_collect_cycles')) {
@@ -367,6 +382,14 @@ class ProductExportService
         }
         Logger::log('[AskDialog] bulkLoadData: [1/10] Products loaded: ' . count($this->productsData), 1);
 
+        // 1b. Load product names for every active language (per-locale translations)
+        $this->loadActiveLanguages();
+        $this->productNamesByLanguage = $this->productRepository->findNamesByIdsAllLanguages(
+            $productIds,
+            $this->isMultistore ? null : $idShop
+        );
+        Logger::log('[AskDialog] bulkLoadData: [1b] Product names by language loaded: ' . count($this->productNamesByLanguage), 1);
+
         // 2. Load combinations
         $this->combinationsData = $this->combinationRepository->findByProductIds($productIds);
         $combinationsCount = array_sum(array_map('count', $this->combinationsData));
@@ -380,6 +403,14 @@ class ProductExportService
             // 3. Load combination attributes
             $this->combinationAttributesData = $this->combinationRepository->findAttributesByCombinationIds($combinationIds, $idLang);
             Logger::log('[AskDialog] bulkLoadData: [3/10] Combination attributes loaded: ' . count($this->combinationAttributesData), 1);
+
+            // 3b. Load combination attributes for every active language (per-locale variant translations)
+            $this->combinationAttributesByLanguage = $this->combinationRepository->findAttributesByCombinationIdsAllLanguages($combinationIds);
+            Logger::log('[AskDialog] bulkLoadData: [3b] Combination attributes by language loaded: ' . count($this->combinationAttributesByLanguage), 1);
+
+            // 3c. Load product options (attribute groups + values) for every active language (structured options[])
+            $this->productOptionsByLanguage = $this->combinationRepository->findOptionsByProductIdsAllLanguages($productIds);
+            Logger::log('[AskDialog] bulkLoadData: [3c] Product options by language loaded: ' . count($this->productOptionsByLanguage), 1);
 
             // 4. Load combination images
             $this->combinationImagesData = $this->imageRepository->findByCombinationIds($combinationIds);
@@ -523,6 +554,12 @@ class ProductExportService
             }
             $variant['title'] = $variant['displayName'];
 
+            // Per-locale variant title translations
+            $variantTranslations = $this->buildVariantTranslations($product_id, $combinationId);
+            if (!empty($variantTranslations)) {
+                $variant['translationsByLocale'] = $variantTranslations;
+            }
+
             // Use preloaded stock data
             $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
             $variant['inventoryQuantity'] = $stock ? (int) $stock['quantity'] : 0;
@@ -636,7 +673,221 @@ class ProductExportService
             $productItem['shops'] = $shops;
         }
 
+        // Per-locale product title translations
+        $productTranslations = $this->buildProductTranslations($product_id);
+        if (!empty($productTranslations)) {
+            $productItem['translationsByLocale'] = $productTranslations;
+        }
+
+        // Structured options (attribute groups + values) with per-locale translations
+        $productItem['options'] = $this->buildProductOptions($product_id, $defaultLang);
+
         return $productItem;
+    }
+
+    /**
+     * Build structured product-level options[] from the per-language attribute
+     * groups + values, mirroring the Shopify shape:
+     * { id, name, values, translationsByLocale: { locale: [{key:'name'}, {key:'values.<i>'}] } }.
+     *
+     * @param int $product_id Product ID
+     * @param int $defaultLang Default language ID for the untranslated name/values
+     *
+     * @return array
+     */
+    private function buildProductOptions($product_id, $defaultLang)
+    {
+        if (!isset($this->productOptionsByLanguage[$product_id])) {
+            return [];
+        }
+
+        // Assemble groups preserving SQL position order, with per-language names.
+        $groups = [];
+        foreach ($this->productOptionsByLanguage[$product_id] as $row) {
+            $groupId = (int) $row['id_attribute_group'];
+            $attributeId = (int) $row['id_attribute'];
+            $idLang = (int) $row['id_lang'];
+
+            if (!isset($groups[$groupId])) {
+                $groups[$groupId] = ['id' => $groupId, 'names' => [], 'values' => []];
+            }
+            $groups[$groupId]['names'][$idLang] = $row['group_name'];
+
+            if (!isset($groups[$groupId]['values'][$attributeId])) {
+                $groups[$groupId]['values'][$attributeId] = [];
+            }
+            $groups[$groupId]['values'][$attributeId][$idLang] = $row['attr_name'];
+        }
+
+        $options = [];
+        foreach ($groups as $group) {
+            $options[] = $this->buildOptionItem($group, $defaultLang);
+        }
+
+        return $options;
+    }
+
+    /**
+     * Build one option item: default-language name + values, plus the per-locale
+     * translations array ({key:'name'} + {key:'values.<index>'} aligned to values[]).
+     *
+     * @param array $group Assembled group: ['id', 'names' => [lang => name], 'values' => [attrId => [lang => name]]]
+     * @param int $defaultLang Default language ID
+     *
+     * @return array
+     */
+    private function buildOptionItem($group, $defaultLang)
+    {
+        $valuesByLang = array_values($group['values']); // ordered by attribute position
+        $defaultValues = [];
+        foreach ($valuesByLang as $names) {
+            $defaultValues[] = isset($names[$defaultLang]) ? $names[$defaultLang] : reset($names);
+        }
+
+        $translations = [];
+        foreach ($this->activeLanguages as $idLang => $locale) {
+            $entries = [];
+            if (isset($group['names'][$idLang])) {
+                $entries[] = ['key' => 'name', 'value' => $group['names'][$idLang]];
+            }
+            foreach ($valuesByLang as $index => $names) {
+                if (isset($names[$idLang])) {
+                    $entries[] = ['key' => 'values.' . $index, 'value' => $names[$idLang]];
+                }
+            }
+            if (!empty($entries)) {
+                $translations[$locale] = $entries;
+            }
+        }
+
+        $option = [
+            'id' => $group['id'],
+            'name' => isset($group['names'][$defaultLang]) ? $group['names'][$defaultLang] : reset($group['names']),
+            'values' => $defaultValues,
+        ];
+        if (!empty($translations)) {
+            $option['translationsByLocale'] = $translations;
+        }
+
+        return $option;
+    }
+
+    /**
+     * Load active languages once (id_lang => locale), reused across batches.
+     *
+     * @return void
+     */
+    private function loadActiveLanguages()
+    {
+        if (!empty($this->activeLanguages)) {
+            return;
+        }
+
+        foreach ($this->languageRepository->findAll() as $lang) {
+            if (!empty($lang['active'])) {
+                $this->activeLanguages[(int) $lang['id_lang']] = $this->resolveLocaleKey($lang);
+            }
+        }
+    }
+
+    /**
+     * Resolve a usable locale key for a language. PrestaShop's `locale` can be
+     * empty for manually-added custom languages, so fall back to `language_code`
+     * then `iso_code` (always set) to avoid emitting translations under an empty
+     * key that never resolves at read time.
+     *
+     * @param array $lang Row from LanguageRepository::findAll()
+     *
+     * @return string
+     */
+    private function resolveLocaleKey($lang)
+    {
+        if (!empty($lang['locale'])) {
+            return $lang['locale'];
+        }
+        if (!empty($lang['language_code'])) {
+            return $lang['language_code'];
+        }
+
+        return $lang['iso_code'];
+    }
+
+    /**
+     * Build per-locale product title translations.
+     *
+     * @param int $product_id Product ID
+     *
+     * @return array { locale => [['key' => 'title', 'value' => name]] }
+     */
+    private function buildProductTranslations($product_id)
+    {
+        $translations = [];
+        if (!isset($this->productNamesByLanguage[$product_id])) {
+            return $translations;
+        }
+
+        foreach ($this->productNamesByLanguage[$product_id] as $idLang => $name) {
+            $locale = isset($this->activeLanguages[$idLang]) ? $this->activeLanguages[$idLang] : null;
+            if ($locale === null || $name === null || $name === '') {
+                continue;
+            }
+            $translations[$locale] = [
+                ['key' => 'title', 'value' => $name],
+            ];
+        }
+
+        return $translations;
+    }
+
+    /**
+     * Build per-locale variant title translations, mirroring the default
+     * displayName from the per-language product name + combination attributes.
+     *
+     * @param int $product_id Product ID
+     * @param int $combinationId Combination ID (id_product_attribute)
+     *
+     * @return array { locale => [['key' => 'title', 'value' => displayName]] }
+     */
+    private function buildVariantTranslations($product_id, $combinationId)
+    {
+        $translations = [];
+        if (!isset($this->productNamesByLanguage[$product_id])) {
+            return $translations;
+        }
+
+        foreach ($this->productNamesByLanguage[$product_id] as $idLang => $name) {
+            $locale = isset($this->activeLanguages[$idLang]) ? $this->activeLanguages[$idLang] : null;
+            if ($locale === null || $name === null || $name === '') {
+                continue;
+            }
+            $displayName = $this->buildVariantDisplayName($name, $combinationId, $idLang);
+            $translations[$locale] = [
+                ['key' => 'title', 'value' => $displayName],
+            ];
+        }
+
+        return $translations;
+    }
+
+    /**
+     * Compose a localized variant display name: "<product name> : <group - value, ...>".
+     *
+     * @param string $name Per-language product name
+     * @param int $combinationId Combination ID (id_product_attribute)
+     * @param int $idLang Language ID
+     *
+     * @return string
+     */
+    private function buildVariantDisplayName($name, $combinationId, $idLang)
+    {
+        $parts = [];
+        if (isset($this->combinationAttributesByLanguage[$combinationId][$idLang])) {
+            foreach ($this->combinationAttributesByLanguage[$combinationId][$idLang] as $attr) {
+                $parts[] = $attr['group_name'] . ' - ' . $attr['attribute_name'];
+            }
+        }
+
+        return !empty($parts) ? $name . ' : ' . implode(', ', $parts) : $name;
     }
 
     /**
