@@ -72,7 +72,13 @@
             ctaTextColor: "{$appearance_settings.cta_text_color}",
             capitalizeCtas: {if $appearance_settings.capitalize_ctas}true{else}false{/if},
             backgroundColor: "{$appearance_settings.background_color}",
-            fontFamily: "{$appearance_settings.font_family}"
+            fontFamily: "{$appearance_settings.font_family}",
+            {* Read by the widget to populate window.dialog.audit (DEC-2368) *}
+            integration: {
+                platform: "prestashop",
+                moduleVersion: "{$module_version}",
+                psVersion: "{$ps_version}"
+            }
         }
     });
 </script>

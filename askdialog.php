@@ -279,6 +279,8 @@ class AskDialog extends Module
             'language_name' => $languageName,
             'appearance_settings' => $appearanceSettings,
             'index_dot_js_cdn_url' => self::DIALOG_SDK_CDN_URL,
+            'module_version' => $this->version,
+            'ps_version' => _PS_VERSION_,
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl');
