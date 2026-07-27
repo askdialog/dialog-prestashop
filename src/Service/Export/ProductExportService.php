@@ -517,8 +517,20 @@ class ProductExportService
         $idTaxRulesGroup = \Product::getIdTaxRulesGroupByIdProduct($product_id);
         $taxManager = \TaxManagerFactory::getManager($addressObj, $idTaxRulesGroup);
         $taxCalculator = $taxManager->getTaxCalculator();
+
+        // Index the same price the shopper sees on the storefront. Whether that
+        // is tax-included (TTC) or tax-excluded (HT) depends on the customer
+        // group's price display method, not a fixed choice. Use the Visitor
+        // group (the anonymous shopper who sees the widget); when the shop shows
+        // prices tax-excluded, or global tax is off, export the HT price instead
+        // of always adding tax (DEC-2474).
+        $showTaxIncluded = (bool) \Configuration::get('PS_TAX')
+            && (int) \Group::getPriceDisplayMethod((int) \Configuration::get('PS_UNIDENTIFIED_GROUP')) === PS_TAX_INC;
+
         $priceWithoutTax = \Product::getPriceStatic($product_id, false, null, 6, null, false, true);
-        $productItem['price'] = round($taxCalculator->addTaxes($priceWithoutTax), 2);
+        $productItem['price'] = $showTaxIncluded
+            ? round($taxCalculator->addTaxes($priceWithoutTax), 2)
+            : round($priceWithoutTax, 2);
 
         // Use preloaded combinations data
         $productCombinations = isset($this->combinationsData[$product_id]) ? $this->combinationsData[$product_id] : [];
@@ -564,11 +576,12 @@ class ProductExportService
             $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
             $variant['inventoryQuantity'] = $stock ? (int) $stock['quantity'] : 0;
 
-            // Calculate price with tax if needed
-            if ($taxCalculator != null) {
-                $variant['price'] = round($taxCalculator->addTaxes(\Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true)), 2);
+            // Mirror the storefront price display (HT vs TTC) — see $showTaxIncluded above.
+            $variantPriceWithoutTax = \Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true);
+            if ($taxCalculator != null && $showTaxIncluded) {
+                $variant['price'] = round($taxCalculator->addTaxes($variantPriceWithoutTax), 2);
             } else {
-                $variant['price'] = \Product::getPriceStatic($product_id, false, $combinationId, 2, null, false, true);
+                $variant['price'] = round($variantPriceWithoutTax, 2);
             }
 
             // Use preloaded attributes for selectedOptions
