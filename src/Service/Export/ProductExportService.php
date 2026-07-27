@@ -79,6 +79,9 @@ class ProductExportService
     private $combinationAttributesByLanguage = [];
     private $productOptionsByLanguage = [];
 
+    // Cached shop-level tax display setting (constant across the export).
+    private $displayTaxIncluded;
+
     public function __construct()
     {
         $this->productRepository = new ProductRepository();
@@ -518,19 +521,8 @@ class ProductExportService
         $taxManager = \TaxManagerFactory::getManager($addressObj, $idTaxRulesGroup);
         $taxCalculator = $taxManager->getTaxCalculator();
 
-        // Index the same price the shopper sees on the storefront. Whether that
-        // is tax-included (TTC) or tax-excluded (HT) depends on the customer
-        // group's price display method, not a fixed choice. Use the Visitor
-        // group (the anonymous shopper who sees the widget); when the shop shows
-        // prices tax-excluded, or global tax is off, export the HT price instead
-        // of always adding tax (DEC-2474).
-        $showTaxIncluded = (bool) \Configuration::get('PS_TAX')
-            && (int) \Group::getPriceDisplayMethod((int) \Configuration::get('PS_UNIDENTIFIED_GROUP')) === PS_TAX_INC;
-
         $priceWithoutTax = \Product::getPriceStatic($product_id, false, null, 6, null, false, true);
-        $productItem['price'] = $showTaxIncluded
-            ? round($taxCalculator->addTaxes($priceWithoutTax), 2)
-            : round($priceWithoutTax, 2);
+        $productItem['price'] = $this->applyDisplayTax($priceWithoutTax, $taxCalculator);
 
         // Use preloaded combinations data
         $productCombinations = isset($this->combinationsData[$product_id]) ? $this->combinationsData[$product_id] : [];
@@ -576,13 +568,8 @@ class ProductExportService
             $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
             $variant['inventoryQuantity'] = $stock ? (int) $stock['quantity'] : 0;
 
-            // Mirror the storefront price display (HT vs TTC) — see $showTaxIncluded above.
             $variantPriceWithoutTax = \Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true);
-            if ($taxCalculator != null && $showTaxIncluded) {
-                $variant['price'] = round($taxCalculator->addTaxes($variantPriceWithoutTax), 2);
-            } else {
-                $variant['price'] = round($variantPriceWithoutTax, 2);
-            }
+            $variant['price'] = $this->applyDisplayTax($variantPriceWithoutTax, $taxCalculator);
 
             // Use preloaded attributes for selectedOptions
             $options = [];
@@ -696,6 +683,44 @@ class ProductExportService
         $productItem['options'] = $this->buildProductOptions($product_id, $defaultLang);
 
         return $productItem;
+    }
+
+    /**
+     * Whether the storefront shows tax-included (TTC) prices, so the export
+     * mirrors what the shopper sees (DEC-2474). Based on the Visitor group's
+     * price display method — the anonymous shopper who sees the widget — and the
+     * global tax toggle. Cached: it is a shop-level setting, constant across the
+     * export.
+     *
+     * @return bool
+     */
+    private function shouldDisplayTaxIncluded()
+    {
+        if ($this->displayTaxIncluded === null) {
+            $this->displayTaxIncluded = (bool) \Configuration::get('PS_TAX')
+                && (int) \Group::getPriceDisplayMethod((int) \Configuration::get('PS_UNIDENTIFIED_GROUP')) === PS_TAX_INC;
+        }
+
+        return $this->displayTaxIncluded;
+    }
+
+    /**
+     * Formats a tax-excluded price for export: adds tax when the storefront
+     * displays tax-included prices, otherwise keeps it tax-excluded. Rounded to
+     * 2 decimals either way.
+     *
+     * @param float $priceWithoutTax Tax-excluded price
+     * @param \TaxCalculator|null $taxCalculator Tax calculator for the product
+     *
+     * @return float
+     */
+    private function applyDisplayTax($priceWithoutTax, $taxCalculator)
+    {
+        if ($taxCalculator !== null && $this->shouldDisplayTaxIncluded()) {
+            return round($taxCalculator->addTaxes($priceWithoutTax), 2);
+        }
+
+        return round($priceWithoutTax, 2);
     }
 
     /**
