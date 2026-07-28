@@ -82,6 +82,11 @@ class ProductExportService
     // Cached shop-level tax display setting (constant across the export).
     private $displayTaxIncluded;
 
+    // Cached per-export market-pricing state (per-country tax prices).
+    private $marketPricingByGroup = [];
+    private $marketCountries;
+    private $marketCurrency;
+
     public function __construct()
     {
         $this->productRepository = new ProductRepository();
@@ -522,7 +527,8 @@ class ProductExportService
         $taxCalculator = $taxManager->getTaxCalculator();
 
         $priceWithoutTax = \Product::getPriceStatic($product_id, false, null, 6, null, false, true);
-        $productItem['price'] = $this->applyDisplayTax($priceWithoutTax, $taxCalculator);
+        $basePricing = $this->buildMarketPricing($priceWithoutTax, $taxCalculator, $idTaxRulesGroup);
+        $productItem['price'] = $basePricing['price'];
 
         // Use preloaded combinations data
         $productCombinations = isset($this->combinationsData[$product_id]) ? $this->combinationsData[$product_id] : [];
@@ -569,7 +575,11 @@ class ProductExportService
             $variant['inventoryQuantity'] = $stock ? (int) $stock['quantity'] : 0;
 
             $variantPriceWithoutTax = \Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true);
-            $variant['price'] = $this->applyDisplayTax($variantPriceWithoutTax, $taxCalculator);
+            $variantPricing = $this->buildMarketPricing($variantPriceWithoutTax, $taxCalculator, $idTaxRulesGroup);
+            $variant['price'] = $variantPricing['price'];
+            if ($variantPricing['prices'] !== null) {
+                $variant['prices'] = $variantPricing['prices'];
+            }
 
             // Use preloaded attributes for selectedOptions
             $options = [];
@@ -584,6 +594,28 @@ class ProductExportService
             $variant['selectedOptions'] = $options;
             $variant['id'] = $combinationId;
             $variants[] = $variant;
+        }
+
+        // Simple products (no combinations) still need one variant to carry the
+        // price and per-market prices — like Shopify, where every product has a
+        // default variant. Without it the export sends an empty variants array,
+        // so ingestion has no price and its priceRange collapses to +/-Infinity.
+        if (empty($variants)) {
+            $productStock = isset($this->productStockData[$product_id])
+                ? $this->productStockData[$product_id]
+                : null;
+            $defaultVariant = [
+                'id' => (int) $product_id,
+                'title' => $productData['name'],
+                'displayName' => $productData['name'],
+                'price' => $basePricing['price'],
+                'inventoryQuantity' => $productStock ? (int) $productStock['quantity'] : 0,
+                'selectedOptions' => [],
+            ];
+            if ($basePricing['prices'] !== null) {
+                $defaultVariant['prices'] = $basePricing['prices'];
+            }
+            $variants[] = $defaultVariant;
         }
 
         $productItem['variants'] = $variants;
@@ -721,6 +753,122 @@ class ProductExportService
         }
 
         return round($priceWithoutTax, 2);
+    }
+
+    /** Active countries of the shop, loaded once (id_country + iso_code). */
+    private function getActiveCountries()
+    {
+        if ($this->marketCountries === null) {
+            $this->marketCountries = \Country::getCountries(
+                (int) \Context::getContext()->language->id,
+                true
+            );
+        }
+
+        return $this->marketCountries;
+    }
+
+    /** Shop currency ISO used for the exported prices (falls back to EUR). */
+    private function getMarketCurrency()
+    {
+        if ($this->marketCurrency === null) {
+            $context = \Context::getContext();
+            $this->marketCurrency = ($context->currency && $context->currency->iso_code)
+                ? $context->currency->iso_code
+                : 'EUR';
+        }
+
+        return $this->marketCurrency;
+    }
+
+    /**
+     * Per-tax-group market pricing, computed once per export: a TaxCalculator per
+     * active country + whether the group actually varies by country. When it does
+     * not (a single rate everywhere), the export keeps the DEC-2474 single price;
+     * markets are emitted only for genuine per-country variation (e.g. per-EU
+     * VAT + 0% outside), so a flat-rate shop is never inflated with one price per
+     * country.
+     *
+     * @param int $idTaxRulesGroup
+     *
+     * @return array
+     */
+    private function getMarketPricing($idTaxRulesGroup)
+    {
+        if (!isset($this->marketPricingByGroup[$idTaxRulesGroup])) {
+            $countries = [];
+            $distinctRates = [];
+            foreach ($this->getActiveCountries() as $country) {
+                $address = new \Address();
+                $address->id_state = 0;
+                $address->postcode = '';
+                $address->id_manufacturer = 0;
+                $address->id_customer = 0;
+                $address->id = 0;
+                $address->id_country = (int) $country['id_country'];
+                $calculator = \TaxManagerFactory::getManager($address, $idTaxRulesGroup)->getTaxCalculator();
+                // Custom TaxManager implementations (some B2B/VAT modules) can
+                // return null; treat that country as untaxed so a single tax
+                // group never fatals the whole export.
+                $rate = $calculator !== null ? (float) $calculator->getTotalRate() : 0.0;
+                $countries[] = [
+                    'iso' => $country['iso_code'],
+                    'calculator' => $calculator,
+                    'rate' => $rate,
+                ];
+                $distinctRates[(string) $rate] = true;
+            }
+            $this->marketPricingByGroup[$idTaxRulesGroup] = [
+                'countries' => $countries,
+                // Only a tax-included storefront actually *displays* a different
+                // price per country; a tax-excluded shop shows HT to everyone, so
+                // keep the DEC-2474 single price there (no per-country entries).
+                'isVaried' => $this->shouldDisplayTaxIncluded() && count($distinctRates) > 1,
+            ];
+        }
+
+        return $this->marketPricingByGroup[$idTaxRulesGroup];
+    }
+
+    /**
+     * Price fields for the base product or a variant. In a market group the
+     * scalar `price` is the HT base (the default / non-market fallback) and
+     * `prices` carries one tax-included entry per taxed country, tagged by its
+     * ISO (the ingestion keys `prices` by country directly). Otherwise the
+     * DEC-2474 single price, with no per-market entries.
+     *
+     * @param float $priceWithoutTax
+     * @param \TaxCalculator|null $taxCalculator
+     * @param int $idTaxRulesGroup
+     *
+     * @return array
+     */
+    private function buildMarketPricing($priceWithoutTax, $taxCalculator, $idTaxRulesGroup)
+    {
+        $pricing = $this->getMarketPricing($idTaxRulesGroup);
+        if (!$pricing['isVaried']) {
+            return [
+                'price' => $this->applyDisplayTax($priceWithoutTax, $taxCalculator),
+                'prices' => null,
+            ];
+        }
+
+        $prices = [];
+        foreach ($pricing['countries'] as $country) {
+            if ($country['rate'] <= 0) {
+                continue;
+            }
+            $prices[] = [
+                'amount' => round($country['calculator']->addTaxes($priceWithoutTax), 2),
+                'currencyCode' => $this->getMarketCurrency(),
+                'market' => $country['iso'],
+            ];
+        }
+
+        return [
+            'price' => round($priceWithoutTax, 2),
+            'prices' => $prices,
+        ];
     }
 
     /**
