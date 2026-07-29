@@ -1173,6 +1173,7 @@ class ProductExportService
         $successCount = 0;
         $isFirstProduct = ($offset === 0);
         $linkObj = new \Link();
+        $timeUp = false;
 
         foreach ($batches as $batchProductIds) {
             // Check time limit before processing batch
@@ -1188,6 +1189,17 @@ class ProductExportService
             // Build JSON content for this batch
             $jsonContent = '';
             foreach ($batchProductIds as $productId) {
+                // Honor the time budget mid-batch. A single (configurable) batch
+                // can be large and take longer than the whole budget on a slow
+                // shop, so checking only between batches would overrun
+                // max_execution_time / the ~100s CDN timeout before any progress
+                // is returned. Products not yet attempted resume on the next call.
+                // Guard on $attemptedCount so at least one product is always
+                // processed per call, keeping the offset advancing (no infinite loop).
+                if ($attemptedCount > 0 && (time() - $startTime) >= $timeLimit) {
+                    $timeUp = true;
+                    break;
+                }
                 ++$attemptedCount;
                 $productData = $this->getProductData($productId, $idLang, $linkObj, $countryCode);
                 if (!empty($productData)) {
@@ -1215,6 +1227,11 @@ class ProductExportService
             $this->clearLoadedData();
 
             Logger::log('[AskDialog] ProductExport::processResumableBatch: Batch done, attempted=' . $attemptedCount . ', success=' . $successCount . ', elapsed=' . (time() - $startTime) . 's', 1);
+
+            if ($timeUp) {
+                Logger::log('[AskDialog] ProductExport::processResumableBatch: Time limit reached mid-batch after ' . (time() - $startTime) . 's', 1);
+                break;
+            }
         }
 
         // Offset advances by all attempted IDs (including skipped ones) to prevent infinite loops

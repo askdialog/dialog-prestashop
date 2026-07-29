@@ -52,9 +52,19 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private const TIME_SAFETY_MARGIN = 5;
 
     /**
+     * Hard ceiling for a single poll call, in seconds.
+     *
+     * Must stay safely below the ~100s response timeout enforced by CDNs and
+     * reverse proxies (e.g. Cloudflare returns a 524 after ~100s). If a call
+     * runs longer, the connection is severed before we can return progress, so
+     * the resumable export can never advance and a large catalog never completes.
+     */
+    private const MAX_TIME_LIMIT = 75;
+
+    /**
      * Default time limit if max_execution_time is 0 (unlimited)
      */
-    private const DEFAULT_TIME_LIMIT = 115;
+    private const DEFAULT_TIME_LIMIT = 75;
 
     /**
      * Initialize controller and verify API key authentication
@@ -131,7 +141,9 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
         $safeLimit = $maxExecutionTime - self::TIME_SAFETY_MARGIN;
 
-        return max(5, $safeLimit); // Minimum 5 seconds
+        // Never exceed the hard ceiling: a single call must return before the
+        // ~100s CDN/proxy timeout, otherwise progress is never persisted.
+        return max(5, min($safeLimit, self::MAX_TIME_LIMIT));
     }
 
     /**
