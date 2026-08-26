@@ -831,11 +831,17 @@ class ProductExportService
     }
 
     /**
-     * Price fields for the base product or a variant. In a market group the
-     * scalar `price` is the HT base (the default / non-market fallback) and
-     * `prices` carries one tax-included entry per taxed country, tagged by its
-     * ISO (the ingestion keys `prices` by country directly). Otherwise the
-     * DEC-2474 single price, with no per-market entries.
+     * Price fields for the base product or a variant. In a market group `prices`
+     * carries one tax-included entry per taxed country, tagged by its ISO (the
+     * ingestion keys `prices` by country directly). Otherwise the DEC-2474
+     * single price, with no per-market entries.
+     *
+     * The scalar `price` always carries the store's tax display, in both
+     * branches. It is what every consumer falls back to when the shopper's
+     * country has no entry in `prices` — a shopper outside the taxed countries,
+     * or a storefront widget localising a product for such a country. Returning
+     * the raw tax-excluded base here quoted a tax-excluded price to those
+     * shoppers, visibly cheaper than the storefront.
      *
      * @param float $priceWithoutTax
      * @param \TaxCalculator|null $taxCalculator
@@ -866,7 +872,7 @@ class ProductExportService
         }
 
         return [
-            'price' => round($priceWithoutTax, 2),
+            'price' => $this->applyDisplayTax($priceWithoutTax, $taxCalculator),
             'prices' => $prices,
         ];
     }

@@ -9,7 +9,7 @@ MODULE_NAME="askdialog"
 ZIP_FILE="$HOME/${MODULE_NAME}.zip"
 S3_BUCKET="dialog-organization-produ-storageecommercebucket7d-2c5ebvwexta8"
 S3_KEY="prestashop-modules/askdialog.zip"
-AWS_PROFILE="dialog-production"
+AWS_PROFILE="dialog-prod"
 
 # Console colors
 if command -v tput >/dev/null 2>&1; then
