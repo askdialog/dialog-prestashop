@@ -79,13 +79,23 @@ class ProductExportService
     private $combinationAttributesByLanguage = [];
     private $productOptionsByLanguage = [];
 
-    // Cached shop-level tax display setting (constant across the export).
-    private $displayTaxIncluded;
-
     // Cached per-export market-pricing state (per-country tax prices).
     private $marketPricingByGroup = [];
     private $marketCountries;
     private $marketCurrency;
+
+    /** @var ShopMarketMap Multistore topology: which shop owns which countries. */
+    private $shopMarketMap;
+
+    /**
+     * Per-shop caches. `Configuration::get()` is shop-scoped, so a single cached
+     * tax-display value would apply the exporting shop's setting to every other
+     * shop — silently, since nothing errors. Keyed by shop for that reason.
+     */
+    private $displayTaxIncludedByShop = [];
+    private $taxCalculatorByCountryAndGroup = [];
+    private $shopContextCache = [];
+    private $taxManagerPrimed = false;
 
     public function __construct()
     {
@@ -98,6 +108,7 @@ class ProductExportService
         $this->featureRepository = new FeatureRepository();
         $this->languageRepository = new LanguageRepository();
         $this->isMultistore = \Shop::isFeatureActive();
+        $this->shopMarketMap = new ShopMarketMap();
     }
 
     /**
@@ -512,22 +523,27 @@ class ProductExportService
             $defaultLang
         );
 
-        // Handle product price with tax for the country
-        $idCountry = \Country::getByIso($countryCode);
-        $addressObj = new \Address();
-        $addressObj->id_state = 0;
-        $addressObj->postcode = '';
-        $addressObj->id_manufacturer = 0;
-        $addressObj->id_customer = 0;
-        $addressObj->id = 0;
-        $addressObj->id_country = $idCountry;
+        if ($this->shopMarketMap->isMultishop()) {
+            $urlByMarket = $this->buildUrlByMarket(
+                $product_id,
+                $linkObj,
+                $productData['link_rewrite'],
+                $defaultCategoryLinkRewrite,
+                $defaultLang,
+                $this->activeShopIdsFor($product_id)
+            );
+            if (!empty($urlByMarket)) {
+                $productItem['urlByMarket'] = $urlByMarket;
+            }
+        }
 
+        // Handle product price with tax for the country
+        $this->primeTaxManager();
         $idTaxRulesGroup = \Product::getIdTaxRulesGroupByIdProduct($product_id);
-        $taxManager = \TaxManagerFactory::getManager($addressObj, $idTaxRulesGroup);
-        $taxCalculator = $taxManager->getTaxCalculator();
+        $taxCalculator = $this->buildTaxCalculator(\Country::getByIso($countryCode), $idTaxRulesGroup);
 
         $priceWithoutTax = \Product::getPriceStatic($product_id, false, null, 6, null, false, true);
-        $basePricing = $this->buildMarketPricing($priceWithoutTax, $taxCalculator, $idTaxRulesGroup);
+        $basePricing = $this->buildPricing($product_id, null, $priceWithoutTax, $taxCalculator, $idTaxRulesGroup);
         $productItem['price'] = $basePricing['price'];
 
         // Use preloaded combinations data
@@ -575,10 +591,19 @@ class ProductExportService
             $variant['inventoryQuantity'] = $stock ? (int) $stock['quantity'] : 0;
 
             $variantPriceWithoutTax = \Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true);
-            $variantPricing = $this->buildMarketPricing($variantPriceWithoutTax, $taxCalculator, $idTaxRulesGroup);
+            $variantPricing = $this->buildPricing(
+                $product_id,
+                $combinationId,
+                $variantPriceWithoutTax,
+                $taxCalculator,
+                $idTaxRulesGroup
+            );
             $variant['price'] = $variantPricing['price'];
             if ($variantPricing['prices'] !== null) {
                 $variant['prices'] = $variantPricing['prices'];
+            }
+            if (!empty($variantPricing['excludedMarkets'])) {
+                $variant['excludedMarkets'] = $variantPricing['excludedMarkets'];
             }
 
             // Use preloaded attributes for selectedOptions
@@ -614,6 +639,9 @@ class ProductExportService
             ];
             if ($basePricing['prices'] !== null) {
                 $defaultVariant['prices'] = $basePricing['prices'];
+            }
+            if (!empty($basePricing['excludedMarkets'])) {
+                $defaultVariant['excludedMarkets'] = $basePricing['excludedMarkets'];
             }
             $variants[] = $defaultVariant;
         }
@@ -703,6 +731,14 @@ class ProductExportService
                 }
             }
             $productItem['shops'] = $shops;
+
+            // Countries owned by the shops that do not carry this product:
+            // retrieval turns them into a must_not filter, so it never surfaces
+            // for a shopper of a shop where it is not for sale.
+            $excludedMarkets = $this->shopMarketMap->excludedMarkets($this->activeShopIdsFor($product_id));
+            if (!empty($excludedMarkets)) {
+                $productItem['excludedMarkets'] = $excludedMarkets;
+            }
         }
 
         // Per-locale product title translations
@@ -721,19 +757,34 @@ class ProductExportService
      * Whether the storefront shows tax-included (TTC) prices, so the export
      * mirrors what the shopper sees (DEC-2474). Based on the Visitor group's
      * price display method — the anonymous shopper who sees the widget — and the
-     * global tax toggle. Cached: it is a shop-level setting, constant across the
-     * export.
+     * global tax toggle.
+     *
+     * Both settings are shop-scoped, so the answer is cached per shop: one cached
+     * value would apply the exporting shop's tax display to every other shop of a
+     * multistore export, silently. Passing no shop reads the ambient context,
+     * which is what a single-shop export does.
+     *
+     * @param int|null $idShop Read this shop's settings instead of the context's
      *
      * @return bool
      */
-    private function shouldDisplayTaxIncluded()
+    private function shouldDisplayTaxIncluded($idShop = null)
     {
-        if ($this->displayTaxIncluded === null) {
-            $this->displayTaxIncluded = (bool) \Configuration::get('PS_TAX')
-                && (int) \Group::getPriceDisplayMethod((int) \Configuration::get('PS_UNIDENTIFIED_GROUP')) === PS_TAX_INC;
+        $cacheKey = $idShop !== null ? (int) $idShop : 'context';
+
+        if (!isset($this->displayTaxIncludedByShop[$cacheKey])) {
+            $taxEnabled = $idShop !== null
+                ? ShopMarketMap::shopConfiguration('PS_TAX', $idShop)
+                : \Configuration::get('PS_TAX');
+            $unidentifiedGroup = $idShop !== null
+                ? ShopMarketMap::shopConfiguration('PS_UNIDENTIFIED_GROUP', $idShop)
+                : \Configuration::get('PS_UNIDENTIFIED_GROUP');
+
+            $this->displayTaxIncludedByShop[$cacheKey] = (bool) $taxEnabled
+                && (int) \Group::getPriceDisplayMethod((int) $unidentifiedGroup) === PS_TAX_INC;
         }
 
-        return $this->displayTaxIncluded;
+        return $this->displayTaxIncludedByShop[$cacheKey];
     }
 
     /**
@@ -743,12 +794,13 @@ class ProductExportService
      *
      * @param float $priceWithoutTax Tax-excluded price
      * @param \TaxCalculator|null $taxCalculator Tax calculator for the product
+     * @param int|null $idShop Apply this shop's tax display instead of the context's
      *
      * @return float
      */
-    private function applyDisplayTax($priceWithoutTax, $taxCalculator)
+    private function applyDisplayTax($priceWithoutTax, $taxCalculator, $idShop = null)
     {
-        if ($taxCalculator !== null && $this->shouldDisplayTaxIncluded()) {
+        if ($taxCalculator !== null && $this->shouldDisplayTaxIncluded($idShop)) {
             return round($taxCalculator->addTaxes($priceWithoutTax), 2);
         }
 
@@ -799,17 +851,9 @@ class ProductExportService
             $countries = [];
             $distinctRates = [];
             foreach ($this->getActiveCountries() as $country) {
-                $address = new \Address();
-                $address->id_state = 0;
-                $address->postcode = '';
-                $address->id_manufacturer = 0;
-                $address->id_customer = 0;
-                $address->id = 0;
-                $address->id_country = (int) $country['id_country'];
-                $calculator = \TaxManagerFactory::getManager($address, $idTaxRulesGroup)->getTaxCalculator();
-                // Custom TaxManager implementations (some B2B/VAT modules) can
-                // return null; treat that country as untaxed so a single tax
-                // group never fatals the whole export.
+                $calculator = $this->buildTaxCalculator($country['id_country'], $idTaxRulesGroup);
+                // A null calculator means the country is treated as untaxed, so a
+                // single tax group never fatals the whole export.
                 $rate = $calculator !== null ? (float) $calculator->getTotalRate() : 0.0;
                 $countries[] = [
                     'iso' => $country['iso_code'],
@@ -875,6 +919,402 @@ class ProductExportService
             'price' => $this->applyDisplayTax($priceWithoutTax, $taxCalculator),
             'prices' => $prices,
         ];
+    }
+
+    /**
+     * Per-country prices for a product or combination across every shop.
+     *
+     * Each shop prices the countries it owns, in its own currency and with its
+     * own tax display. The single-shop `isVaried` shortcut deliberately does not
+     * apply here: a shop whose tax barème is flat — or disabled outright, which
+     * is the norm for a non-EU satellite — must still emit its entries, or its
+     * shoppers silently fall back to another shop's currency.
+     *
+     * The scalar `price` stays the exporting shop's, so it remains a coherent
+     * default for a shopper no shop claims.
+     *
+     * @param int $productId
+     * @param int|null $combinationId
+     * @param float $scalarPrice Price computed in the exporting shop context
+     *
+     * @return array
+     */
+    private function buildMultishopPricing($productId, $combinationId, $scalarPrice)
+    {
+        $availableShopIds = $this->activeShopIdsFor($productId);
+        $snapshot = $this->snapshotShopContext();
+        $entries = [];
+        $excludedMarkets = [];
+
+        try {
+            foreach ($this->shopMarketMap->getShops() as $idShop => $shop) {
+                if (empty($shop['ownedCountries'])) {
+                    continue;
+                }
+
+                // A product a shop does not carry is excluded from that shop's
+                // markets anyway, so pricing it there buys a context switch and
+                // a price computation for entries retrieval always filters out.
+                // An empty list means the topology is unknown: price everything
+                // rather than emit nothing.
+                if (!empty($availableShopIds) && !in_array((int) $idShop, $availableShopIds, true)) {
+                    continue;
+                }
+
+                $this->enterShopContext($idShop);
+                $priceWithoutTax = \Product::getPriceStatic($productId, false, $combinationId, 6, null, false, true);
+
+                // No product_shop / product_attribute_shop row on this shop:
+                // the record is not carried there, whatever the product-level
+                // association says (a combination created from another shop's
+                // back office). Pricing it would emit a 0 amount.
+                if ($priceWithoutTax === null) {
+                    foreach ($shop['ownedCountries'] as $iso) {
+                        $excludedMarkets[] = $iso;
+                    }
+                    continue;
+                }
+
+                $idTaxRulesGroup = \Product::getIdTaxRulesGroupByIdProduct($productId);
+
+                foreach ($shop['ownedCountries'] as $iso) {
+                    $entries[] = [
+                        'amount' => $this->applyDisplayTax(
+                            $priceWithoutTax,
+                            $this->countryTaxCalculator($idShop, $iso, $idTaxRulesGroup),
+                            $idShop
+                        ),
+                        'currencyCode' => $shop['currency'],
+                        'market' => $iso,
+                    ];
+                }
+            }
+        } finally {
+            $this->restoreShopContext($snapshot);
+        }
+
+        // A record the exporting shop does not carry has no scalar of its own;
+        // the first carrying shop's entry stands in, so consumers falling back
+        // to the scalar never see a 0.
+        if ($scalarPrice === null) {
+            $scalarPrice = !empty($entries) ? $entries[0]['amount'] : 0.0;
+        }
+
+        return [
+            'price' => $scalarPrice,
+            'prices' => !empty($entries) ? $entries : null,
+            'excludedMarkets' => $excludedMarkets,
+        ];
+    }
+
+    /**
+     * Price fields for a product or one of its combinations.
+     *
+     * Branches before computing anything: in multistore the per-country map is
+     * rebuilt from the shops that carry the product, so the single-shop map
+     * would be a TaxCalculator pass over every active country — per product
+     * *and* per combination — thrown away immediately. Only the scalar is shared.
+     *
+     * @param int $productId
+     * @param int|null $combinationId
+     * @param float $priceWithoutTax
+     * @param \TaxCalculator|null $taxCalculator
+     * @param int $idTaxRulesGroup
+     *
+     * @return array
+     */
+    private function buildPricing($productId, $combinationId, $priceWithoutTax, $taxCalculator, $idTaxRulesGroup)
+    {
+        if (!$this->shopMarketMap->isMultishop()) {
+            return $this->buildMarketPricing($priceWithoutTax, $taxCalculator, $idTaxRulesGroup);
+        }
+
+        // getPriceStatic() returns null for a record the exporting shop does
+        // not carry; the multishop pass resolves the scalar from a shop that does.
+        return $this->buildMultishopPricing(
+            $productId,
+            $combinationId,
+            $priceWithoutTax === null ? null : $this->applyDisplayTax($priceWithoutTax, $taxCalculator)
+        );
+    }
+
+    /**
+     * Shops carrying this product, from the preloaded `product_shop` rows.
+     *
+     * Empty outside multistore, or when the product sits on no active shop —
+     * which is also when it is excluded from every market, so the caller may
+     * safely treat empty as "unknown" and price the whole topology.
+     *
+     * @param int $productId
+     *
+     * @return array
+     */
+    private function activeShopIdsFor($productId)
+    {
+        if (!isset($this->productShopsData[$productId])) {
+            return [];
+        }
+
+        return array_map(function ($shopRow) {
+            return (int) $shopRow['id_shop'];
+        }, $this->productShopsData[$productId]);
+    }
+
+    /**
+     * Put back the context the caller had.
+     *
+     * Called from a `finally`: a throw inside the pricing loop would otherwise
+     * leave every later product of the export running under the last shop
+     * visited, with its currency — wrong prices for the rest of the run, and no
+     * error anywhere to show for it.
+     *
+     * @param array $snapshot From snapshotShopContext()
+     *
+     * @return void
+     */
+    private function restoreShopContext(array $snapshot)
+    {
+        $context = \Context::getContext();
+
+        if ($snapshot['shopId'] !== null) {
+            $this->enterShopContext($snapshot['shopId']);
+        } else {
+            \Shop::setContext(\Shop::CONTEXT_ALL);
+            $context->shop = null;
+        }
+
+        // enterShopContext() forced the exporting shop's configured currency and
+        // country; give the caller back whatever it had, so the next product's
+        // ambient scalar price is computed exactly as before.
+        $context->currency = $snapshot['currency'];
+        $context->country = $snapshot['country'];
+    }
+
+    /**
+     * The shop-scoped context to put back once pricing under another shop is
+     * done. Paired with restoreShopContext() on purpose: the three fields drift
+     * apart the moment one call site captures two of them, and the symptom — a
+     * whole export priced under the wrong shop — surfaces no error at all.
+     *
+     * @return array
+     */
+    private function snapshotShopContext()
+    {
+        $context = \Context::getContext();
+
+        return [
+            'shopId' => $context->shop !== null ? (int) $context->shop->id : null,
+            'currency' => $context->currency,
+            'country' => $context->country,
+        ];
+    }
+
+    /**
+     * Point the export at a shop.
+     *
+     * Two assignments, both load-bearing. `Shop::setContext()` alone does not
+     * move `Context::shop`, and `Context::currency` follows neither — yet
+     * `Product::getPriceStatic()` converts into the context currency. Without
+     * the reassignment every shop would export amounts converted to the first
+     * shop's currency while carrying its own currency code: wrong prices, no
+     * error anywhere.
+     *
+     * Shop and Currency objects are cached: this runs once per shop per
+     * variant, and both are ObjectModel reads.
+     *
+     * @param int $idShop
+     *
+     * @return void
+     */
+    private function enterShopContext($idShop)
+    {
+        $idShop = (int) $idShop;
+        $context = \Context::getContext();
+
+        if (!isset($this->shopContextCache[$idShop])) {
+            $idCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
+            $idCountry = (int) ShopMarketMap::shopConfiguration('PS_COUNTRY_DEFAULT', $idShop);
+            $this->shopContextCache[$idShop] = [
+                'shop' => new \Shop($idShop),
+                'currency' => $idCurrency > 0 ? new \Currency($idCurrency) : null,
+                'country' => $idCountry > 0 ? new \Country($idCountry) : null,
+            ];
+        }
+
+        if ($context->shop === null || (int) $context->shop->id !== $idShop) {
+            \Shop::setContext(\Shop::CONTEXT_SHOP, $idShop);
+            $context->shop = $this->shopContextCache[$idShop]['shop'];
+        }
+
+        // Assigned even when the shop already matches: a storefront session can
+        // have a non-default currency selected, and getPriceStatic() converts
+        // into the context currency. Skipping it would emit that converted
+        // amount under the shop's configured currency code.
+        if ($this->shopContextCache[$idShop]['currency'] !== null) {
+            $context->currency = $this->shopContextCache[$idShop]['currency'];
+        }
+
+        // getPriceStatic() resolves its country from Address::initialize(),
+        // which is built from — and cached by — Context::country. Left on the
+        // requesting shop's country, a satellite's country-restricted specific
+        // prices and catalog price rules would never match, and the requesting
+        // country's would leak in. Each shop is priced for its default country,
+        // what its own storefront shows an unidentified visitor.
+        if ($this->shopContextCache[$idShop]['country'] !== null) {
+            $context->country = $this->shopContextCache[$idShop]['country'];
+        }
+    }
+
+    /**
+     * Build the first TaxCalculator of the request under a shop that has taxes
+     * enabled, when there is one.
+     *
+     * TaxRulesTaxManager::getTaxCalculator() reads PS_TAX once per request into
+     * a function-level static, from whichever shop is ambient at that first
+     * call. An export served by a tax-excluded shop would otherwise get empty
+     * calculators for every shop, and price the tax-included ones tax-excluded.
+     *
+     * @return void
+     */
+    private function primeTaxManager()
+    {
+        if ($this->taxManagerPrimed || !$this->shopMarketMap->isMultishop()) {
+            return;
+        }
+        $this->taxManagerPrimed = true;
+
+        foreach ($this->shopMarketMap->getShops() as $idShop => $shop) {
+            if (!(bool) ShopMarketMap::shopConfiguration('PS_TAX', $idShop)) {
+                continue;
+            }
+
+            $snapshot = $this->snapshotShopContext();
+            try {
+                $this->enterShopContext($idShop);
+                $context = \Context::getContext();
+                $idCountry = \Validate::isLoadedObject($context->country)
+                    ? (int) $context->country->id
+                    : (int) \Configuration::get('PS_COUNTRY_DEFAULT');
+                $this->buildTaxCalculator($idCountry, 0);
+            } finally {
+                $this->restoreShopContext($snapshot);
+            }
+
+            return;
+        }
+    }
+
+    /**
+     * Tax calculator for one country and tax-rules group, within one shop.
+     *
+     * Core tax rules are keyed by group and country rather than by shop, so the
+     * shop looks redundant in the key — but `TaxManagerFactory::getManager()`
+     * fires the `taxManager` hook, and a third-party manager is free to read the
+     * ambient shop. Two shops sharing a group would then reuse whichever context
+     * happened to build the calculator first. The key states what the entry
+     * actually holds.
+     *
+     * Custom TaxManager implementations can return null; the caller then treats
+     * the country as untaxed rather than failing the whole export.
+     *
+     * @param int $idShop
+     * @param string $countryIso
+     * @param int $idTaxRulesGroup
+     *
+     * @return \TaxCalculator|null
+     */
+    private function countryTaxCalculator($idShop, $countryIso, $idTaxRulesGroup)
+    {
+        $key = (int) $idShop . ':' . $countryIso . ':' . (int) $idTaxRulesGroup;
+
+        if (!array_key_exists($key, $this->taxCalculatorByCountryAndGroup)) {
+            $this->taxCalculatorByCountryAndGroup[$key] = $this->buildTaxCalculator(
+                \Country::getByIso($countryIso),
+                $idTaxRulesGroup
+            );
+        }
+
+        return $this->taxCalculatorByCountryAndGroup[$key];
+    }
+
+    /**
+     * Tax calculator for one country and tax-rules group.
+     *
+     * Builds the neutral anonymous-shopper address PrestaShop needs to resolve a
+     * rate: only the country carries information, every other field is zeroed.
+     *
+     * Custom TaxManager implementations (some B2B/VAT modules) can return null;
+     * this returns null in turn and callers treat the country as untaxed, so a
+     * single tax group never fatals the whole export.
+     *
+     * @param int $idCountry
+     * @param int $idTaxRulesGroup
+     *
+     * @return \TaxCalculator|null
+     */
+    private function buildTaxCalculator($idCountry, $idTaxRulesGroup)
+    {
+        $address = new \Address();
+        $address->id_state = 0;
+        $address->postcode = '';
+        $address->id_manufacturer = 0;
+        $address->id_customer = 0;
+        $address->id = 0;
+        $address->id_country = (int) $idCountry;
+
+        $manager = \TaxManagerFactory::getManager($address, (int) $idTaxRulesGroup);
+
+        return $manager !== null ? $manager->getTaxCalculator() : null;
+    }
+
+    /**
+     * Per-storefront product URLs, keyed by every country the storefront owns.
+     *
+     * The exporting shop is skipped: its URL is already `product.url`, and it
+     * owns the bulk of the countries — an entry each would repeat one URL some
+     * thirty times on every product. Satellite shops own few countries, so what
+     * remains is a handful of entries.
+     *
+     * @param int $productId
+     * @param \Link $linkObj
+     * @param string $linkRewrite
+     * @param string|null $categoryLinkRewrite
+     * @param int $defaultLang
+     * @param array $availableShopIds Shops carrying the product; empty when unknown
+     *
+     * @return array
+     */
+    private function buildUrlByMarket($productId, $linkObj, $linkRewrite, $categoryLinkRewrite, $defaultLang, array $availableShopIds)
+    {
+        $context = \Context::getContext();
+        $exportingShopId = $context->shop !== null ? (int) $context->shop->id : null;
+        $urlByMarket = [];
+
+        foreach ($this->shopMarketMap->getShops() as $idShop => $shop) {
+            if ((int) $idShop === $exportingShopId || empty($shop['ownedCountries'])) {
+                continue;
+            }
+            // Its markets are excluded for this product anyway; a URL there
+            // would only cost a Product load per satellite.
+            if (!empty($availableShopIds) && !in_array((int) $idShop, $availableShopIds, true)) {
+                continue;
+            }
+
+            $url = $linkObj->getProductLink(
+                (int) $productId,
+                $linkRewrite,
+                $categoryLinkRewrite,
+                null,
+                $defaultLang,
+                (int) $idShop
+            );
+
+            foreach ($shop['ownedCountries'] as $iso) {
+                $urlByMarket[$iso] = $url;
+            }
+        }
+
+        return $urlByMarket;
     }
 
     /**

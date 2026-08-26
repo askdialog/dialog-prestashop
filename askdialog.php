@@ -28,6 +28,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Repository\AppearanceRepository;
+use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Service\PostHogService;
 
 class AskDialog extends Module
@@ -46,7 +47,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.4';
+        $this->version = '1.1.5';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = [
@@ -264,13 +265,18 @@ class AskDialog extends Module
         $customerId = $customer->isLogged() ? $customer->id : 'anonymous';
 
         $publicApiKey = Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
-        $countryCode = $this->context->country->iso_code;
+        $idShop = (int) $this->context->shop->id;
+
+        // In multistore the currency is decided by the shop, not by the visitor:
+        // reporting a geolocated country served by another shop would have the
+        // assistant quote that shop's currency while the page shows this one's.
+        $shopMarketMap = new ShopMarketMap();
+        $countryCode = $shopMarketMap->boundCountryIso($idShop, $this->context->country->iso_code);
         $languageCode = $this->context->language->iso_code;
         $languageName = $this->context->language->name;
 
         // Get appearance settings from database (JSON-based)
         $appearanceRepository = new AppearanceRepository();
-        $idShop = (int) $this->context->shop->id;
         $appearanceSettings = $appearanceRepository->getSettings($idShop);
 
         $this->context->smarty->assign([
