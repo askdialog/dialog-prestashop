@@ -32,6 +32,7 @@ use Dialog\AskDialog\Repository\ExportStateRepository;
 use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\Export\ProductExportService;
+use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
@@ -158,12 +159,37 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 $this->handleCatalogExport();
                 break;
 
+            case 'getShopMarketMap':
+                $this->handleGetShopMarketMap();
+                break;
+
             default:
                 $this->sendJsonResponse([
                     'status' => 'error',
                     'message' => 'Invalid action',
                 ], 400);
         }
+    }
+
+    /**
+     * Returns the multistore topology as the export resolves it: per shop, the
+     * currency, the default country, the countries served and the countries
+     * owned after tie-breaking.
+     *
+     * Diagnostic only — topology, never catalog or customer data. It lives on
+     * this controller rather than the public API one because that one
+     * authenticates against ASKDIALOG_API_KEY_PUBLIC, which is rendered in the
+     * storefront widget; here the private key gates it.
+     */
+    private function handleGetShopMarketMap()
+    {
+        $shopMarketMap = new ShopMarketMap();
+
+        $this->sendJsonResponse([
+            'isMultishop' => $shopMarketMap->isMultishop(),
+            'shops' => array_values($shopMarketMap->getShops()),
+            'ambiguities' => $shopMarketMap->getAmbiguities(),
+        ]);
     }
 
     /**
@@ -196,6 +222,9 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                 $this->processExportBatch($existingState, $stateRepo, $productExport, $batchSize);
             } else {
                 // Start new export
+                foreach ((new ShopMarketMap())->getAmbiguities() as $ambiguity) {
+                    Logger::log('[AskDialog] ShopMarketMap: ' . $ambiguity, 2);
+                }
                 $totalProducts = $productExport->getProductCount($idShop);
                 Logger::log('[AskDialog] Feed::handleCatalogExport: Starting new export, ' . $totalProducts . ' products', 1);
 
