@@ -97,6 +97,9 @@ class ProductExportService
     private $shopContextCache = [];
     private $taxManagerPrimed = false;
 
+    /** @var \Cart|null Unsaved, address-less cart: pricing then follows Context::country. */
+    private $neutralCart;
+
     public function __construct()
     {
         $this->productRepository = new ProductRepository();
@@ -943,6 +946,7 @@ class ProductExportService
     {
         $availableShopIds = $this->activeShopIdsFor($productId);
         $snapshot = $this->snapshotShopContext();
+        $context = \Context::getContext();
         $entries = [];
         $excludedMarkets = [];
 
@@ -962,6 +966,15 @@ class ProductExportService
                 }
 
                 $this->enterShopContext($idShop);
+
+                // A loaded cart with a delivery address (a shopper with an
+                // address in session, on the widget path) makes getPriceStatic()
+                // price by that address, over the country set just above. Only
+                // the shop the shopper is browsing must follow their address —
+                // that is what its page shows them. Every other shop is priced
+                // for its own default country, as it prices an anonymous visitor.
+                $context->cart = (int) $idShop === $snapshot['shopId'] ? $snapshot['cart'] : $this->neutralCart();
+
                 $priceWithoutTax = \Product::getPriceStatic($productId, false, $combinationId, 6, null, false, true);
 
                 // No product_shop / product_attribute_shop row on this shop:
@@ -1088,13 +1101,30 @@ class ProductExportService
         // ambient scalar price is computed exactly as before.
         $context->currency = $snapshot['currency'];
         $context->country = $snapshot['country'];
+        $context->cart = $snapshot['cart'];
+    }
+
+    /**
+     * An unsaved cart. getPriceStatic() only reads a delivery address from a
+     * *loaded* cart, so this one makes it fall back to Context::country while
+     * still satisfying its "a cart must be in context" guard.
+     *
+     * @return \Cart
+     */
+    private function neutralCart()
+    {
+        if ($this->neutralCart === null) {
+            $this->neutralCart = new \Cart();
+        }
+
+        return $this->neutralCart;
     }
 
     /**
      * The shop-scoped context to put back once pricing under another shop is
-     * done. Paired with restoreShopContext() on purpose: the three fields drift
-     * apart the moment one call site captures two of them, and the symptom — a
-     * whole export priced under the wrong shop — surfaces no error at all.
+     * done. Paired with restoreShopContext() on purpose: the fields drift apart
+     * the moment one call site captures some of them, and the symptom — a whole
+     * export priced under the wrong shop — surfaces no error at all.
      *
      * @return array
      */
@@ -1106,6 +1136,7 @@ class ProductExportService
             'shopId' => $context->shop !== null ? (int) $context->shop->id : null,
             'currency' => $context->currency,
             'country' => $context->country,
+            'cart' => $context->cart,
         ];
     }
 
