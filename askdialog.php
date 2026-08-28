@@ -47,7 +47,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.5';
+        $this->version = '1.1.6';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         $this->ps_versions_compliancy = [
@@ -275,6 +275,14 @@ class AskDialog extends Module
         $languageCode = $this->context->language->iso_code;
         $languageName = $this->context->language->name;
 
+        // The visitor-selected display currency and its per-shop rate
+        // (ps_currency_shop, relative to this shop's default currency). The
+        // widget converts only base-currency amounts with it, so exposing the
+        // base ISO alongside makes the rule self-contained.
+        $currency = $this->context->currency;
+        $idBaseCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
+        $baseCurrency = $idBaseCurrency > 0 ? new Currency($idBaseCurrency) : null;
+
         // Get appearance settings from database (JSON-based)
         $appearanceRepository = new AppearanceRepository();
         $appearanceSettings = $appearanceRepository->getSettings($idShop);
@@ -286,6 +294,9 @@ class AskDialog extends Module
             'country_code' => $countryCode,
             'language_code' => $languageCode,
             'language_name' => $languageName,
+            'currency_iso' => $currency !== null ? $currency->iso_code : '',
+            'currency_rate' => $currency !== null ? (float) $currency->conversion_rate : 1.0,
+            'currency_base_iso' => $baseCurrency !== null ? $baseCurrency->iso_code : '',
             'appearance_settings' => $appearanceSettings,
             'index_dot_js_cdn_url' => self::DIALOG_SDK_CDN_URL,
             'module_version' => $this->version,
