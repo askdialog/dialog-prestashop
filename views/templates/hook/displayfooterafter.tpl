@@ -49,6 +49,9 @@
     data-shop-iso-code="{$language_code}"
     data-language="{$language_name}"
     data-locale="{$language_code}"
+    data-currency-iso="{$currency_iso}"
+    data-currency-rate="{$currency_rate}"
+    data-currency-base-iso="{$currency_base_iso}"
     data-primary-color="{$appearance_settings.primary_color}"
     data-background-color="{$appearance_settings.background_color}"
     data-cta-text-color="{$appearance_settings.cta_text_color}"
@@ -73,6 +76,11 @@
             capitalizeCtas: {if $appearance_settings.capitalize_ctas}true{else}false{/if},
             backgroundColor: "{$appearance_settings.background_color}",
             fontFamily: "{$appearance_settings.font_family}",
+            displayCurrency: {
+                iso: "{$currency_iso}",
+                rate: {$currency_rate},
+                baseIso: "{$currency_base_iso}"
+            },
             {* Read by the widget to populate window.dialog.audit (DEC-2368) *}
             integration: {
                 platform: "prestashop",

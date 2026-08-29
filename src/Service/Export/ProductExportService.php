@@ -370,10 +370,30 @@ class ProductExportService
      */
     public function getSingleProductData($productId, $idLang, $linkObj, $countryCode = 'fr')
     {
-        // For single product, load only this product's data
-        $this->bulkLoadData([$productId], $idLang, (int) \Context::getContext()->shop->id);
+        $context = \Context::getContext();
+        $idShop = (int) $context->shop->id;
 
-        return $this->getProductData($productId, $idLang, $linkObj, $countryCode);
+        // A storefront session can have a display currency selected (native
+        // currency selector), and getPriceStatic() converts every
+        // ambient-context computation into it — unlabelled. Pin the shop's
+        // base currency for the whole single-product build so the scalar
+        // price and the single-shop market entries always leave in the
+        // catalog currency; the widget applies the display conversion itself.
+        // Country and cart are deliberately left untouched: the browsing shop
+        // must keep pricing by the visitor's delivery address.
+        $originalCurrency = $context->currency;
+        $idBaseCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
+        if ($idBaseCurrency > 0) {
+            $context->currency = new \Currency($idBaseCurrency);
+        }
+
+        try {
+            $this->bulkLoadData([$productId], $idLang, $idShop);
+
+            return $this->getProductData($productId, $idLang, $linkObj, $countryCode);
+        } finally {
+            $context->currency = $originalCurrency;
+        }
     }
 
     /**
