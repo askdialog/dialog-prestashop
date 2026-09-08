@@ -23,7 +23,27 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
-require_once __DIR__ . '/vendor/autoload.php';
+/*
+ * The module has no production Composer dependency (composer.json requires
+ * only php>=7.2), so vendor/ holds nothing but a generated autoloader — and
+ * source checkouts don't ship it (gitignored). Registering the PSR-4 mapping
+ * directly lets the module boot from any distribution — S3 zip, git clone,
+ * GitHub archive — with or without `composer install`. vendor/autoload.php is
+ * still loaded when present so zips built with Composer behave identically.
+ */
+if (is_file(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
+}
+spl_autoload_register(function ($class) {
+    $prefix = 'Dialog\\AskDialog\\';
+    if (strncmp($class, $prefix, strlen($prefix)) !== 0) {
+        return;
+    }
+    $path = __DIR__ . '/src/' . str_replace('\\', '/', substr($class, strlen($prefix))) . '.php';
+    if (is_file($path)) {
+        require_once $path;
+    }
+});
 
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
@@ -47,11 +67,16 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.6';
+        $this->version = '1.1.7';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
+        // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
+        // install, the widget hooks and the configuration page work the same on
+        // either. (The HttpClient-backed services — export and PostHog — need
+        // Symfony 4.3+, i.e. PrestaShop 8.0; that floor is unrelated to this
+        // value and applies to 1.7.7 just as much. See CLAUDE.md.)
         $this->ps_versions_compliancy = [
-            'min' => '1.7.7',
+            'min' => '1.7.6',
             'max' => '9.99.99',
         ];
         $this->bootstrap = true;
