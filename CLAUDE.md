@@ -466,6 +466,7 @@ GET /module/askdialog/exportstatus?action=cleanupOldLogs&days=90
 
 ## Notes
 
-- Module is compatible with PrestaShop 1.7.7 to 8.x (check `ps_versions_compliancy`)
+- Module is compatible with PrestaShop 1.7.6 to 8.x (check `ps_versions_compliancy`); it must boot WITHOUT vendor/ (source checkouts are vendorless — askdialog.php registers its own PSR-4 autoloader)
+- **Runtime Symfony floor is higher than the declared min.** `AskDialogClient` and `PostHogService` use `Symfony\Component\HttpClient` + `Symfony\Component\Mime`, which are Symfony 4.3+ components. PrestaShop only ships them from **8.0** (Symfony 4.4); 1.7.6–1.7.8 bundle Symfony 3.4 and lack them, so those services fatal with `Class not found` (the cart and order-confirmation hooks instantiate `PostHogService` on the front). Verified against the official 1.7.6 (3.4.26) and 1.7.8 (3.4.49) images. Either raise the declared min to 8.0 or revert these two services to cURL before claiming 1.7.x support.
 - Uses HttpClient for API calls
 - Symfony YAML component for configuration
