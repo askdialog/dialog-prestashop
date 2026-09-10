@@ -44,6 +44,12 @@ class HttpTransport
 
     public const DEFAULT_TIMEOUT = 30;
 
+    /**
+     * A transfer moving slower than this for `timeout` seconds counts as idle.
+     * One byte per second only trips on a genuinely stalled connection.
+     */
+    public const MIN_BYTES_PER_SECOND = 1;
+
     /** @var string */
     private $baseUri;
 
@@ -53,11 +59,8 @@ class HttpTransport
     /** @var int */
     private $timeout;
 
-    /** @var bool */
-    private $verifyPeer;
-
     /**
-     * @param array $options base_uri, headers, timeout, verify_peer
+     * @param array $options base_uri, headers, timeout
      */
     public function __construct(array $options = [])
     {
@@ -66,7 +69,6 @@ class HttpTransport
             ? $options['headers']
             : [];
         $this->timeout = isset($options['timeout']) ? (int) $options['timeout'] : self::DEFAULT_TIMEOUT;
-        $this->verifyPeer = !isset($options['verify_peer']) || (bool) $options['verify_peer'];
     }
 
     /**
@@ -156,7 +158,7 @@ class HttpTransport
     private function symfonyPost($url, $body, array $headers)
     {
         $factory = self::SYMFONY_HTTP_CLIENT;
-        $client = $factory::create(['verify_peer' => $this->verifyPeer]);
+        $client = $factory::create();
 
         try {
             $response = $client->request('POST', $url, [
@@ -192,7 +194,7 @@ class HttpTransport
             $fields['file'] = $dataPart::fromPath($filePath, $filename, $fileContentType);
             $formData = new $formDataPart($fields);
 
-            $client = $factory::create(['verify_peer' => $this->verifyPeer]);
+            $client = $factory::create();
             $response = $client->request('POST', $url, [
                 'headers' => $formData->getPreparedHeaders()->toArray(),
                 'body' => $formData->bodyToString(),
@@ -258,9 +260,17 @@ class HttpTransport
         curl_setopt($handle, CURLOPT_POSTFIELDS, $body);
         curl_setopt($handle, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($handle, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($handle, CURLOPT_TIMEOUT, $this->timeout);
-        curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, $this->verifyPeer);
-        curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, $this->verifyPeer ? 2 : 0);
+
+        // Mirror Symfony's semantics: `timeout` is an IDLE timeout, and the
+        // overall duration is unlimited (`max_duration` defaults to 0). Using
+        // CURLOPT_TIMEOUT here would instead cap the whole transfer, failing a
+        // large catalogue upload that is still progressing.
+        curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, $this->timeout);
+        curl_setopt($handle, CURLOPT_LOW_SPEED_LIMIT, self::MIN_BYTES_PER_SECOND);
+        curl_setopt($handle, CURLOPT_LOW_SPEED_TIME, $this->timeout);
+
+        curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
 
         if (!empty($headers)) {
             curl_setopt($handle, CURLOPT_HTTPHEADER, $headers);

@@ -163,7 +163,10 @@ class AskDialogClient
 
         // Separate transport for S3: no base_uri, no auth headers. The file is
         // appended last by postMultipart, as the S3 POST policy requires.
-        $s3Transport = new HttpTransport(['verify_peer' => false, 'timeout' => 30]);
+        // TLS verification stays on: these uploads carry the merchant's
+        // catalogue over a signed HTTPS URL, and S3 presents a valid
+        // certificate — the module's other calls have always verified it.
+        $s3Transport = new HttpTransport(['timeout' => 30]);
 
         $response = $s3Transport->postMultipart($url, $formFields, $filePath, $filename, 'application/json');
 
