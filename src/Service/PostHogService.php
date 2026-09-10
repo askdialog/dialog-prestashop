@@ -27,10 +27,8 @@ if (!defined('_PS_VERSION_')) {
 }
 
 use Dialog\AskDialog\Helper\Logger;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Dialog\AskDialog\Service\Http\HttpTransport;
+use Dialog\AskDialog\Service\Http\HttpTransportException;
 
 /**
  * PostHog Analytics Service
@@ -52,22 +50,22 @@ class PostHogService
     private const API_KEY = 'phc_EKMR6Jt4OTMEYmoUlz0v58KPwqcFxI7aZCLckpSD8Tv';
 
     /**
-     * @var HttpClientInterface Symfony HTTP client instance
+     * @var HttpTransport HTTP transport (Symfony HttpClient or cURL)
      */
     private $httpClient;
 
     /**
      * PostHogService constructor
      *
-     * Initializes Symfony HttpClient with PostHog configuration
+     * Uses HttpTransport, which falls back to cURL where Symfony's HttpClient
+     * is absent (PrestaShop 1.7.x ships Symfony 3.4, which has no such
+     * component). This constructor runs inside front-office hooks, so a
+     * missing class here used to be a fatal on the page itself.
      */
     public function __construct()
     {
-        $this->httpClient = HttpClient::create([
+        $this->httpClient = new HttpTransport([
             'base_uri' => self::API_ENDPOINT,
-            'headers' => [
-                'Content-Type' => 'application/json',
-            ],
             'timeout' => 5, // 5 second timeout to avoid blocking requests
         ]);
     }
@@ -251,23 +249,22 @@ class PostHogService
     private function sendToPostHog(array $payload)
     {
         try {
-            $response = $this->httpClient->request('POST', '/capture/', [
-                'json' => $payload,
-            ]);
+            $response = $this->httpClient->postJson('/capture/', $payload);
 
             // PostHog returns 200 on success
-            return $response->getStatusCode() === 200;
-        } catch (HttpExceptionInterface $e) {
-            // Log HTTP errors but don't break execution
-            Logger::log(
-                'PostHog API HTTP error: ' . $e->getMessage(),
-                3,
-                $e->getResponse()->getStatusCode(),
-                'PostHogService'
-            );
+            if ($response->getStatusCode() !== 200) {
+                Logger::log(
+                    'PostHog API HTTP error',
+                    3,
+                    $response->getStatusCode(),
+                    'PostHogService'
+                );
 
-            return false;
-        } catch (TransportExceptionInterface $e) {
+                return false;
+            }
+
+            return true;
+        } catch (HttpTransportException $e) {
             // Log transport errors but don't break execution
             Logger::log(
                 'PostHog API transport error: ' . $e->getMessage(),

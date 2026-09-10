@@ -67,7 +67,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.7';
+        $this->version = '1.1.8';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -231,9 +231,20 @@ class AskDialog extends Module
         $order = $params['order'];
         $customer = $this->context->customer;
 
-        // Track to PostHog (browser-side hook, cookies are available)
-        $postHogService = new PostHogService();
-        $postHogService->trackOrderConfirmation($order);
+        // Track to PostHog (browser-side hook, cookies are available).
+        // Analytics must never take down the order confirmation page, so this
+        // catches Throwable, not Exception: a missing class raises an Error,
+        // which an Exception catch lets through (that is exactly how a fatal
+        // reached the front office once).
+        try {
+            $postHogService = new PostHogService();
+            $postHogService->trackOrderConfirmation($order);
+        } catch (Throwable $e) {
+            Logger::log(
+                '[AskDialog] PostHog trackOrderConfirmation error: ' . $e->getMessage(),
+                3
+            );
+        }
 
         $this->context->smarty->assign([
             'order_reference' => $order->reference,
@@ -397,8 +408,10 @@ class AskDialog extends Module
                 $quantity,
                 $cart
             );
-        } catch (Exception $e) {
-            // Log error but don't break cart functionality
+        } catch (Throwable $e) {
+            // Log error but don't break cart functionality. Throwable, not
+            // Exception: a missing class raises an Error, which an Exception
+            // catch lets through and turns into a fatal on the product page.
             Logger::log(
                 '[AskDialog] PostHog trackAddToCart error: ' . $e->getMessage(),
                 3
