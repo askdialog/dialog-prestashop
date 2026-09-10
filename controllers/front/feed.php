@@ -34,8 +34,7 @@ use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\Export\ProductExportService;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
-use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Dialog\AskDialog\Service\Http\HttpTransportException;
 
 /**
  * Class AskDialogFeedModuleFrontController
@@ -487,9 +486,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }
-        } catch (HttpExceptionInterface $e) {
-            throw new Exception('HTTP error during S3 upload: ' . $e->getMessage());
-        } catch (TransportExceptionInterface $e) {
+        } catch (HttpTransportException $e) {
             throw new Exception('Network error during S3 upload: ' . $e->getMessage());
         }
 

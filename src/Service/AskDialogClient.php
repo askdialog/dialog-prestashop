@@ -28,12 +28,9 @@ if (!defined('_PS_VERSION_')) {
 
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Helper\PathHelper;
-use Symfony\Component\HttpClient\HttpClient;
-use Symfony\Component\Mime\Part\DataPart;
-use Symfony\Component\Mime\Part\Multipart\FormDataPart;
-use Symfony\Contracts\HttpClient\Exception\HttpExceptionInterface;
-use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
-use Symfony\Contracts\HttpClient\HttpClientInterface;
+use Dialog\AskDialog\Service\Http\HttpResponse;
+use Dialog\AskDialog\Service\Http\HttpTransport;
+use Dialog\AskDialog\Service\Http\HttpTransportException;
 
 /**
  * Class AskDialogClient
@@ -43,7 +40,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 class AskDialogClient
 {
     /**
-     * @var HttpClientInterface Symfony HTTP client instance
+     * @var HttpTransport HTTP transport (Symfony HttpClient or cURL)
      */
     private $httpClient;
 
@@ -64,11 +61,10 @@ class AskDialogClient
             throw new \Exception('ASKDIALOG_API_URL configuration is missing. Please reinstall the module.');
         }
 
-        $this->httpClient = HttpClient::create([
+        $this->httpClient = new HttpTransport([
             'base_uri' => $apiUrl,
             'headers' => [
                 'Authorization' => $apiKey,
-                'Content-Type' => 'application/json',
             ],
             'timeout' => 30,
         ]);
@@ -88,20 +84,15 @@ class AskDialogClient
         ];
 
         try {
-            $response = $this->httpClient->request('POST', '/organization/validate', [
-                'json' => $body,
-            ]);
+            $response = $this->httpClient->postJson('/organization/validate', $body);
 
+            // An HTTP error status is part of the answer, not an exception:
+            // callers already branch on statusCode.
             return [
                 'statusCode' => $response->getStatusCode(),
                 'body' => $response->getContent(),
             ];
-        } catch (HttpExceptionInterface $e) {
-            return [
-                'statusCode' => $e->getResponse()->getStatusCode(),
-                'body' => $e->getMessage(),
-            ];
-        } catch (TransportExceptionInterface $e) {
+        } catch (HttpTransportException $e) {
             return [
                 'statusCode' => 500,
                 'body' => 'Transport error: ' . $e->getMessage(),
@@ -122,20 +113,15 @@ class AskDialogClient
         ];
 
         try {
-            $response = $this->httpClient->request('POST', '/organization/catalog-upload-url', [
-                'json' => $body,
-            ]);
+            $response = $this->httpClient->postJson('/organization/catalog-upload-url', $body);
 
+            // An HTTP error status is part of the answer, not an exception:
+            // callers already branch on statusCode.
             return [
                 'statusCode' => $response->getStatusCode(),
                 'body' => $response->getContent(),
             ];
-        } catch (HttpExceptionInterface $e) {
-            return [
-                'statusCode' => $e->getResponse()->getStatusCode(),
-                'body' => $e->getMessage(),
-            ];
-        } catch (TransportExceptionInterface $e) {
+        } catch (HttpTransportException $e) {
             return [
                 'statusCode' => 500,
                 'body' => 'Transport error: ' . $e->getMessage(),
@@ -154,10 +140,10 @@ class AskDialogClient
      * @param string $filePath Absolute path to the file to upload
      * @param string $filename Filename to send to S3
      *
-     * @return \Symfony\Contracts\HttpClient\ResponseInterface
+     * @return HttpResponse
      *
      * @throws \Exception If file not found
-     * @throws TransportExceptionInterface
+     * @throws HttpTransportException
      */
     public function uploadFileToS3($url, array $fields, $filePath, $filename)
     {
@@ -169,26 +155,20 @@ class AskDialogClient
         $fileSize = PathHelper::formatFileSize(filesize($filePath));
         Logger::info('[AskDialog] AskDialogClient::uploadFileToS3: Uploading ' . $filename . ' (' . $fileSize . ')...');
 
-        // Use a separate client for S3 (no base_uri, no auth headers)
-        $s3Client = HttpClient::create(['verify_peer' => false]);
-
         // Build form fields
         $formFields = $fields;
 
         // Add explicit Content-Type field for S3 policy validation
         $formFields['Content-Type'] = 'application/json';
 
-        // Add file with application/json Content-Type
-        $formFields['file'] = DataPart::fromPath($filePath, $filename, 'application/json');
+        // Separate transport for S3: no base_uri, no auth headers. The file is
+        // appended last by postMultipart, as the S3 POST policy requires.
+        // TLS verification stays on: these uploads carry the merchant's
+        // catalogue over a signed HTTPS URL, and S3 presents a valid
+        // certificate — the module's other calls have always verified it.
+        $s3Transport = new HttpTransport(['timeout' => 30]);
 
-        // Create multipart form
-        $formData = new FormDataPart($formFields);
-        $headers = $formData->getPreparedHeaders()->toArray();
-
-        $response = $s3Client->request('POST', $url, [
-            'headers' => $headers,
-            'body' => $formData->bodyToString(),
-        ]);
+        $response = $s3Transport->postMultipart($url, $formFields, $filePath, $filename, 'application/json');
 
         Logger::info('[AskDialog] AskDialogClient::uploadFileToS3: Upload complete, status=' . $response->getStatusCode());
 
