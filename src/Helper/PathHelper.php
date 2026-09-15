@@ -81,6 +81,32 @@ class PathHelper
     }
 
     /**
+     * Gets the archive directory of one shop
+     *
+     * Archives are kept per shop because a multistore install shares this
+     * tree while the download endpoint resolves the latest export per shop.
+     * A single flat directory lets one shop's retention delete another's
+     * archive, whose export log still points at it.
+     *
+     * @param int $idShop
+     *
+     * @return string Absolute path (with trailing slash)
+     *
+     * @throws \Exception If directory creation fails
+     */
+    public static function getShopSentDir(int $idShop): string
+    {
+        $dir = self::getSentDir() . 'shop_' . $idShop . '/';
+
+        if (!file_exists($dir) && !mkdir($dir, 0775, true)) {
+            Logger::log('[AskDialog] PathHelper::getShopSentDir: ERROR - Failed to create directory: ' . $dir, 3);
+            throw new \Exception('Failed to create directory: ' . $dir . ' - check permissions on /var/modules/');
+        }
+
+        return $dir;
+    }
+
+    /**
      * Cleans up temporary files older than specified age
      *
      * @param int $maxAge Maximum age in seconds (default: 24h)
@@ -149,10 +175,10 @@ class PathHelper
      *
      * @return int Number of files deleted
      */
-    public static function cleanSentFilesKeepRecent(int $keepCount = 10): int
+    public static function cleanSentFilesKeepRecent(int $keepCount = 10, ?string $sentDir = null): int
     {
         $count = 0;
-        $sentDir = self::getSentDir();
+        $sentDir = $sentDir ?? self::getSentDir();
         $files = glob($sentDir . '*');
 
         if ($files === false || count($files) <= $keepCount) {

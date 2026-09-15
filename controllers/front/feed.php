@@ -76,6 +76,17 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private const SENT_FILES_PER_EXPORT = 2;
 
     /**
+     * How long flat-layout archives survive after the move to per-shop
+     * directories, in seconds.
+     *
+     * Versions before that change wrote every shop's archive side by side.
+     * Those files are still what the download endpoint falls back to for a
+     * shop that has not re-exported yet, so they age out over a couple of
+     * daily exports instead of disappearing at once.
+     */
+    private const LEGACY_ARCHIVE_GRACE = 172800;
+
+    /**
      * Initialize controller and verify API key authentication
      */
     public function initContent()
@@ -387,7 +398,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
             // Upload to S3
             Logger::log('[AskDialog] Feed::finalizeExport: Uploading to S3...', 1);
-            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo);
+            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo, $idShop);
 
             // Mark state as completed and delete it
             $stateRepo->markCompleted((int) $state['id_export_state']);
@@ -425,31 +436,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      * @param string $cmsFile Path to CMS JSON file
      * @param int $exportLogId Export log ID for tracking
      * @param ExportLogRepository $exportLogRepo Repository for updating log
+     * @param int $idShop Shop the export belongs to
      *
      * @throws Exception
      */
-    /**
-     * How many archived files to keep.
-     *
-     * The sent directory is shared by every shop of a multistore install, and
-     * the retention sorts by date across the whole directory — it has no
-     * notion of which shop a file belongs to. Keeping a flat count would let
-     * the shop that exported last evict the archive another shop's download
-     * endpoint still points at (that endpoint resolves the latest successful
-     * export per shop). Scale the allowance with the number of shops so each
-     * one keeps its own export.
-     *
-     * @return int
-     */
-    private function getSentFilesToKeep()
-    {
-        $shops = Shop::getShops(true, null, true);
-        $shopCount = is_array($shops) ? count($shops) : 1;
-
-        return self::SENT_FILES_PER_EXPORT * max(1, $shopCount);
-    }
-
-    private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo)
+    private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo, $idShop)
     {
         Logger::log('[AskDialog] S3Upload: START', 1);
 
@@ -504,8 +495,12 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                         unlink($uncompressed);
                     }
                 }
-                rename($catalogGzFile, PathHelper::getSentDir() . $catalogGzFilename);
-                rename($cmsGzFile, PathHelper::getSentDir() . $cmsGzFilename);
+
+                // Archives live under the shop they belong to: the retention
+                // below is per shop, so one shop can never delete another's.
+                $shopSentDir = PathHelper::getShopSentDir($idShop);
+                rename($catalogGzFile, $shopSentDir . $catalogGzFilename);
+                rename($cmsGzFile, $shopSentDir . $cmsGzFilename);
 
                 // Update export log
                 $exportLogRepo->updateStatus(
@@ -517,9 +512,15 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     ]
                 );
 
-                // Cleanup old files: one export per shop, nothing further back.
+                // Cleanup: this shop's previous exports, and the flat-layout
+                // archives left by versions before per-shop directories (their
+                // exports have been superseded by the one just recorded).
                 PathHelper::cleanTmpFiles(86400);
-                PathHelper::cleanSentFilesKeepRecent($this->getSentFilesToKeep());
+                PathHelper::cleanSentFilesKeepRecent(
+                    self::SENT_FILES_PER_EXPORT,
+                    $shopSentDir
+                );
+                PathHelper::cleanSentFiles(self::LEGACY_ARCHIVE_GRACE);
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }

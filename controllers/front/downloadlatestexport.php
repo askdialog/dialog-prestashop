@@ -84,14 +84,21 @@ class AskDialogDownloadlatestexportModuleFrontController extends ModuleFrontCont
             return null;
         }
 
-        $filePath = PathHelper::getSentDir() . $latestExport['file_name'];
+        // Archives moved under a per-shop directory; exports recorded before
+        // that change still sit in the flat layout, so fall back to it until
+        // the shop has re-exported.
+        $candidates = [
+            PathHelper::getShopSentDir($idShop) . $latestExport['file_name'],
+            PathHelper::getSentDir() . $latestExport['file_name'],
+        ];
 
-        // Verify file still exists on disk
-        if (!file_exists($filePath)) {
-            return null;
+        foreach ($candidates as $filePath) {
+            if (file_exists($filePath)) {
+                return $filePath;
+            }
         }
 
-        return $filePath;
+        return null;
     }
 
     /**
