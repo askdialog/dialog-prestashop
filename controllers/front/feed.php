@@ -67,6 +67,15 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private const DEFAULT_TIME_LIMIT = 75;
 
     /**
+     * Files one export leaves in the sent directory: the catalogue and the
+     * pages, compressed. Only the newest export is ever read back
+     * (downloadlatestexport serves the latest successful catalogue), so
+     * keeping more only costs disk — hundreds of MB per export on a large
+     * catalogue.
+     */
+    private const SENT_FILES_PER_EXPORT = 2;
+
+    /**
      * Initialize controller and verify API key authentication
      */
     public function initContent()
@@ -378,7 +387,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
 
             // Upload to S3
             Logger::log('[AskDialog] Feed::finalizeExport: Uploading to S3...', 1);
-            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo);
+            $this->uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo, $idShop);
 
             // Mark state as completed and delete it
             $stateRepo->markCompleted((int) $state['id_export_state']);
@@ -410,16 +419,48 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * Removes the flat-layout archives left by versions predating per-shop
+     * directories — but only once every shop owns one.
+     *
+     * Those files are what the download endpoint falls back to for a shop that
+     * has not re-exported yet. Clearing them on any shop's export would strip
+     * that fallback from a shop with a slower cadence, or one whose exports are
+     * failing: the same cross-shop deletion the per-shop layout exists to
+     * prevent. Once every shop has its own archive, nothing reads them.
+     *
+     * @return void
+     */
+    private function cleanLegacyArchivesWhenUnused()
+    {
+        $shops = Shop::getShops(true, null, true);
+
+        if (!is_array($shops) || empty($shops)) {
+            return;
+        }
+
+        foreach ($shops as $shopId) {
+            $archives = glob(PathHelper::shopSentPath((int) $shopId) . '*');
+
+            if ($archives === false || empty($archives)) {
+                return;
+            }
+        }
+
+        PathHelper::cleanSentFiles(0);
+    }
+
+    /**
      * Uploads catalog and CMS files to S3
      *
      * @param string $catalogFile Path to catalog JSON file
      * @param string $cmsFile Path to CMS JSON file
      * @param int $exportLogId Export log ID for tracking
      * @param ExportLogRepository $exportLogRepo Repository for updating log
+     * @param int $idShop Shop the export belongs to
      *
      * @throws Exception
      */
-    private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo)
+    private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo, $idShop)
     {
         Logger::log('[AskDialog] S3Upload: START', 1);
 
@@ -464,11 +505,22 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             if ($responseCatalog->getStatusCode() === 204 && $responsePages->getStatusCode() === 204) {
                 Logger::log('[AskDialog] S3Upload: Both uploads successful', 1);
 
-                // Move original and compressed files to sent folder
-                rename($catalogFile, PathHelper::getSentDir() . basename($catalogFile));
-                rename($cmsFile, PathHelper::getSentDir() . basename($cmsFile));
-                rename($catalogGzFile, PathHelper::getSentDir() . $catalogGzFilename);
-                rename($cmsGzFile, PathHelper::getSentDir() . $cmsGzFilename);
+                // Archive the compressed files only. They are what we upload,
+                // and the export log below points the download endpoint at the
+                // catalogue .gz. The uncompressed JSON has no reader and is an
+                // order of magnitude larger (868 MB vs ~130 MB on a large
+                // catalogue), so it is dropped rather than archived.
+                foreach ([$catalogFile, $cmsFile] as $uncompressed) {
+                    if (is_file($uncompressed)) {
+                        unlink($uncompressed);
+                    }
+                }
+
+                // Archives live under the shop they belong to: the retention
+                // below is per shop, so one shop can never delete another's.
+                $shopSentDir = PathHelper::getShopSentDir($idShop);
+                rename($catalogGzFile, $shopSentDir . $catalogGzFilename);
+                rename($cmsGzFile, $shopSentDir . $cmsGzFilename);
 
                 // Update export log
                 $exportLogRepo->updateStatus(
@@ -480,9 +532,13 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     ]
                 );
 
-                // Cleanup old files
+                // Cleanup: this shop's previous exports only.
                 PathHelper::cleanTmpFiles(86400);
-                PathHelper::cleanSentFilesKeepRecent(20);
+                PathHelper::cleanShopSentFilesKeepRecent(
+                    $idShop,
+                    self::SENT_FILES_PER_EXPORT
+                );
+                $this->cleanLegacyArchivesWhenUnused();
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }

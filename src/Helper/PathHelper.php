@@ -44,14 +44,27 @@ class PathHelper
      */
     public static function getTmpDir(): string
     {
-        $dir = _PS_ROOT_DIR_ . '/var/modules/askdialog/tmp/';
+        return self::ensureDir(_PS_ROOT_DIR_ . '/var/modules/askdialog/tmp/', 'getTmpDir');
+    }
 
+    /**
+     * Creates a module directory if needed and returns it
+     *
+     * @param string $dir Absolute path (with trailing slash)
+     * @param string $context Caller name, for the log line
+     *
+     * @return string The directory
+     *
+     * @throws \Exception If directory creation fails
+     */
+    private static function ensureDir(string $dir, string $context): string
+    {
         if (!file_exists($dir)) {
             if (!mkdir($dir, 0775, true)) {
-                Logger::log('[AskDialog] PathHelper::getTmpDir: ERROR - Failed to create directory: ' . $dir, 3);
+                Logger::log('[AskDialog] PathHelper::' . $context . ': ERROR - Failed to create directory: ' . $dir, 3);
                 throw new \Exception('Failed to create directory: ' . $dir . ' - check permissions on /var/modules/');
             }
-            Logger::log('[AskDialog] PathHelper::getTmpDir: Created directory: ' . $dir, 1);
+            Logger::log('[AskDialog] PathHelper::' . $context . ': Created directory: ' . $dir, 1);
         }
 
         return $dir;
@@ -67,17 +80,38 @@ class PathHelper
      */
     public static function getSentDir(): string
     {
-        $dir = _PS_ROOT_DIR_ . '/var/modules/askdialog/sent/';
+        return self::ensureDir(_PS_ROOT_DIR_ . '/var/modules/askdialog/sent/', 'getSentDir');
+    }
 
-        if (!file_exists($dir)) {
-            if (!mkdir($dir, 0775, true)) {
-                Logger::log('[AskDialog] PathHelper::getSentDir: ERROR - Failed to create directory: ' . $dir, 3);
-                throw new \Exception('Failed to create directory: ' . $dir . ' - check permissions on /var/modules/');
-            }
-            Logger::log('[AskDialog] PathHelper::getSentDir: Created directory: ' . $dir, 1);
-        }
+    /**
+     * Gets the archive directory of one shop
+     *
+     * Archives are kept per shop because a multistore install shares this
+     * tree while the download endpoint resolves the latest export per shop.
+     * A single flat directory lets one shop's retention delete another's
+     * archive, whose export log still points at it.
+     *
+     * @param int $idShop
+     *
+     * @return string Absolute path (with trailing slash)
+     *
+     * @throws \Exception If directory creation fails
+     */
+    public static function getShopSentDir(int $idShop): string
+    {
+        return self::ensureDir(self::shopSentPath($idShop), 'getShopSentDir');
+    }
 
-        return $dir;
+    /**
+     * Path of a shop's archive directory, without creating it
+     *
+     * @param int $idShop
+     *
+     * @return string Absolute path (with trailing slash)
+     */
+    public static function shopSentPath(int $idShop): string
+    {
+        return self::getSentDir() . 'shop_' . $idShop . '/';
     }
 
     /**
@@ -151,8 +185,36 @@ class PathHelper
      */
     public static function cleanSentFilesKeepRecent(int $keepCount = 10): int
     {
+        return self::keepRecentIn(self::getSentDir(), $keepCount);
+    }
+
+    /**
+     * Keeps only the N most recent files in one shop's archive directory
+     *
+     * Retention is per shop on purpose: the archive tree is shared across a
+     * multistore install, so pruning globally lets one shop delete another's
+     * archive — including that of a shop whose exports are currently failing,
+     * whose export log is the only thing still pointing at it.
+     *
+     * @param int $idShop
+     * @param int $keepCount Number of recent files to keep
+     *
+     * @return int Number of files deleted
+     */
+    public static function cleanShopSentFilesKeepRecent(int $idShop, int $keepCount): int
+    {
+        return self::keepRecentIn(self::getShopSentDir($idShop), $keepCount);
+    }
+
+    /**
+     * @param string $sentDir Directory to prune (with trailing slash)
+     * @param int $keepCount Number of recent files to keep
+     *
+     * @return int Number of files deleted
+     */
+    private static function keepRecentIn(string $sentDir, int $keepCount): int
+    {
         $count = 0;
-        $sentDir = self::getSentDir();
         $files = glob($sentDir . '*');
 
         if ($files === false || count($files) <= $keepCount) {
