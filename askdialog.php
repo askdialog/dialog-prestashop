@@ -67,7 +67,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.8';
+        $this->version = '1.1.9';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and

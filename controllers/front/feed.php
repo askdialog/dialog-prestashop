@@ -67,6 +67,16 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private const DEFAULT_TIME_LIMIT = 75;
 
     /**
+     * Files kept in the sent directory: one export's worth.
+     *
+     * An export archives the catalogue and the pages, compressed. Only the
+     * newest one is ever read (downloadlatestexport serves the latest
+     * successful catalogue), so keeping more only costs disk — hundreds of MB
+     * per export on a large catalogue.
+     */
+    private const SENT_FILES_PER_EXPORT = 2;
+
+    /**
      * Initialize controller and verify API key authentication
      */
     public function initContent()
@@ -464,9 +474,16 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
             if ($responseCatalog->getStatusCode() === 204 && $responsePages->getStatusCode() === 204) {
                 Logger::log('[AskDialog] S3Upload: Both uploads successful', 1);
 
-                // Move original and compressed files to sent folder
-                rename($catalogFile, PathHelper::getSentDir() . basename($catalogFile));
-                rename($cmsFile, PathHelper::getSentDir() . basename($cmsFile));
+                // Archive the compressed files only. They are what we upload,
+                // and the export log below points the download endpoint at the
+                // catalogue .gz. The uncompressed JSON has no reader and is an
+                // order of magnitude larger (868 MB vs ~130 MB on a large
+                // catalogue), so it is dropped rather than archived.
+                foreach ([$catalogFile, $cmsFile] as $uncompressed) {
+                    if (is_file($uncompressed)) {
+                        unlink($uncompressed);
+                    }
+                }
                 rename($catalogGzFile, PathHelper::getSentDir() . $catalogGzFilename);
                 rename($cmsGzFile, PathHelper::getSentDir() . $cmsGzFilename);
 
@@ -480,9 +497,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     ]
                 );
 
-                // Cleanup old files
+                // Cleanup old files. Only the newest export is kept: the
+                // download endpoint serves the latest one and nothing reads
+                // further back, so 2 files (catalogue + pages, compressed).
                 PathHelper::cleanTmpFiles(86400);
-                PathHelper::cleanSentFilesKeepRecent(20);
+                PathHelper::cleanSentFilesKeepRecent(self::SENT_FILES_PER_EXPORT);
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }

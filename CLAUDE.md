@@ -21,7 +21,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `src/Service/Export/CmsExportService.php`: CMS pages export logic
 - `src/Service/Export/CategoryExportService.php`: Category tree export logic
 - `src/Service/AskDialogClient.php`: Handles API communication with Dialog platform
-- `controllers/front/feed.php`: Export endpoint (private API key protected)
+- `controllers/front/feed.php`: Export endpoint (private API key protected). **Only the compressed files are archived**, in `var/modules/askdialog/sent/`, and only the newest export is kept (`SENT_FILES_PER_EXPORT`). The uncompressed JSON is deleted after upload: nothing reads it, and it is an order of magnitude larger than the `.gz` (868 MB vs ~130 MB on a large catalogue). Keeping several days of both filled merchants' disks with gigabytes. `downloadlatestexport.php` only ever serves the latest successful catalogue `.gz`, via `file_name` from the export log.
 
 ### 2. Frontend SDK Integration
 - Loads Dialog conversational AI widget on frontend
