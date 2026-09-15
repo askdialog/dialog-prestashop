@@ -76,17 +76,6 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private const SENT_FILES_PER_EXPORT = 2;
 
     /**
-     * How long flat-layout archives survive after the move to per-shop
-     * directories, in seconds.
-     *
-     * Versions before that change wrote every shop's archive side by side.
-     * Those files are still what the download endpoint falls back to for a
-     * shop that has not re-exported yet, so they age out over a couple of
-     * daily exports instead of disappearing at once.
-     */
-    private const LEGACY_ARCHIVE_GRACE = 172800;
-
-    /**
      * Initialize controller and verify API key authentication
      */
     public function initContent()
@@ -430,6 +419,37 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     }
 
     /**
+     * Removes the flat-layout archives left by versions predating per-shop
+     * directories — but only once every shop owns one.
+     *
+     * Those files are what the download endpoint falls back to for a shop that
+     * has not re-exported yet. Clearing them on any shop's export would strip
+     * that fallback from a shop with a slower cadence, or one whose exports are
+     * failing: the same cross-shop deletion the per-shop layout exists to
+     * prevent. Once every shop has its own archive, nothing reads them.
+     *
+     * @return void
+     */
+    private function cleanLegacyArchivesWhenUnused()
+    {
+        $shops = Shop::getShops(true, null, true);
+
+        if (!is_array($shops) || empty($shops)) {
+            return;
+        }
+
+        foreach ($shops as $shopId) {
+            $archives = glob(PathHelper::shopSentPath((int) $shopId) . '*');
+
+            if ($archives === false || empty($archives)) {
+                return;
+            }
+        }
+
+        PathHelper::cleanSentFiles(0);
+    }
+
+    /**
      * Uploads catalog and CMS files to S3
      *
      * @param string $catalogFile Path to catalog JSON file
@@ -512,15 +532,13 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     ]
                 );
 
-                // Cleanup: this shop's previous exports, and the flat-layout
-                // archives left by versions before per-shop directories (their
-                // exports have been superseded by the one just recorded).
+                // Cleanup: this shop's previous exports only.
                 PathHelper::cleanTmpFiles(86400);
-                PathHelper::cleanSentFilesKeepRecent(
-                    self::SENT_FILES_PER_EXPORT,
-                    $shopSentDir
+                PathHelper::cleanShopSentFilesKeepRecent(
+                    $idShop,
+                    self::SENT_FILES_PER_EXPORT
                 );
-                PathHelper::cleanSentFiles(self::LEGACY_ARCHIVE_GRACE);
+                $this->cleanLegacyArchivesWhenUnused();
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }
