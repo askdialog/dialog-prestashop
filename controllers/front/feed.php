@@ -67,12 +67,11 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     private const DEFAULT_TIME_LIMIT = 75;
 
     /**
-     * Files kept in the sent directory: one export's worth.
-     *
-     * An export archives the catalogue and the pages, compressed. Only the
-     * newest one is ever read (downloadlatestexport serves the latest
-     * successful catalogue), so keeping more only costs disk — hundreds of MB
-     * per export on a large catalogue.
+     * Files one export leaves in the sent directory: the catalogue and the
+     * pages, compressed. Only the newest export is ever read back
+     * (downloadlatestexport serves the latest successful catalogue), so
+     * keeping more only costs disk — hundreds of MB per export on a large
+     * catalogue.
      */
     private const SENT_FILES_PER_EXPORT = 2;
 
@@ -429,6 +428,27 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
      *
      * @throws Exception
      */
+    /**
+     * How many archived files to keep.
+     *
+     * The sent directory is shared by every shop of a multistore install, and
+     * the retention sorts by date across the whole directory — it has no
+     * notion of which shop a file belongs to. Keeping a flat count would let
+     * the shop that exported last evict the archive another shop's download
+     * endpoint still points at (that endpoint resolves the latest successful
+     * export per shop). Scale the allowance with the number of shops so each
+     * one keeps its own export.
+     *
+     * @return int
+     */
+    private function getSentFilesToKeep()
+    {
+        $shops = Shop::getShops(true, null, true);
+        $shopCount = is_array($shops) ? count($shops) : 1;
+
+        return self::SENT_FILES_PER_EXPORT * max(1, $shopCount);
+    }
+
     private function uploadToS3($catalogFile, $cmsFile, $exportLogId, $exportLogRepo)
     {
         Logger::log('[AskDialog] S3Upload: START', 1);
@@ -497,11 +517,9 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
                     ]
                 );
 
-                // Cleanup old files. Only the newest export is kept: the
-                // download endpoint serves the latest one and nothing reads
-                // further back, so 2 files (catalogue + pages, compressed).
+                // Cleanup old files: one export per shop, nothing further back.
                 PathHelper::cleanTmpFiles(86400);
-                PathHelper::cleanSentFilesKeepRecent(self::SENT_FILES_PER_EXPORT);
+                PathHelper::cleanSentFilesKeepRecent($this->getSentFilesToKeep());
             } else {
                 throw new Exception('S3 upload failed - unexpected status code');
             }
