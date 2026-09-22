@@ -23,7 +23,7 @@
  * Shopify Compatibility Monkey Patch
  *
  * This script intercepts fetch/XMLHttpRequest calls made by Dialog's Shopify CDN scripts
- * and redirects them to PrestaShop-compatible endpoints.
+ * and redirects them from Shopify's app proxy to the Dialog API.
  *
  * IMPORTANT: This is a temporary compatibility layer. If additional Shopify-specific
  * errors appear beyond the initial JSON.parse issue, this approach should be abandoned
@@ -34,13 +34,17 @@
 (function () {
   "use strict";
 
+  const DIALOG_API_URL = "https://api.askdialog.ai";
+  const PRODUCT_QUESTIONS_PATH = "/public/product-page-questions";
+  const DIALOG_API_KEY_HEADER = "x-dialog-api-key";
+
   const SHOPIFY_PATTERNS = {
     // Pattern: /apps/dialog/ai/product-questions?pagePath=X&locale=Y&productId=Z
     productQuestions: /\/apps\/dialog\/ai\/product-questions/,
   };
 
   /**
-   * Rewrites Shopify API URLs to PrestaShop endpoints
+   * Rewrites Shopify app-proxy URLs to Dialog API endpoints
    * @param {string} url - Original URL
    * @returns {string} - Rewritten URL or original if no match
    */
@@ -51,11 +55,7 @@
       const urlObj = new URL(url, window.location.origin);
       const params = urlObj.searchParams.toString();
 
-      const dialogApiEndpoint =
-        "https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com";
-
-      // Build PrestaShop API endpoint
-      return `${dialogApiEndpoint}/ai/product-questions?${params}`;
+      return `${DIALOG_API_URL}${PRODUCT_QUESTIONS_PATH}?${params}`;
     }
 
     return url;
@@ -70,14 +70,14 @@
     const rewrittenUrl = rewriteShopifyUrl(url);
 
     if (rewrittenUrl !== url) {
-      // Add Authorization header for PrestaShop API
+      // Add the API key header the Dialog API reads
       options = options || {};
       options.headers = options.headers || {};
 
       // Get public API key from Dialog global variables
       const publicApiKey = window.DIALOG_VARIABLES?.apiKey;
       if (publicApiKey) {
-        options.headers["Authorization"] = publicApiKey;
+        options.headers[DIALOG_API_KEY_HEADER] = publicApiKey;
       }
 
       resource =
@@ -104,7 +104,7 @@
   ) {
     const rewrittenUrl = rewriteShopifyUrl(url);
 
-    // Store if this is a rewritten URL to add auth header later
+    // Store if this is a rewritten URL to add the API key header later
     this._isRewrittenShopifyUrl = rewrittenUrl !== url;
 
     return originalXHROpen.apply(this, [
@@ -117,11 +117,15 @@
   };
 
   XMLHttpRequest.prototype.setRequestHeader = function (header, value) {
-    // If this is a rewritten Shopify URL, add Authorization header
+    // If this is a rewritten Shopify URL, add the API key header
     if (this._isRewrittenShopifyUrl && !this._authHeaderSet) {
       const publicApiKey = window.DIALOG_VARIABLES?.apiKey;
       if (publicApiKey) {
-        originalXHRSetRequestHeader.call(this, "Authorization", publicApiKey);
+        originalXHRSetRequestHeader.call(
+          this,
+          DIALOG_API_KEY_HEADER,
+          publicApiKey
+        );
         this._authHeaderSet = true;
       }
     }
