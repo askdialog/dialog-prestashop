@@ -32,6 +32,9 @@ if (!defined('_PS_VERSION_')) {
  * gateway URL unless it is rewritten here. Only the two gateway URLs Dialog ever
  * shipped are rewritten: any other value is a deliberate override.
  *
+ * It never fails the upgrade: PrestaShop disables a module whose upgrade returns
+ * false, while a URL left on the gateway keeps working through its relays.
+ *
  * @param AskDialog $module
  *
  * @return bool
@@ -51,7 +54,9 @@ function upgrade_module_1_1_11($module)
     );
 
     if ($rows === false) {
-        return false;
+        PrestaShopLogger::addLog('AskDialog 1.1.11: could not read ASKDIALOG_API_URL, left on the gateway', 2, null, 'Module', (int) $module->id);
+
+        return true;
     }
 
     foreach ($rows as $row) {
@@ -69,7 +74,7 @@ function upgrade_module_1_1_11($module)
             '`id_configuration` = ' . (int) $row['id_configuration']
         );
         if (!$updated) {
-            return false;
+            PrestaShopLogger::addLog('AskDialog 1.1.11: could not rewrite ASKDIALOG_API_URL #' . (int) $row['id_configuration'] . ', left on the gateway', 2, null, 'Module', (int) $module->id);
         }
     }
 
