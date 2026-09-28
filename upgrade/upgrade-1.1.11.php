@@ -50,7 +50,11 @@ function upgrade_module_1_1_11($module)
         . " WHERE `name` = 'ASKDIALOG_API_URL'"
     );
 
-    foreach ($rows ?: [] as $row) {
+    if ($rows === false) {
+        return false;
+    }
+
+    foreach ($rows as $row) {
         $currentUrl = rtrim((string) $row['value'], '/');
         if (!isset($gatewayToMonolith[$currentUrl])) {
             continue;
