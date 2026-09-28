@@ -39,6 +39,9 @@ use Dialog\AskDialog\Service\Http\HttpTransportException;
  */
 class AskDialogClient
 {
+    private const VALIDATE_DOMAIN_PATH = '/prestashop/validate-domain';
+    private const CATALOG_UPLOAD_URL_PATH = '/prestashop/catalog-upload-url';
+
     /**
      * @var HttpTransport HTTP transport (Symfony HttpClient or cURL)
      */
@@ -84,7 +87,7 @@ class AskDialogClient
         ];
 
         try {
-            $response = $this->httpClient->postJson('/organization/validate', $body);
+            $response = $this->httpClient->postJson(self::VALIDATE_DOMAIN_PATH, $body);
 
             // An HTTP error status is part of the answer, not an exception:
             // callers already branch on statusCode.
@@ -113,7 +116,7 @@ class AskDialogClient
         ];
 
         try {
-            $response = $this->httpClient->postJson('/organization/catalog-upload-url', $body);
+            $response = $this->httpClient->postJson(self::CATALOG_UPLOAD_URL_PATH, $body);
 
             // An HTTP error status is part of the answer, not an exception:
             // callers already branch on statusCode.
