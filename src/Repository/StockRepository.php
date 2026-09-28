@@ -53,7 +53,8 @@ class StockRepository extends AbstractRepository
                     sa.id_product,
                     sa.quantity,
                     sa.physical_quantity,
-                    sa.reserved_quantity
+                    sa.reserved_quantity,
+                    sa.out_of_stock
                 FROM ' . $this->getPrefix() . 'stock_available sa
                 WHERE sa.id_product IN (' . $this->escapeIds($productIds) . ')
                     AND sa.id_product_attribute = 0
