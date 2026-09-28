@@ -569,6 +569,8 @@ class ProductExportService
         $basePricing = $this->buildPricing($product_id, null, $priceWithoutTax, $taxCalculator, $idTaxRulesGroup);
         $productItem['price'] = $basePricing['price'];
 
+        $inventoryPolicy = $this->inventoryPolicy($product_id);
+
         // Use preloaded combinations data
         $productCombinations = isset($this->combinationsData[$product_id]) ? $this->combinationsData[$product_id] : [];
         $productItem['totalVariants'] = count($productCombinations);
@@ -612,6 +614,7 @@ class ProductExportService
             // Use preloaded stock data
             $stock = isset($this->combinationStockData[$combinationId]) ? $this->combinationStockData[$combinationId] : null;
             $variant['inventoryQuantity'] = $stock ? (int) $stock['quantity'] : 0;
+            $variant['inventoryPolicy'] = $inventoryPolicy;
 
             $variantPriceWithoutTax = \Product::getPriceStatic($product_id, false, $combinationId, 6, null, false, true);
             $variantPricing = $this->buildPricing(
@@ -658,6 +661,7 @@ class ProductExportService
                 'displayName' => $productData['name'],
                 'price' => $basePricing['price'],
                 'inventoryQuantity' => $productStock ? (int) $productStock['quantity'] : 0,
+                'inventoryPolicy' => $inventoryPolicy,
                 'selectedOptions' => [],
             ];
             if ($basePricing['prices'] !== null) {
@@ -774,6 +778,26 @@ class ProductExportService
         $productItem['options'] = $this->buildProductOptions($product_id, $defaultLang);
 
         return $productItem;
+    }
+
+    /**
+     * CONTINUE when the storefront takes orders at zero stock (backorder). Reads
+     * the product-level `out_of_stock` row like StockAvailable::outOfStock, which
+     * also answers 0 when the row is missing. `Product::isAvailableWhenOutOfStock`
+     * resolves the "default" value (2) against PS_ORDER_OUT_OF_STOCK and returns
+     * true when stock management is disabled.
+     *
+     * @param int $productId
+     *
+     * @return string
+     */
+    private function inventoryPolicy($productId)
+    {
+        $outOfStock = isset($this->productStockData[$productId]['out_of_stock'])
+            ? (int) $this->productStockData[$productId]['out_of_stock']
+            : 0;
+
+        return \Product::isAvailableWhenOutOfStock($outOfStock) ? 'CONTINUE' : 'DENY';
     }
 
     /**
