@@ -42,7 +42,7 @@ if (!defined('_PS_VERSION_')) {
 function upgrade_module_1_1_11($module)
 {
     $gatewayToMonolith = [
-        'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com' => AskDialog::DIALOG_API_URL,
+        'https://rtbzcxkmwj.execute-api.eu-west-1.amazonaws.com' => 'https://api.askdialog.ai',
         'https://hr5buzenb1.execute-api.eu-west-1.amazonaws.com' => 'https://api-staging.askdialog.ai',
     ];
 

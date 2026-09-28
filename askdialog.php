@@ -56,7 +56,7 @@ class AskDialog extends Module
     /**
      * Dialog API base URL
      */
-    public const DIALOG_API_URL = 'https://api.askdialog.ai';
+    private const DIALOG_API_URL = 'https://api.askdialog.ai';
 
     /**
      * Dialog SDK CDN URL
