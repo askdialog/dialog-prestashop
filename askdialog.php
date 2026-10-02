@@ -63,6 +63,11 @@ class AskDialog extends Module
      */
     private const DIALOG_SDK_CDN_URL = 'https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js';
 
+    /**
+     * Shopify theme extension assets, pinned to one extension version
+     */
+    private const DIALOG_EXTENSION_ASSETS_URL = 'https://cdn.shopify.com/extensions/01a0fc0a-8f70-7922-aaf7-eb7761b97d79/dialog-e-commerce-ai-agent-553/assets/';
+
     public function __construct()
     {
         $this->name = 'askdialog';
@@ -194,7 +199,7 @@ class AskDialog extends Module
         // setupModal.js - all pages
         $this->context->controller->registerJavascript(
             'module-askdialog-setupmodal',
-            'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/setupModal.js',
+            self::DIALOG_EXTENSION_ASSETS_URL . 'setupModal.js',
             $jsParams
         );
 
@@ -203,14 +208,14 @@ class AskDialog extends Module
             // instant.js - product pages only
             $this->context->controller->registerJavascript(
                 'module-askdialog-instant',
-                'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/instant.js',
+                self::DIALOG_EXTENSION_ASSETS_URL . 'instant.js',
                 $jsParams
             );
         } else {
             // ai-input.js - all pages except product pages
             $this->context->controller->registerJavascript(
                 'module-askdialog-ai-input',
-                'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/ai-input.js',
+                self::DIALOG_EXTENSION_ASSETS_URL . 'ai-input.js',
                 $jsParams
             );
         }
