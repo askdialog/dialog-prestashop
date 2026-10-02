@@ -221,7 +221,8 @@
   stroke: var(--dialog-primary-color);
 }
 
-.dialog-suggestion:hover {
+.dialog-suggestion:hover,
+.dialog-instant .dialog-ask-something-else:hover {
   transform: scale(1.02);
 }
 
@@ -236,15 +237,11 @@
   width: fit-content;
   display: flex;
   align-items: center;
-  font-size: var(--content-font-size);
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   border: unset;
-  border-radius: var(--cta-border-type, 24px);
+  border-radius: 24px;
   background-color: var(--dialog-primary-color);
   color: var(--dialog-cta-text-color);
-}
-
-.dialog-instant .dialog-ask-something-else:hover {
-  transform: scale(1.02);
 }

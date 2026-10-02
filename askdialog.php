@@ -45,6 +45,7 @@ spl_autoload_register(function ($class) {
     }
 });
 
+use Dialog\AskDialog\Form\GeneralDataConfiguration;
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Repository\AppearanceRepository;
@@ -285,7 +286,7 @@ class AskDialog extends Module
         $selected_variant_id = $product['id_product_attribute'];
         $assistant_name = $this->trans('Your Expert', [], 'Modules.Askdialog.Admin');
         $assistant_description = $this->trans('A question about this product?', [], 'Modules.Askdialog.Admin');
-        $ask_anything_placeholder = $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin');
+        $ai_button_mode = (bool) Configuration::get(GeneralDataConfiguration::ASKDIALOG_AI_BUTTON_MODE);
 
         $this->context->smarty->assign([
             'product_id' => $product_id,
@@ -294,10 +295,9 @@ class AskDialog extends Module
             'selected_variant_id' => $selected_variant_id,
             'assistant_name' => $assistant_name,
             'assistant_description' => $assistant_description,
-            'ask_anything_placeholder' => $ask_anything_placeholder,
-            'defaultDesign' => Configuration::get('ASKDIALOG_DEFAULT_DESIGN'),
-            'ai_button_mode' => (bool) Configuration::get('ASKDIALOG_AI_BUTTON_MODE'),
-            'ask_something_else_label' => $this->trans('Ask something else', [], 'Modules.Askdialog.Admin'),
+            'ai_button_mode' => $ai_button_mode,
+            'ask_something_else_label' => $ai_button_mode ? $this->trans('Ask something else', [], 'Modules.Askdialog.Admin') : '',
+            'ask_anything_placeholder' => $ai_button_mode ? '' : $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin'),
             'suggestions' => ['suggestion-0', 'suggestion-1'],
         ]);
 
