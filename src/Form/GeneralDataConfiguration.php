@@ -40,6 +40,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
     public const ASKDIALOG_API_KEY_PUBLIC = 'ASKDIALOG_API_KEY_PUBLIC';
     public const ASKDIALOG_API_KEY = 'ASKDIALOG_API_KEY';
     public const ASKDIALOG_ENABLE_PRODUCT_HOOK = 'ASKDIALOG_ENABLE_PRODUCT_HOOK';
+    public const ASKDIALOG_AI_BUTTON_MODE = 'ASKDIALOG_AI_BUTTON_MODE';
     public const ASKDIALOG_BATCH_SIZE = 'ASKDIALOG_BATCH_SIZE';
     public const ASKDIALOG_ENABLE_LOGS = 'ASKDIALOG_ENABLE_LOGS';
 
@@ -68,6 +69,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
             'api_key_public' => (string) $this->configuration->get(static::ASKDIALOG_API_KEY_PUBLIC),
             'api_key' => (string) $this->configuration->get(static::ASKDIALOG_API_KEY),
             'enable_product_hook' => (bool) $this->configuration->get(static::ASKDIALOG_ENABLE_PRODUCT_HOOK),
+            'ai_button_mode' => (bool) $this->configuration->get(static::ASKDIALOG_AI_BUTTON_MODE),
             'batch_size' => $batchSize !== false ? (int) $batchSize : self::DEFAULT_BATCH_SIZE,
             'enable_logs' => (bool) $this->configuration->get(static::ASKDIALOG_ENABLE_LOGS),
         ];
@@ -80,6 +82,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
             'api_key_public' => isset($configuration['api_key_public']) ? trim((string) $configuration['api_key_public']) : '',
             'api_key' => isset($configuration['api_key']) ? trim((string) $configuration['api_key']) : '',
             'enable_product_hook' => isset($configuration['enable_product_hook']) ? (bool) $configuration['enable_product_hook'] : false,
+            'ai_button_mode' => isset($configuration['ai_button_mode']) ? (bool) $configuration['ai_button_mode'] : false,
             'batch_size' => isset($configuration['batch_size']) ? (int) $configuration['batch_size'] : self::DEFAULT_BATCH_SIZE,
             'enable_logs' => isset($configuration['enable_logs']) ? (bool) $configuration['enable_logs'] : false,
         ];
@@ -93,6 +96,7 @@ final class GeneralDataConfiguration implements DataConfigurationInterface
         $this->configuration->set(static::ASKDIALOG_API_KEY_PUBLIC, $normalized['api_key_public']);
         $this->configuration->set(static::ASKDIALOG_API_KEY, $normalized['api_key']);
         $this->configuration->set(static::ASKDIALOG_ENABLE_PRODUCT_HOOK, $normalized['enable_product_hook']);
+        $this->configuration->set(static::ASKDIALOG_AI_BUTTON_MODE, $normalized['ai_button_mode']);
         $this->configuration->set(static::ASKDIALOG_BATCH_SIZE, $normalized['batch_size']);
         $this->configuration->set(static::ASKDIALOG_ENABLE_LOGS, $normalized['enable_logs']);
 

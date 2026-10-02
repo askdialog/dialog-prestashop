@@ -45,6 +45,7 @@ spl_autoload_register(function ($class) {
     }
 });
 
+use Dialog\AskDialog\Form\GeneralDataConfiguration;
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Repository\AppearanceRepository;
@@ -63,11 +64,16 @@ class AskDialog extends Module
      */
     private const DIALOG_SDK_CDN_URL = 'https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js';
 
+    /**
+     * Shopify theme extension assets, pinned to one extension version
+     */
+    private const DIALOG_EXTENSION_ASSETS_URL = 'https://cdn.shopify.com/extensions/01a0fc0a-8f70-7922-aaf7-eb7761b97d79/dialog-e-commerce-ai-agent-553/assets/';
+
     public function __construct()
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.1.11';
+        $this->version = '1.2.0';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -117,7 +123,8 @@ class AskDialog extends Module
             && $this->registerHook('actionCartUpdateQuantityBefore')
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
             && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
-            && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false);
+            && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false)
+            && Configuration::updateValue('ASKDIALOG_AI_BUTTON_MODE', false);
     }
 
     public function uninstall()
@@ -128,6 +135,7 @@ class AskDialog extends Module
             && \Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
             && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
             && \Configuration::deleteByName('ASKDIALOG_ENABLE_LOGS')
+            && \Configuration::deleteByName('ASKDIALOG_AI_BUTTON_MODE')
             && $this->uninstallDb();
     }
 
@@ -192,7 +200,7 @@ class AskDialog extends Module
         // setupModal.js - all pages
         $this->context->controller->registerJavascript(
             'module-askdialog-setupmodal',
-            'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/setupModal.js',
+            self::DIALOG_EXTENSION_ASSETS_URL . 'setupModal.js',
             $jsParams
         );
 
@@ -201,14 +209,14 @@ class AskDialog extends Module
             // instant.js - product pages only
             $this->context->controller->registerJavascript(
                 'module-askdialog-instant',
-                'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/instant.js',
+                self::DIALOG_EXTENSION_ASSETS_URL . 'instant.js',
                 $jsParams
             );
         } else {
             // ai-input.js - all pages except product pages
             $this->context->controller->registerJavascript(
                 'module-askdialog-ai-input',
-                'https://cdn.shopify.com/extensions/019b7023-644d-7d8b-a5ac-a3e0723c9970/dialog-ai-app-290/assets/ai-input.js',
+                self::DIALOG_EXTENSION_ASSETS_URL . 'ai-input.js',
                 $jsParams
             );
         }
@@ -278,7 +286,7 @@ class AskDialog extends Module
         $selected_variant_id = $product['id_product_attribute'];
         $assistant_name = $this->trans('Your Expert', [], 'Modules.Askdialog.Admin');
         $assistant_description = $this->trans('A question about this product?', [], 'Modules.Askdialog.Admin');
-        $ask_anything_placeholder = $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin');
+        $ai_button_mode = (bool) Configuration::get(GeneralDataConfiguration::ASKDIALOG_AI_BUTTON_MODE);
 
         $this->context->smarty->assign([
             'product_id' => $product_id,
@@ -287,8 +295,9 @@ class AskDialog extends Module
             'selected_variant_id' => $selected_variant_id,
             'assistant_name' => $assistant_name,
             'assistant_description' => $assistant_description,
-            'ask_anything_placeholder' => $ask_anything_placeholder,
-            'defaultDesign' => Configuration::get('ASKDIALOG_DEFAULT_DESIGN'),
+            'ai_button_mode' => $ai_button_mode,
+            'ask_something_else_label' => $ai_button_mode ? $this->trans('Ask something else', [], 'Modules.Askdialog.Admin') : '',
+            'ask_anything_placeholder' => $ai_button_mode ? '' : $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin'),
             'suggestions' => ['suggestion-0', 'suggestion-1'],
         ]);
 

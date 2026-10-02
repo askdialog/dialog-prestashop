@@ -252,6 +252,21 @@
         <target>Personaliza la apariencia del widget Diálogo. Deja los campos vacíos para usar los valores predeterminados o permitir la anulación de temas.</target>
         <note>Line: </note>
       </trans-unit>
+      <trans-unit id="5c5aa1e779aa82da13b1b092ccfa4a1b">
+        <source>AI button mode</source>
+        <target>Modo botón IA</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="ee1b02540625886c3b0ae4b44386eb43">
+        <source>The product page block shows its questions and an "Ask something else" button instead of a free-text input (EU AI Act)</source>
+        <target>El bloque de la página de producto muestra sus preguntas y un botón «Pregunta otra cosa» en lugar del campo de texto libre (AI Act de la UE)</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="f8fd7193dc9a8df82fb330a76f321bc1">
+        <source>Ask something else</source>
+        <target>Pregunta otra cosa</target>
+        <note>Line: </note>
+      </trans-unit>
     </body>
   </file>
 </xliff>

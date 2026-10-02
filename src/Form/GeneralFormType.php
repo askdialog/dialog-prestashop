@@ -83,6 +83,11 @@ class GeneralFormType extends TranslatorAwareType
                 'help' => $this->trans('Enable or disable the AskDialog assistant on the product page', 'Modules.Askdialog.Admin'),
                 'required' => false,
             ])
+            ->add('ai_button_mode', SwitchType::class, [
+                'label' => $this->trans('AI button mode', 'Modules.Askdialog.Admin'),
+                'help' => $this->trans('The product page block shows its questions and an "Ask something else" button instead of a free-text input (EU AI Act)', 'Modules.Askdialog.Admin'),
+                'required' => false,
+            ])
             ->add('batch_size', IntegerType::class, [
                 'label' => $this->trans('Export Batch Size', 'Modules.Askdialog.Admin'),
                 'help' => $this->trans('Number of products to process per batch during catalog export. Lower values reduce memory usage and timeout risk on large catalogs. Default: 5000', 'Modules.Askdialog.Admin'),

@@ -56,7 +56,7 @@
     data-handle="{$product_slug}"
     data-selected-variant-id="{$selected_variant_id}"></div>
 
-<div class="dialog-instant" id="dialog-instant" data-product-id="{$product_id}">
+<div class="dialog-instant" id="dialog-instant" data-product-id="{$product_id}"{if $ai_button_mode} data-ai-button-mode="true"{/if}>
     <div class="dialog-instant-text">
         <span id="assistant-name" class="dialog-question-text-title">
             {$assistant_name}
@@ -80,7 +80,11 @@
             </button>
         {/foreach}
         </div>
-        {if $defaultDesign || true}
+        {if $ai_button_mode}
+            <button class="dialog-ask-something-else" type="button">
+                {$ask_something_else_label}
+            </button>
+        {else}
             <div class="dialog-input-wrapper">
                 <div class="dialog-input-container">
                     <input
@@ -106,25 +110,6 @@
                             stroke-linecap="round"
                             stroke-linejoin="round" />
                     </svg>
-                </button>
-            </div>
-        {else}
-            <div class="dialog-input-wrapper dialog-ai-input-squared">
-                <div class="dialog-input-container">
-                    {* ai icon processing *}
-                    <input
-                        id="dialog-ask-anything-input"
-                        class="dialog-ask-anything-input"
-                        placeholder="{$ask_anything_placeholder}">
-                </div>
-                <button
-                    class="dialog-input-submit dialog-input-submit-squared"
-                    type="button"
-                    disabled
-                    id="send-message-button">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M3.16367 0.130033C3.368 -0.05572 3.68422 -0.0406617 3.86997 0.163667L8.86997 5.66367C9.04335 5.85438 9.04335 6.14563 8.86997 6.33634L3.86997 11.8363C3.68422 12.0407 3.368 12.0557 3.16367 11.87C2.95934 11.6842 2.94428 11.368 3.13003 11.1637L7.82427 6L3.13003 0.83634C2.94428 0.632011 2.95934 0.315787 3.16367 0.130033Z" fill="white"></path>
-                  </svg>
                 </button>
             </div>
         {/if}
