@@ -291,6 +291,8 @@ class AskDialog extends Module
             'assistant_description' => $assistant_description,
             'ask_anything_placeholder' => $ask_anything_placeholder,
             'defaultDesign' => Configuration::get('ASKDIALOG_DEFAULT_DESIGN'),
+            'ai_button_mode' => (bool) Configuration::get('ASKDIALOG_AI_BUTTON_MODE'),
+            'ask_something_else_label' => $this->trans('Ask something else', [], 'Modules.Askdialog.Admin'),
             'suggestions' => ['suggestion-0', 'suggestion-1'],
         ]);
 

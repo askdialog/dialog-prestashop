@@ -56,7 +56,7 @@
     data-handle="{$product_slug}"
     data-selected-variant-id="{$selected_variant_id}"></div>
 
-<div class="dialog-instant" id="dialog-instant" data-product-id="{$product_id}">
+<div class="dialog-instant" id="dialog-instant" data-product-id="{$product_id}"{if $ai_button_mode} data-ai-button-mode="true"{/if}>
     <div class="dialog-instant-text">
         <span id="assistant-name" class="dialog-question-text-title">
             {$assistant_name}
@@ -80,7 +80,11 @@
             </button>
         {/foreach}
         </div>
-        {if $defaultDesign || true}
+        {if $ai_button_mode}
+            <button class="dialog-ask-something-else" type="button">
+                {$ask_something_else_label}
+            </button>
+        {elseif $defaultDesign || true}
             <div class="dialog-input-wrapper">
                 <div class="dialog-input-container">
                     <input
