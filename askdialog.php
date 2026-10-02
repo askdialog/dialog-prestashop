@@ -117,7 +117,8 @@ class AskDialog extends Module
             && $this->registerHook('actionCartUpdateQuantityBefore')
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
             && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
-            && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false);
+            && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false)
+            && Configuration::updateValue('ASKDIALOG_AI_BUTTON_MODE', false);
     }
 
     public function uninstall()
@@ -128,6 +129,7 @@ class AskDialog extends Module
             && \Configuration::deleteByName('ASKDIALOG_API_KEY_PUBLIC')
             && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
             && \Configuration::deleteByName('ASKDIALOG_ENABLE_LOGS')
+            && \Configuration::deleteByName('ASKDIALOG_AI_BUTTON_MODE')
             && $this->uninstallDb();
     }
 
