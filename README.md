@@ -6,7 +6,7 @@ AskDialog integrates conversational AI into PrestaShop stores, enabling intellig
 
 - Export product catalog and CMS pages to Dialog AI platform
 - Real-time product data API for AI queries
-- Frontend SDK with customizable appearance
+- Frontend SDK, styled from the Dialog dashboard
 - Export status monitoring
 - Multi-language and multi-shop support
 

@@ -19,12 +19,26 @@
  * @copyright 2026 Dialog
  * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
  */
-header('Expires: Mon, 26 Jul 1997 05:00:00 GMT');
-header('Last-Modified: ' . gmdate('D, d M Y H:i:s') . ' GMT');
+if (!defined('_PS_VERSION_')) {
+    exit;
+}
 
-header('Cache-Control: no-store, no-cache, must-revalidate');
-header('Cache-Control: post-check=0, pre-check=0', false);
-header('Pragma: no-cache');
+/**
+ * Upgrade script for version 1.3.0
+ * Drops the appearance settings table: the assistant's look now comes from the Dialog dashboard only.
+ *
+ * A failed drop leaves an unused table behind, so it is logged rather than failing the upgrade,
+ * which would disable the module.
+ *
+ * @param AskDialog $module
+ *
+ * @return bool
+ */
+function upgrade_module_1_3_0($module)
+{
+    if (!Db::getInstance()->execute('DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_appearance`')) {
+        PrestaShopLogger::addLog('AskDialog 1.3.0: could not drop askdialog_appearance', 2, null, 'Module', (int) $module->id);
+    }
 
-header('Location: ../');
-exit;
+    return true;
+}

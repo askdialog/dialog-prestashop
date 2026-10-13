@@ -25,7 +25,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ### 2. Frontend SDK Integration
 - Loads Dialog conversational AI widget on frontend
-- Configurable appearance (colors, fonts, borders)
+- Appearance (colors, font, borders) comes from the Dialog dashboard; the module declares none (removed in 1.3.0)
 - Can be enabled on product pages with instant questions
 - Analytics tracking with PostHog
 
@@ -66,28 +66,12 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ### Database Tables
 - `askdialog_export_log`: Tracks export status (init, pending, success, error) for S3 uploads
-- `askdialog_appearance`: Stores widget appearance settings in JSON format (flexible schema)
 
 ### Configuration (Configuration::get)
 - `ASKDIALOG_API_KEY`: Private API key
 - `ASKDIALOG_API_KEY_PUBLIC`: Public API key
 - `ASKDIALOG_API_URL`: API URL (default: defined in `AskDialog::DIALOG_API_URL`)
 - `ASKDIALOG_ENABLE_PRODUCT_HOOK`: Enable on product pages
-
-### Appearance Settings (JSON in `askdialog_appearance` table)
-Stored per shop in JSON format for flexibility:
-- `primary_color`: Primary color (hex: #RRGGBB)
-- `background_color`: Background color (hex: #RRGGBB)
-- `cta_text_color`: CTA text color (hex: #RRGGBB)
-- `cta_border_type`: Border type (solid, dashed, dotted, double, none)
-- `capitalize_ctas`: Capitalize CTAs (boolean)
-- `font_family`: Font family (CSS string)
-- `highlight_product_name`: Highlight product name (boolean)
-
-**CSS Priority System:**
-1. **User settings** (BO) → Inline CSS with `!important`
-2. **Theme overrides** → Normal CSS in theme files
-3. **Module defaults** → CSS Custom Properties fallback in `views/css/all-pages/variables.css`
 
 ### Hooks Used
 - `actionFrontControllerSetMedia`: Load CSS/JS files
@@ -100,37 +84,13 @@ Stored per shop in JSON format for flexibility:
 
 ## Refactoring History
 
-### Appearance Settings Migration to JSON Table
+### Appearance settings removed (1.3.0, DEC-3065)
 
-**Changes:**
-- ✅ Created `askdialog_appearance` table with JSON column for flexible schema
-- ✅ Migrated all appearance settings from `ps_configuration` to dedicated table
-- ✅ Created `AppearanceRepository` for database operations
-- ✅ Implemented Symfony forms with tabs UI (Configuration + Appearance)
-- ✅ Added CSS Custom Properties priority system (User > Theme > Module)
-- ✅ Refactored CSS structure into directories (`all-pages/`, `product-page/`)
-- ✅ Extracted hardcoded URLs into class constants (`DIALOG_API_URL`, `DIALOG_SDK_CDN_URL`)
-- ✅ Removed unused Configuration keys (colors, fonts, batch_size)
-
-**Architecture:**
-```
-src/
-├── Repository/
-│   └── AppearanceRepository.php      (JSON CRUD operations)
-├── Form/
-│   ├── AppearanceFormType.php        (Symfony form with validation)
-│   ├── AppearanceDataConfiguration.php
-│   ├── AppearanceFormDataProvider.php
-│   └── AppearanceFormHandler.php
-└── Controller/
-    └── AdminConfigurationController.php (Tabs: Configuration + Appearance)
-```
-
-**Benefits:**
-- No database migration needed to add new appearance settings
-- Clean separation between API config and appearance
-- Theme can override styles via CSS without BO interference
-- User settings always have priority via `!important`
+The module used to store colours, border type, capitalization, highlight and font per shop
+(`askdialog_appearance` table, "Appearance" tab) and pass them to the widget as `data-*` and
+`DIALOG_VARIABLES`. The widget ignores them since the dashboard became the only source of the
+assistant's look, so the tab, its forms, the repository, `views/css/all-pages/variables.css` and
+the table are gone; `upgrade/upgrade-1.3.0.php` drops the table on existing installs.
 
 ### PostHog Analytics Migration to PHP
 
