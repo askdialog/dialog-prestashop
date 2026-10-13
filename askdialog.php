@@ -48,7 +48,6 @@ spl_autoload_register(function ($class) {
 use Dialog\AskDialog\Form\GeneralDataConfiguration;
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
-use Dialog\AskDialog\Repository\AppearanceRepository;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Service\PostHogService;
 
@@ -73,7 +72,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.2.0';
+        $this->version = '1.3.0';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -141,16 +140,6 @@ class AskDialog extends Module
 
     public function hookActionFrontControllerSetMedia()
     {
-        // Register CSS files for all pages
-        $this->context->controller->registerStylesheet(
-            'module-askdialog-variables',
-            'modules/' . $this->name . '/views/css/all-pages/variables.css',
-            [
-                'media' => 'all',
-                'priority' => 200,
-            ]
-        );
-
         // Register CSS files specific to product pages
         if ($this->context->controller instanceof ProductController) {
             $this->context->controller->registerStylesheet(
@@ -328,10 +317,6 @@ class AskDialog extends Module
         $idBaseCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
         $baseCurrency = $idBaseCurrency > 0 ? new Currency($idBaseCurrency) : null;
 
-        // Get appearance settings from database (JSON-based)
-        $appearanceRepository = new AppearanceRepository();
-        $appearanceSettings = $appearanceRepository->getSettings($idShop);
-
         $this->context->smarty->assign([
             'module_dir' => $this->_path,
             'customer_id' => $customerId,
@@ -342,7 +327,6 @@ class AskDialog extends Module
             'currency_iso' => $currency !== null ? $currency->iso_code : '',
             'currency_rate' => $currency !== null ? (float) $currency->conversion_rate : 1.0,
             'currency_base_iso' => $baseCurrency !== null ? $baseCurrency->iso_code : '',
-            'appearance_settings' => $appearanceSettings,
             'index_dot_js_cdn_url' => self::DIALOG_SDK_CDN_URL,
             'module_version' => $this->version,
             'ps_version' => _PS_VERSION_,
