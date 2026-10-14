@@ -50,6 +50,7 @@ use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Service\PostHogService;
+use Dialog\AskDialog\Service\StorefrontEvents;
 
 class AskDialog extends Module
 {
@@ -349,7 +350,81 @@ class AskDialog extends Module
             'ps_version' => _PS_VERSION_,
         ]);
 
-        return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl');
+        return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl')
+            . $this->storefrontEventsScript();
+    }
+
+    /**
+     * Hands the page's commerce events to the storefront tag: view_item on a product page,
+     * view_item_list on a category or search results page. Rendered with the footer, once the
+     * controller has assigned the product or the listing to the templates.
+     */
+    private function storefrontEventsScript(): string
+    {
+        $events = [];
+        try {
+            $events = $this->storefrontEvents();
+        } catch (Throwable $e) {
+            // Analytics must never take down a storefront page.
+            Logger::log('[AskDialog] Storefront events error: ' . $e->getMessage(), 3);
+        }
+        if ($events === []) {
+            return '';
+        }
+
+        $this->context->smarty->assign(
+            'storefront_events_json',
+            json_encode($events, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_PARTIAL_OUTPUT_ON_ERROR)
+        );
+
+        return $this->display(__FILE__, 'views/templates/hook/storefrontevents.tpl');
+    }
+
+    /**
+     * @return array list of [GA4 event name, parameters]
+     */
+    private function storefrontEvents(): array
+    {
+        $controller = $this->context->controller;
+        $smarty = $this->context->smarty;
+
+        if ($controller instanceof ProductController) {
+            $product = $smarty->getTemplateVars('product');
+            if (empty($product['id_product'])) {
+                return [];
+            }
+
+            return [['view_item', StorefrontEvents::viewItem($product, $this->context->currency->iso_code)]];
+        }
+
+        if ($controller instanceof CategoryController) {
+            $category = $smarty->getTemplateVars('category');
+            if (empty($category['id'])) {
+                return [];
+            }
+
+            return $this->viewItemListEvent('category_' . (int) $category['id'], (string) $category['name']);
+        }
+
+        if ($controller instanceof SearchController) {
+            return $this->viewItemListEvent('search_results', 'Search results');
+        }
+
+        return [];
+    }
+
+    private function viewItemListEvent(string $listId, string $listName): array
+    {
+        $listing = $this->context->smarty->getTemplateVars('listing');
+        if (empty($listing['products'])) {
+            return [];
+        }
+        // items_shown_from counts from 1 across pages; GA4 indexes count from 0.
+        $firstIndex = isset($listing['pagination']['items_shown_from'])
+            ? max(0, (int) $listing['pagination']['items_shown_from'] - 1)
+            : 0;
+
+        return [['view_item_list', StorefrontEvents::viewItemList($listId, $listName, $listing['products'], $firstIndex)]];
     }
 
     /**
