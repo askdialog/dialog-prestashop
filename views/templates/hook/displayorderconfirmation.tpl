@@ -24,3 +24,9 @@
     var customerName = '{$customer_name|escape}';
     var orderDate = '{$order_date|escape}';
 </script>
+{if $storefront_purchase}
+<script>
+    window.dialogLayer = window.dialogLayer || [];
+    window.dialogLayer.push(['event', 'purchase', {$storefront_purchase nofilter}]);
+</script>
+{/if}

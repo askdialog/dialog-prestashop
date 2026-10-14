@@ -50,6 +50,7 @@ use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Service\PostHogService;
+use Dialog\AskDialog\Service\Storefront\PurchaseEvent;
 
 class AskDialog extends Module
 {
@@ -260,7 +261,20 @@ class AskDialog extends Module
             );
         }
 
+        // The storefront tag sends it once the shopper's consent allows; a reload sends the same
+        // transaction_id, which dbt counts once. Throwable, as above: the page must render regardless.
+        $purchase = null;
+        try {
+            $purchase = PurchaseEvent::fromOrder($order);
+        } catch (Throwable $e) {
+            Logger::log('[AskDialog] Storefront purchase error: ' . $e->getMessage(), 3);
+        }
+
         $this->context->smarty->assign([
+            'storefront_purchase' => $purchase === null ? null : json_encode(
+                $purchase,
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
+            ),
             'order_reference' => $order->reference,
             'order_total' => $order->total_paid,
             'customer_name' => $customer->firstname . ' ' . $customer->lastname,

@@ -81,7 +81,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `actionFrontControllerInitBefore`: Handle CORS (currently commented)
 - `actionCartUpdateQuantityBefore`: Track add to cart events (PostHog PHP)
 - `actionValidateOrder`: Track order confirmation events (PostHog PHP)
-- `displayOrderConfirmation`: Display order confirmation message
+- `displayOrderConfirmation`: Hand the order to the storefront tag as a GA4 `purchase` (`src/Service/Storefront/PurchaseEvent.php`) and track it to PostHog
 
 ## Refactoring History
 
