@@ -75,6 +75,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ### Hooks Used
 - `actionFrontControllerSetMedia`: Load CSS/JS files
+- `displayHeader`: Load the storefront tag (`cdn.askdialog.com/assets/storefront-tag.js`, producer `prestashop`) in the head, before the assistant scripts
 - `displayFooterAfter`: Inject Dialog SDK with configuration
 - `displayProductAdditionalInfo`: Display assistant on product pages
 - `actionFrontControllerInitBefore`: Handle CORS (currently commented)
