@@ -216,12 +216,35 @@
         if (!isAdd) {
             return;
         }
-        pendingAdds.push({ idProduct: Number(parameters.id_product), quantity: Number(parameters.qty) || 1 });
+        pendingAdds.push({
+            xhr: xhr,
+            idProduct: Number(parameters.id_product),
+            // Absent on the theme's add, which sends the attribute groups instead.
+            idProductAttribute: parameters.id_product_attribute !== undefined ? Number(parameters.id_product_attribute) : null,
+            quantity: Number(parameters.qty) || 1
+        });
     }
 
-    function takePendingAdd(idProduct) {
+    // A request answered with an error or without the cart gets no `updateCart` to consume it: drop it,
+    // so a later change of the same line does not count as this add.
+    function onAjaxComplete(event, xhr) {
+        var resp = null;
+        try {
+            resp = JSON.parse(xhr.responseText);
+        } catch (e) {}
+        if (resp && !resp.hasError && resp.cart) {
+            return;
+        }
+        pendingAdds = pendingAdds.filter(function (pending) {
+            return pending.xhr !== xhr;
+        });
+    }
+
+    function takePendingAdd(resp) {
         for (var i = 0; i < pendingAdds.length; i++) {
-            if (pendingAdds[i].idProduct === Number(idProduct)) {
+            var pending = pendingAdds[i];
+            if (pending.idProduct === Number(resp.id_product)
+                && (pending.idProductAttribute === null || pending.idProductAttribute === Number(resp.id_product_attribute || 0))) {
                 return pendingAdds.splice(i, 1)[0];
             }
         }
@@ -252,7 +275,7 @@
         }
         var previousQuantities = knownLineQuantities;
         rememberCart(resp.cart);
-        var pending = takePendingAdd(resp.id_product);
+        var pending = takePendingAdd(resp);
         var isAdd = pending !== null || reason.linkAction === 'add-to-cart' || reason.action === 'add-to-cart';
         if (!isAdd) {
             return;
@@ -327,7 +350,7 @@
     if (typeof prestashop !== 'undefined' && typeof prestashop.on === 'function') {
         rememberCart(prestashop.cart);
         if (typeof jQuery !== 'undefined') {
-            jQuery(document).ajaxSend(onAjaxSend);
+            jQuery(document).ajaxSend(onAjaxSend).ajaxComplete(onAjaxComplete);
         }
         prestashop.on('updateCart', onUpdateCart);
         sendCartPageEvent();
