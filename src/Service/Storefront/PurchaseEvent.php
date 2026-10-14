@@ -68,8 +68,11 @@ class PurchaseEvent
     public static function fromOrder(\Order $order): array
     {
         $orders = [];
+        // Same cart too: a payment module could reuse a reference across carts.
         foreach (\Order::getByReference($order->reference) as $sibling) {
-            $orders[] = $sibling;
+            if ((int) $sibling->id_cart === (int) $order->id_cart) {
+                $orders[] = $sibling;
+            }
         }
         if ($orders === []) {
             $orders = [$order];
