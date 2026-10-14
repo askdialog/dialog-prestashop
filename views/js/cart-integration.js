@@ -42,6 +42,8 @@
             data: {
                 controller: 'cart',
                 add: 1,
+                // As the theme's own add to cart: the JSON answer then carries the updated cart.
+                action: 'update',
                 ajax: true,
                 qty: quantity,
                 id_product: idProduct,
@@ -86,4 +88,166 @@
     // Expose functions to global scope for Dialog AI SDK
     window.askDialogAddToCart = askDialogAddToCart;
     window.askDialogAddCurrentProductToCart = askDialogAddCurrentProductToCart;
+
+    // Storefront events: the cart steps, handed to the storefront tag in the GA4 contract.
+
+    // The cart line fields kept in `raw`: a whole presented line carries images and
+    // descriptions, too heavy for the tag's keepalive request (64 KB).
+    var RAW_LINE_FIELDS = [
+        'id_product', 'id_product_attribute', 'id_customization', 'name', 'reference',
+        'ean13', 'upc', 'isbn', 'attributes', 'attributes_small', 'category',
+        'id_manufacturer', 'manufacturer_name', 'quantity', 'price_amount',
+        'regular_price_amount', 'has_discount', 'discount_type', 'discount_amount',
+        'price_with_reduction', 'price_with_reduction_without_tax', 'total_wt'
+    ];
+
+    function rawLine(line) {
+        var raw = {};
+        RAW_LINE_FIELDS.forEach(function (field) {
+            if (line[field] !== undefined) {
+                raw[field] = line[field];
+            }
+        });
+
+        return raw;
+    }
+
+    function rawCart(cart) {
+        return {
+            products: (cart.products || []).map(rawLine),
+            products_count: cart.products_count,
+            totals: cart.totals,
+            subtotals: cart.subtotals,
+            vouchers: cart.vouchers ? cart.vouchers.added : undefined,
+            discounts: cart.discounts
+        };
+    }
+
+    function roundAmount(amount) {
+        return Math.round(amount * 100) / 100;
+    }
+
+    // A presented PrestaShop cart line as a GA4 item; `price` is the unit price shown, after discount.
+    function lineItem(line, quantity) {
+        var price = Number(line.price_amount);
+        var regularPrice = Number(line.regular_price_amount);
+        var variantId = Number(line.id_product_attribute);
+
+        return {
+            item_id: String(line.id_product),
+            item_name: line.name || undefined,
+            item_brand: line.manufacturer_name || undefined,
+            item_category: line.category || undefined,
+            item_variant: line.attributes_small || undefined,
+            variant_id: variantId > 0 ? String(variantId) : undefined,
+            price: price,
+            discount: line.has_discount && regularPrice > price ? roundAmount(regularPrice - price) : undefined,
+            quantity: quantity
+        };
+    }
+
+    function itemsValue(items) {
+        return roundAmount(items.reduce(function (sum, item) {
+            return sum + item.price * item.quantity;
+        }, 0));
+    }
+
+    function currencyIso() {
+        return prestashop.currency && prestashop.currency.iso_code ? prestashop.currency.iso_code : undefined;
+    }
+
+    function sendStorefrontEvent(name, parameters) {
+        if (typeof window.dialog === 'function') {
+            window.dialog('event', name, parameters);
+        }
+    }
+
+    function sameLine(line, idProduct, idProductAttribute, idCustomization) {
+        return Number(line.id_product) === Number(idProduct)
+            && Number(line.id_product_attribute || 0) === Number(idProductAttribute || 0)
+            && Number(line.id_customization || 0) === Number(idCustomization || 0);
+    }
+
+    // PrestaShop's front `updateCart` event, emitted by the theme after an add to cart
+    // (`reason.linkAction`) and by askDialogAddToCart above (`reason.action`).
+    function onUpdateCart(event) {
+        var reason = event && event.reason;
+        var resp = event && event.resp;
+        if (!reason || (reason.linkAction !== 'add-to-cart' && reason.action !== 'add-to-cart')) {
+            return;
+        }
+        if (!resp || resp.hasError || !resp.cart || !resp.cart.products) {
+            return;
+        }
+        var idProduct = resp.id_product || reason.idProduct;
+        var idProductAttribute = resp.id_product_attribute || reason.idProductAttribute;
+        var idCustomization = resp.id_customization || reason.idCustomization;
+        var quantity = Number(resp.quantity || reason.quantity);
+        var line = resp.cart.products.filter(function (candidate) {
+            return sameLine(candidate, idProduct, idProductAttribute, idCustomization);
+        })[0];
+        if (!line || !(quantity > 0)) {
+            return;
+        }
+        var items = [lineItem(line, quantity)];
+        sendStorefrontEvent('add_to_cart', {
+            currency: currencyIso(),
+            value: itemsValue(items),
+            items: items,
+            raw: {
+                id_product: idProduct,
+                id_product_attribute: idProductAttribute,
+                id_customization: idCustomization,
+                quantity: quantity,
+                line: rawLine(line)
+            }
+        });
+    }
+
+    function cartParameters(cart) {
+        var items = cart.products.map(function (line) {
+            return lineItem(line, Number(line.quantity));
+        });
+
+        return {
+            currency: currencyIso(),
+            value: itemsValue(items),
+            items: items,
+            raw: rawCart(cart)
+        };
+    }
+
+    // The checkout page reloads on every step: begin_checkout goes once per cart content and session.
+    function isNewCheckout(cart) {
+        var signature = cart.products.map(function (line) {
+            return [line.id_product, line.id_product_attribute, line.id_customization, line.quantity].join(':');
+        }).join('|');
+        try {
+            if (window.sessionStorage.getItem('dialog_begin_checkout') === signature) {
+                return false;
+            }
+            window.sessionStorage.setItem('dialog_begin_checkout', signature);
+        } catch (e) {}
+
+        return true;
+    }
+
+    function sendCartPageEvent() {
+        var pageName = prestashop.page && prestashop.page.page_name;
+        var cart = prestashop.cart;
+        if (!cart || !cart.products || cart.products.length === 0) {
+            return;
+        }
+        if (pageName === 'cart') {
+            sendStorefrontEvent('view_cart', cartParameters(cart));
+        }
+        if (pageName === 'checkout' && isNewCheckout(cart)) {
+            sendStorefrontEvent('begin_checkout', cartParameters(cart));
+        }
+    }
+
+    if (typeof prestashop !== 'undefined' && typeof prestashop.on === 'function') {
+        prestashop.on('updateCart', onUpdateCart);
+        sendCartPageEvent();
+    }
 })();
