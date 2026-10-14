@@ -168,25 +168,47 @@
             && Number(line.id_customization || 0) === Number(idCustomization || 0);
     }
 
+    function lineKey(line) {
+        return [line.id_product, line.id_product_attribute || 0, line.id_customization || 0].join(':');
+    }
+
+    // Line quantities of the last cart seen: the theme's add to cart answers with the line's
+    // new total, so the quantity added is the difference.
+    var knownLineQuantities = {};
+
+    function rememberCart(cart) {
+        knownLineQuantities = {};
+        (cart && cart.products || []).forEach(function (line) {
+            knownLineQuantities[lineKey(line)] = Number(line.quantity) || 0;
+        });
+    }
+
     // PrestaShop's front `updateCart` event, emitted by the theme after an add to cart
-    // (`reason.linkAction`) and by askDialogAddToCart above (`reason.action`).
+    // (`reason.linkAction`) and by askDialogAddToCart above (`reason.action`, with the quantity requested).
     function onUpdateCart(event) {
         var reason = event && event.reason;
         var resp = event && event.resp;
-        if (!reason || (reason.linkAction !== 'add-to-cart' && reason.action !== 'add-to-cart')) {
+        if (!resp || resp.hasError || !resp.cart || !resp.cart.products) {
             return;
         }
-        if (!resp || resp.hasError || !resp.cart || !resp.cart.products) {
+        var previousQuantities = knownLineQuantities;
+        rememberCart(resp.cart);
+        if (!reason || (reason.linkAction !== 'add-to-cart' && reason.action !== 'add-to-cart')) {
             return;
         }
         var idProduct = resp.id_product || reason.idProduct;
         var idProductAttribute = resp.id_product_attribute || reason.idProductAttribute;
         var idCustomization = resp.id_customization || reason.idCustomization;
-        var quantity = Number(resp.quantity || reason.quantity);
         var line = resp.cart.products.filter(function (candidate) {
             return sameLine(candidate, idProduct, idProductAttribute, idCustomization);
         })[0];
-        if (!line || !(quantity > 0)) {
+        if (!line) {
+            return;
+        }
+        var quantity = reason.quantity !== undefined
+            ? Number(reason.quantity)
+            : Number(line.quantity) - (previousQuantities[lineKey(line)] || 0);
+        if (!(quantity > 0)) {
             return;
         }
         var items = [lineItem(line, quantity)];
@@ -247,6 +269,7 @@
     }
 
     if (typeof prestashop !== 'undefined' && typeof prestashop.on === 'function') {
+        rememberCart(prestashop.cart);
         prestashop.on('updateCart', onUpdateCart);
         sendCartPageEvent();
     }
