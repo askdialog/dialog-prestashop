@@ -27,6 +27,9 @@ if (!defined('_PS_VERSION_')) {
 }
 /**
  * Builds the GA4 commerce events the module hands to the storefront tag, from the products PrestaShop presents to its templates.
+ *
+ * Prices are tax excluded and after discount, as in every event of the contract; the displayed price stays in `raw`.
+ * The script of views/templates/hook/storefrontevents.tpl builds the same items from the AJAX listing reloads.
  */
 class StorefrontEvents
 {
@@ -39,6 +42,8 @@ class StorefrontEvents
         'name',
         'reference',
         'price_amount',
+        'price_tax_exc',
+        'rate',
         'regular_price_amount',
         'has_discount',
         'discount_type',
@@ -53,13 +58,14 @@ class StorefrontEvents
 
     /**
      * @param array|\ArrayAccess $product the presented product of the product page
+     * @param array $prices currency, precision, prices_include_tax
      */
-    public static function viewItem($product, string $currency): array
+    public static function viewItem($product, array $prices): array
     {
-        $item = self::item($product);
+        $item = self::item($product, $prices);
 
         return [
-            'currency' => $currency,
+            'currency' => $prices['currency'],
             'value' => $item['price'],
             'items' => [$item],
             'raw' => ['product' => self::rawProduct($product)],
@@ -67,36 +73,48 @@ class StorefrontEvents
     }
 
     /**
+     * @param array $list item_list_id, item_list_name
      * @param iterable $products the presented products of the listing page
      * @param int $firstIndex position of the first product in the whole list, 0 on the first page
+     * @param array $prices currency, precision, prices_include_tax
      */
-    public static function viewItemList(string $listId, string $listName, $products, int $firstIndex): array
+    public static function viewItemList(array $list, $products, int $firstIndex, array $prices): array
     {
         $items = [];
         $rawProducts = [];
         $index = $firstIndex;
         foreach ($products as $product) {
-            $items[] = self::item($product) + ['index' => $index++];
+            $items[] = self::item($product, $prices) + ['index' => $index++];
             $rawProducts[] = self::rawProduct($product);
         }
 
-        return [
-            'item_list_id' => $listId,
-            'item_list_name' => $listName,
+        return $list + [
+            'currency' => $prices['currency'],
             'items' => $items,
-            'raw' => ['list_id' => $listId, 'list_name' => $listName, 'products' => $rawProducts],
+            'raw' => $list + ['products' => $rawProducts],
         ];
+    }
+
+    /**
+     * GA4 indexes count from 0 across pages; PrestaShop's items_shown_from counts from 1.
+     *
+     * @param array|\ArrayAccess $pagination
+     */
+    public static function firstIndex($pagination): int
+    {
+        return isset($pagination['items_shown_from']) ? max(0, (int) $pagination['items_shown_from'] - 1) : 0;
     }
 
     /**
      * @param array|\ArrayAccess $product
      */
-    private static function item($product): array
+    private static function item($product, array $prices): array
     {
-        $item = [
-            'item_id' => (string) $product['id_product'],
-            'item_name' => (string) $product['name'],
-        ];
+        $item = ['item_id' => (string) $product['id_product']];
+        $name = (string) self::field($product, 'name');
+        if ($name !== '') {
+            $item['item_name'] = $name;
+        }
         $variantId = (int) self::field($product, 'id_product_attribute');
         if ($variantId > 0) {
             $item['variant_id'] = (string) $variantId;
@@ -113,10 +131,24 @@ class StorefrontEvents
         if ($variant !== '') {
             $item['item_variant'] = $variant;
         }
-        // The price the shopper sees, after discount.
-        $item['price'] = (float) self::field($product, 'price_amount');
+        $item['price'] = round(self::priceTaxExcluded($product, $prices), $prices['precision']);
 
         return $item;
+    }
+
+    /**
+     * The price after discount, tax excluded: PrestaShop's price_tax_exc, or the displayed price without its tax rate.
+     *
+     * @param array|\ArrayAccess $product
+     */
+    private static function priceTaxExcluded($product, array $prices): float
+    {
+        if (isset($product['price_tax_exc'])) {
+            return (float) $product['price_tax_exc'];
+        }
+        $displayed = (float) self::field($product, 'price_amount');
+
+        return $prices['prices_include_tax'] ? $displayed / (1 + (float) self::field($product, 'rate') / 100) : $displayed;
     }
 
     /**

@@ -357,74 +357,101 @@ class AskDialog extends Module
     /**
      * Hands the page's commerce events to the storefront tag: view_item on a product page,
      * view_item_list on a category or search results page. Rendered with the footer, once the
-     * controller has assigned the product or the listing to the templates.
+     * controller has assigned the product or the listing to the templates. On a listing page, the
+     * script also sends view_item_list when faceted search reloads the products through AJAX.
      */
     private function storefrontEventsScript(): string
     {
-        $events = [];
         try {
-            $events = $this->storefrontEvents();
+            $page = $this->storefrontPage();
+            if ($page['events'] === [] && $page['listing'] === null) {
+                return '';
+            }
+
+            $this->context->smarty->assign([
+                'storefront_events_json' => self::scriptJson($page['events']),
+                'storefront_listing_json' => self::scriptJson($page['listing']),
+            ]);
+
+            return $this->display(__FILE__, 'views/templates/hook/storefrontevents.tpl');
         } catch (Throwable $e) {
             // Analytics must never take down a storefront page.
             Logger::log('[AskDialog] Storefront events error: ' . $e->getMessage(), 3);
-        }
-        if ($events === []) {
+
             return '';
         }
-
-        $this->context->smarty->assign(
-            'storefront_events_json',
-            json_encode($events, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_PARTIAL_OUTPUT_ON_ERROR)
-        );
-
-        return $this->display(__FILE__, 'views/templates/hook/storefrontevents.tpl');
     }
 
     /**
-     * @return array list of [GA4 event name, parameters]
+     * @param mixed $value
      */
-    private function storefrontEvents(): array
+    private static function scriptJson($value): string
+    {
+        $json = json_encode($value, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_PRESERVE_ZERO_FRACTION | JSON_PARTIAL_OUTPUT_ON_ERROR);
+
+        return $json === false ? 'null' : $json;
+    }
+
+    /**
+     * @return array{events: array, listing: array|null} the events as [GA4 event name, parameters],
+     *                                                    and the list the AJAX reloads belong to
+     */
+    private function storefrontPage(): array
     {
         $controller = $this->context->controller;
         $smarty = $this->context->smarty;
+        $none = ['events' => [], 'listing' => null];
 
         if ($controller instanceof ProductController) {
             $product = $smarty->getTemplateVars('product');
             if (empty($product['id_product'])) {
-                return [];
+                return $none;
             }
+            $event = StorefrontEvents::viewItem($product, $this->storefrontPrices());
 
-            return [['view_item', StorefrontEvents::viewItem($product, $this->context->currency->iso_code)]];
+            return ['events' => [['view_item', $event]], 'listing' => null];
         }
 
         if ($controller instanceof CategoryController) {
             $category = $smarty->getTemplateVars('category');
             if (empty($category['id'])) {
-                return [];
+                return $none;
             }
 
-            return $this->viewItemListEvent('category_' . (int) $category['id'], (string) $category['name']);
+            return $this->listingPage('category_' . (int) $category['id'], (string) $category['name']);
         }
 
         if ($controller instanceof SearchController) {
-            return $this->viewItemListEvent('search_results', 'Search results');
+            return $this->listingPage('search_results', 'Search results');
         }
 
-        return [];
+        return $none;
     }
 
-    private function viewItemListEvent(string $listId, string $listName): array
+    private function listingPage(string $listId, string $listName): array
     {
+        $list = ['item_list_id' => $listId, 'item_list_name' => $listName];
+        $prices = $this->storefrontPrices();
         $listing = $this->context->smarty->getTemplateVars('listing');
-        if (empty($listing['products'])) {
-            return [];
+        $events = [];
+        if (!empty($listing['products'])) {
+            $pagination = isset($listing['pagination']) ? $listing['pagination'] : [];
+            $events[] = ['view_item_list', StorefrontEvents::viewItemList($list, $listing['products'], StorefrontEvents::firstIndex($pagination), $prices)];
         }
-        // items_shown_from counts from 1 across pages; GA4 indexes count from 0.
-        $firstIndex = isset($listing['pagination']['items_shown_from'])
-            ? max(0, (int) $listing['pagination']['items_shown_from'] - 1)
-            : 0;
 
-        return [['view_item_list', StorefrontEvents::viewItemList($listId, $listName, $listing['products'], $firstIndex)]];
+        return ['events' => $events, 'listing' => $list + $prices];
+    }
+
+    /**
+     * How the page's prices read: the currency, its precision, and whether displayed prices include tax.
+     */
+    private function storefrontPrices(): array
+    {
+        return [
+            'currency' => $this->context->currency->iso_code,
+            'precision' => method_exists($this->context, 'getComputingPrecision') ? (int) $this->context->getComputingPrecision() : 2,
+            'prices_include_tax' => Product::getTaxCalculationMethod((int) $this->context->cookie->id_customer) === PS_TAX_INC,
+        ];
     }
 
     /**
