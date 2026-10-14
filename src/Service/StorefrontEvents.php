@@ -43,6 +43,7 @@ class StorefrontEvents
         'reference',
         'price_amount',
         'price_tax_exc',
+        'price_with_reduction_without_tax',
         'rate',
         'regular_price_amount',
         'has_discount',

@@ -31,7 +31,7 @@
 {literal}
         // Faceted search reloads the products through AJAX (filters, sort, pagination) without
         // rendering the footer again: the same view_item_list as StorefrontEvents::viewItemList.
-        var RAW_FIELDS = ['id_product', 'id_product_attribute', 'name', 'reference', 'price_amount', 'price_tax_exc', 'rate',
+        var RAW_FIELDS = ['id_product', 'id_product_attribute', 'name', 'reference', 'price_amount', 'price_tax_exc', 'price_with_reduction_without_tax', 'rate',
             'regular_price_amount', 'has_discount', 'discount_type', 'discount_percentage', 'discount_amount',
             'id_manufacturer', 'manufacturer_name', 'id_category_default', 'category_name', 'attributes'];
         var present = function (value) {
@@ -44,6 +44,9 @@
         var priceTaxExcluded = function (product) {
             if (present(product.price_tax_exc)) {
                 return Number(product.price_tax_exc);
+            }
+            if (present(product.price_with_reduction_without_tax)) {
+                return Number(product.price_with_reduction_without_tax);
             }
             var displayed = Number(product.price_amount) || 0;
             return list.prices_include_tax ? displayed / (1 + (Number(product.rate) || 0) / 100) : displayed;
