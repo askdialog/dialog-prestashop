@@ -59,8 +59,8 @@ class PurchaseEvent
             $items[] = self::item($line, $index, (int) $order->id_lang);
         }
         $value = 0.0;
-        foreach ($items as $item) {
-            $value += $item['price'] * $item['quantity'];
+        foreach ($lines as $line) {
+            $value += (float) $line['unit_price_tax_excl'] * (int) $line['product_quantity'];
         }
         $coupons = array_filter(array_map(function ($cartRule) {
             return (string) $cartRule['name'];
@@ -76,7 +76,12 @@ class PurchaseEvent
             'items' => $items,
             'raw' => [
                 'order' => self::rawOrder($order),
-                'order_details' => $lines,
+                // A downloadable product's hash opens its download link: it stays in the shop.
+                'order_details' => array_map(function (array $line) {
+                    unset($line['download_hash']);
+
+                    return $line;
+                }, $lines),
                 'cart_rules' => $cartRules,
             ],
         ];
