@@ -114,7 +114,7 @@ class StorefrontEvents
             $item['item_variant'] = $variant;
         }
         // The price the shopper sees, after discount.
-        $item['price'] = round((float) self::field($product, 'price_amount'), 2);
+        $item['price'] = (float) self::field($product, 'price_amount');
 
         return $item;
     }
