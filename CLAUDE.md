@@ -34,7 +34,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `views/js/ai-input.js`: AI input for general pages
 - `views/js/instant.js`: Instant questions on product pages
 - `views/js/setupModal.js`: Modal configuration
-- `views/js/cart-integration.js`: Assistant add to cart, and the cart storefront events handed to the storefront tag (`add_to_cart` from PrestaShop's front `updateCart` event, `view_cart` on the cart page, `begin_checkout` on the checkout page, once per cart content and session)
+- `views/js/cart-integration.js`: Assistant add to cart, and the cart storefront events handed to the storefront tag, amounts tax excluded after discount (`add_to_cart` on PrestaShop's front `updateCart` event for an add or a cart-page increase, with the quantity of the cart request seen through jQuery `ajaxSend`; `view_cart` on the cart page; `begin_checkout` on the checkout page, once per cart id and content, the cart id coming from `askdialogCartId`)
 
 ### 3. Public API
 - Provides product and catalog data to Dialog AI

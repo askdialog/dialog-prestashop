@@ -218,6 +218,11 @@ class AskDialog extends Module
 
         // index.js - loaded directly in displayfooterafter.tpl with type="module"
 
+        // The checkout's begin_checkout goes once per cart: cart-integration.js needs its id
+        if ($this->context->controller instanceof OrderController && $this->context->cart !== null) {
+            \Media::addJsDef(['askdialogCartId' => (int) $this->context->cart->id]);
+        }
+
         // cart-integration.js - PrestaShop-specific cart integration (must stay local)
         $this->context->controller->registerJavascript(
             'module-askdialog-cart-integration',

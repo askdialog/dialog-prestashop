@@ -127,11 +127,17 @@
         return Math.round(amount * 100) / 100;
     }
 
-    // A presented PrestaShop cart line as a GA4 item; `price` is the unit price shown, after discount.
+    // A presented PrestaShop cart line as a GA4 item. Amounts are tax excluded, after discount, as in
+    // every storefront event of the module; the displayed ones stay in `raw`.
     function lineItem(line, quantity) {
-        var price = Number(line.price_amount);
-        var regularPrice = Number(line.regular_price_amount);
+        var price = Number(line.price_with_reduction_without_tax);
+        var shownPrice = Number(line.price_amount);
+        var shownRegularPrice = Number(line.regular_price_amount);
         var variantId = Number(line.id_product_attribute);
+        // The shown discount ratio, applied to the tax-excluded price.
+        var discount = line.has_discount && shownRegularPrice > shownPrice && shownPrice > 0
+            ? roundAmount(price * (shownRegularPrice / shownPrice - 1))
+            : undefined;
 
         return {
             item_id: String(line.id_product),
@@ -140,8 +146,8 @@
             item_category: line.category || undefined,
             item_variant: line.attributes_small || undefined,
             variant_id: variantId > 0 ? String(variantId) : undefined,
-            price: price,
-            discount: line.has_discount && regularPrice > price ? roundAmount(regularPrice - price) : undefined,
+            price: roundAmount(price),
+            discount: discount,
             quantity: quantity
         };
     }
@@ -162,18 +168,11 @@
         }
     }
 
-    function sameLine(line, idProduct, idProductAttribute, idCustomization) {
-        return Number(line.id_product) === Number(idProduct)
-            && Number(line.id_product_attribute || 0) === Number(idProductAttribute || 0)
-            && Number(line.id_customization || 0) === Number(idCustomization || 0);
-    }
-
     function lineKey(line) {
         return [line.id_product, line.id_product_attribute || 0, line.id_customization || 0].join(':');
     }
 
-    // Line quantities of the last cart seen: the theme's add to cart answers with the line's
-    // new total, so the quantity added is the difference.
+    // Line quantities of the last cart seen, the fallback when the add request was not seen.
     var knownLineQuantities = {};
 
     function rememberCart(cart) {
@@ -183,31 +182,88 @@
         });
     }
 
-    // PrestaShop's front `updateCart` event, emitted by the theme after an add to cart
-    // (`reason.linkAction`) and by askDialogAddToCart above (`reason.action`, with the quantity requested).
+    // Quantities requested by the cart requests still waiting for their `updateCart`: an add
+    // (theme, quick view, assistant) or a "+" on the cart page. A decrease is not an add.
+    var pendingAdds = [];
+
+    function requestParameters(settings) {
+        var query = String(settings.url || '').split('?')[1] || '';
+        var data = typeof settings.data === 'string' ? settings.data : '';
+        var parameters = {};
+        (query + '&' + data).split('&').forEach(function (pair) {
+            var parts = pair.split('=');
+            if (parts[0]) {
+                parameters[decodeURIComponent(parts[0])] = decodeURIComponent((parts[1] || '').replace(/\+/g, ' '));
+            }
+        });
+
+        return parameters;
+    }
+
+    function isCartRequest(url, parameters) {
+        var cartUrl = prestashop.urls && prestashop.urls.pages && prestashop.urls.pages.cart;
+
+        return parameters.controller === 'cart'
+            || (typeof cartUrl === 'string' && String(url).split('?')[0] === cartUrl.split('?')[0]);
+    }
+
+    function onAjaxSend(event, xhr, settings) {
+        var parameters = requestParameters(settings);
+        if (!isCartRequest(settings.url, parameters) || !parameters.id_product) {
+            return;
+        }
+        var isAdd = parameters.add === '1' || (parameters.update === '1' && parameters.op === 'up');
+        if (!isAdd) {
+            return;
+        }
+        pendingAdds.push({ idProduct: Number(parameters.id_product), quantity: Number(parameters.qty) || 1 });
+    }
+
+    function takePendingAdd(idProduct) {
+        for (var i = 0; i < pendingAdds.length; i++) {
+            if (pendingAdds[i].idProduct === Number(idProduct)) {
+                return pendingAdds.splice(i, 1)[0];
+            }
+        }
+
+        return null;
+    }
+
+    // The quantity PrestaShop actually added: the one requested, never more than the line holds
+    // nor than its growth since the last cart seen (when that cart is not stale, i.e. it grew).
+    function addedQuantity(requested, line, previousQuantity) {
+        var lineQuantity = Number(line.quantity);
+        var growth = lineQuantity - previousQuantity;
+        if (requested === null) {
+            return growth;
+        }
+        var added = Math.min(requested, lineQuantity);
+
+        return growth > 0 ? Math.min(added, growth) : added;
+    }
+
+    // PrestaShop's front `updateCart` event: its response carries the updated cart, whatever
+    // emitted it (theme add to cart, cart page quantity, askDialogAddToCart above).
     function onUpdateCart(event) {
-        var reason = event && event.reason;
+        var reason = event && event.reason || {};
         var resp = event && event.resp;
-        if (!resp || resp.hasError || !resp.cart || !resp.cart.products) {
+        if (!resp || resp.hasError || !resp.cart || !resp.cart.products || !resp.id_product) {
             return;
         }
         var previousQuantities = knownLineQuantities;
         rememberCart(resp.cart);
-        if (!reason || (reason.linkAction !== 'add-to-cart' && reason.action !== 'add-to-cart')) {
+        var pending = takePendingAdd(resp.id_product);
+        var isAdd = pending !== null || reason.linkAction === 'add-to-cart' || reason.action === 'add-to-cart';
+        if (!isAdd) {
             return;
         }
-        var idProduct = resp.id_product || reason.idProduct;
-        var idProductAttribute = resp.id_product_attribute || reason.idProductAttribute;
-        var idCustomization = resp.id_customization || reason.idCustomization;
         var line = resp.cart.products.filter(function (candidate) {
-            return sameLine(candidate, idProduct, idProductAttribute, idCustomization);
+            return lineKey(candidate) === lineKey(resp);
         })[0];
         if (!line) {
             return;
         }
-        var quantity = reason.quantity !== undefined
-            ? Number(reason.quantity)
-            : Number(line.quantity) - (previousQuantities[lineKey(line)] || 0);
+        var quantity = addedQuantity(pending ? pending.quantity : null, line, previousQuantities[lineKey(line)] || 0);
         if (!(quantity > 0)) {
             return;
         }
@@ -217,10 +273,10 @@
             value: itemsValue(items),
             items: items,
             raw: {
-                id_product: idProduct,
-                id_product_attribute: idProductAttribute,
-                id_customization: idCustomization,
-                quantity: quantity,
+                id_product: resp.id_product,
+                id_product_attribute: resp.id_product_attribute,
+                id_customization: resp.id_customization,
+                quantity_requested: pending ? pending.quantity : undefined,
                 line: rawLine(line)
             }
         });
@@ -239,16 +295,16 @@
         };
     }
 
-    // The checkout page reloads on every step: begin_checkout goes once per cart content and session.
+    // The checkout page reloads on every step: begin_checkout goes once per cart and content.
     function isNewCheckout(cart) {
-        var signature = cart.products.map(function (line) {
-            return [line.id_product, line.id_product_attribute, line.id_customization, line.quantity].join(':');
-        }).join('|');
+        var marker = [window.askdialogCartId].concat(cart.products.map(function (line) {
+            return lineKey(line) + 'x' + line.quantity;
+        })).join('|');
         try {
-            if (window.sessionStorage.getItem('dialog_begin_checkout') === signature) {
+            if (window.sessionStorage.getItem('dialog_begin_checkout') === marker) {
                 return false;
             }
-            window.sessionStorage.setItem('dialog_begin_checkout', signature);
+            window.sessionStorage.setItem('dialog_begin_checkout', marker);
         } catch (e) {}
 
         return true;
@@ -270,6 +326,9 @@
 
     if (typeof prestashop !== 'undefined' && typeof prestashop.on === 'function') {
         rememberCart(prestashop.cart);
+        if (typeof jQuery !== 'undefined') {
+            jQuery(document).ajaxSend(onAjaxSend);
+        }
         prestashop.on('updateCart', onUpdateCart);
         sendCartPageEvent();
     }
