@@ -68,11 +68,16 @@ class AskDialog extends Module
      */
     private const DIALOG_EXTENSION_ASSETS_URL = 'https://cdn.shopify.com/extensions/01a0fc0a-8f70-7922-aaf7-eb7761b97d79/dialog-e-commerce-ai-agent-553/assets/';
 
+    /**
+     * Storefront tag: sends the storefront events to Dialog's storefront collector
+     */
+    private const STOREFRONT_TAG_URL = 'https://cdn.askdialog.com/assets/storefront-tag.js';
+
     public function __construct()
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.3.0';
+        $this->version = '1.4.0';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -116,6 +121,7 @@ class AskDialog extends Module
         return parent::install()
             && $this->installDb()
             && $this->registerHook('actionFrontControllerSetMedia')
+            && $this->registerHook('displayHeader')
             && $this->registerHook('displayFooterAfter')
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('displayOrderConfirmation')
@@ -221,6 +227,17 @@ class AskDialog extends Module
                 'priority' => 200,
             ]
         );
+    }
+
+    /**
+     * Loads the storefront tag in the head, ahead of the assistant scripts at the bottom of the page,
+     * with the dialogLayer queue and the producer declared before it.
+     */
+    public function hookDisplayHeader()
+    {
+        $this->context->smarty->assign('storefront_tag_url', self::STOREFRONT_TAG_URL);
+
+        return $this->display(__FILE__, 'views/templates/hook/displayheader.tpl');
     }
 
     public function hookDisplayOrderConfirmation($params)
