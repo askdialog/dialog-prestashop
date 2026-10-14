@@ -265,16 +265,21 @@ class AskDialog extends Module
         // transaction_id, which dbt counts once. Throwable, as above: the page must render regardless.
         $purchase = null;
         try {
-            $purchase = PurchaseEvent::fromOrder($order);
+            $purchase = json_encode(
+                PurchaseEvent::fromOrder($order),
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE
+                | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_INVALID_UTF8_SUBSTITUTE
+            );
+            if ($purchase === false) {
+                Logger::log('[AskDialog] Storefront purchase encoding error: ' . json_last_error_msg(), 3);
+                $purchase = null;
+            }
         } catch (Throwable $e) {
             Logger::log('[AskDialog] Storefront purchase error: ' . $e->getMessage(), 3);
         }
 
         $this->context->smarty->assign([
-            'storefront_purchase' => $purchase === null ? null : json_encode(
-                $purchase,
-                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION
-            ),
+            'storefront_purchase' => $purchase,
             'order_reference' => $order->reference,
             'order_total' => $order->total_paid,
             'customer_name' => $customer->firstname . ' ' . $customer->lastname,

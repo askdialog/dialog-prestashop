@@ -46,45 +46,72 @@ class PurchaseEvent
     ];
 
     /**
+     * Order line columns kept in `raw`: what was sold, no cost price, supplier or download data.
+     */
+    private const RAW_LINE_FIELDS = [
+        'id_order_detail', 'id_order', 'id_shop', 'product_id', 'product_attribute_id', 'id_customization',
+        'product_name', 'product_reference', 'product_ean13', 'product_isbn', 'product_upc', 'product_mpn',
+        'product_quantity', 'product_weight', 'product_price', 'original_product_price',
+        'reduction_percent', 'reduction_amount', 'reduction_amount_tax_incl', 'reduction_amount_tax_excl',
+        'group_reduction', 'product_quantity_discount', 'ecotax', 'tax_name', 'tax_rate',
+        'unit_price_tax_incl', 'unit_price_tax_excl', 'total_price_tax_incl', 'total_price_tax_excl',
+        'total_shipping_price_tax_incl', 'total_shipping_price_tax_excl',
+    ];
+
+    /**
+     * A cart split across carriers becomes several orders sharing one reference: the purchase covers them all.
+     *
      * @param \Order $order
      *
      * @return array GA4 purchase parameters: amounts in the order's currency, prices tax excluded
      */
     public static function fromOrder(\Order $order): array
     {
-        $lines = $order->getOrderDetailList();
-        $cartRules = $order->getCartRules();
+        $orders = [];
+        foreach (\Order::getByReference($order->reference) as $sibling) {
+            $orders[] = $sibling;
+        }
+        if ($orders === []) {
+            $orders = [$order];
+        }
+
+        $lines = [];
+        $cartRules = [];
+        $tax = 0.0;
+        $shipping = 0.0;
+        foreach ($orders as $sibling) {
+            $lines = array_merge($lines, $sibling->getOrderDetailList());
+            $cartRules = array_merge($cartRules, $sibling->getCartRules());
+            $tax += (float) $sibling->total_paid_tax_incl - (float) $sibling->total_paid_tax_excl;
+            $shipping += (float) $sibling->total_shipping_tax_excl;
+        }
+
         $items = [];
+        $value = 0.0;
         foreach ($lines as $index => $line) {
             $items[] = self::item($line, $index, (int) $order->id_lang);
-        }
-        $value = 0.0;
-        foreach ($lines as $line) {
             $value += (float) $line['unit_price_tax_excl'] * (int) $line['product_quantity'];
         }
-        $coupons = array_filter(array_map(function ($cartRule) {
-            return (string) $cartRule['name'];
-        }, $cartRules));
 
         $parameters = [
             'transaction_id' => (string) $order->reference,
             'currency' => (new \Currency((int) $order->id_currency))->iso_code,
             'value' => self::amount($value),
-            'tax' => self::amount((float) $order->total_paid_tax_incl - (float) $order->total_paid_tax_excl),
-            'shipping' => self::amount((float) $order->total_shipping_tax_excl),
+            'tax' => self::amount($tax),
+            'shipping' => self::amount($shipping),
             'customer_type' => self::isFirstOrder($order) ? 'new' : 'returning',
             'items' => $items,
             'raw' => [
-                'order' => self::rawOrder($order),
-                // A downloadable product's hash opens its download link: it stays in the shop.
+                'orders' => array_map(function (\Order $sibling) {
+                    return self::pick(get_object_vars($sibling), self::RAW_ORDER_FIELDS);
+                }, $orders),
                 'order_details' => array_map(function (array $line) {
-                    unset($line['download_hash']);
-
-                    return $line;
+                    return self::pick($line, self::RAW_LINE_FIELDS);
                 }, $lines),
                 'cart_rules' => $cartRules,
             ],
         ];
+        $coupons = self::couponCodes($cartRules);
         if ($coupons !== []) {
             $parameters['coupon'] = implode(',', $coupons);
         }
@@ -116,11 +143,9 @@ class PurchaseEvent
         $product = new \Product($idProduct, false, $idLang);
         if (\Validate::isLoadedObject($product)) {
             $item['item_name'] = (string) $product->name;
-            // The order line names the product with its combination: "T-shirt (Size: M - Color: White)"
-            // from PrestaShop 8, "T-shirt - Size : M, Color : White" before.
-            if ($idProductAttribute > 0 && strpos($line['product_name'], $product->name) === 0) {
-                $variant = trim(substr($line['product_name'], strlen($product->name)), ' -()');
-                if ($variant !== '') {
+            if ($idProductAttribute > 0) {
+                $variant = self::variantLabel((string) $line['product_name'], (string) $product->name);
+                if ($variant !== null) {
                     $item['item_variant'] = $variant;
                 }
             }
@@ -142,7 +167,49 @@ class PurchaseEvent
     }
 
     /**
-     * New when no earlier order carries the customer's email: a guest checkout creates a new guest account each time.
+     * The order line names the product with its combination: "T-shirt (Size: M - Color: White)" from
+     * PrestaShop 8, "T-shirt - Size : M, Color : White" before.
+     */
+    private static function variantLabel(string $lineName, string $productName): ?string
+    {
+        if ($productName === '' || strpos($lineName, $productName) !== 0) {
+            return null;
+        }
+        $rest = substr($lineName, strlen($productName));
+        if (strpos($rest, ' (') === 0 && substr($rest, -1) === ')') {
+            $variant = substr($rest, 2, -1);
+        } elseif (strpos($rest, ' - ') === 0) {
+            $variant = substr($rest, 3);
+        } else {
+            return null;
+        }
+
+        return $variant === '' ? null : $variant;
+    }
+
+    /**
+     * GA4 `coupon` is the code the shopper typed; automatic cart rules have none.
+     *
+     * @param array $cartRules ps_order_cart_rule rows
+     *
+     * @return string[]
+     */
+    private static function couponCodes(array $cartRules): array
+    {
+        $codes = [];
+        foreach ($cartRules as $cartRule) {
+            $code = (string) (new \CartRule((int) $cartRule['id_cart_rule']))->code;
+            if ($code !== '') {
+                $codes[$code] = $code;
+            }
+        }
+
+        return array_values($codes);
+    }
+
+    /**
+     * New when no earlier valid order of this shop carries the customer's email: a guest checkout creates a
+     * new guest account each time, and a failed payment is not a purchase.
      */
     private static function isFirstOrder(\Order $order): bool
     {
@@ -151,20 +218,18 @@ class PurchaseEvent
             'SELECT COUNT(*) FROM `' . _DB_PREFIX_ . 'orders` o'
             . ' INNER JOIN `' . _DB_PREFIX_ . 'customer` c ON c.`id_customer` = o.`id_customer`'
             . ' WHERE c.`email` = \'' . pSQL((string) $email) . '\''
+            . ' AND o.`valid` = 1'
+            . ' AND o.`id_shop` = ' . (int) $order->id_shop
+            . ' AND o.`reference` <> \'' . pSQL((string) $order->reference) . '\''
             . ' AND o.`id_order` < ' . (int) $order->id
         );
 
         return $earlierOrders === 0;
     }
 
-    private static function rawOrder(\Order $order): array
+    private static function pick(array $row, array $fields): array
     {
-        $raw = [];
-        foreach (self::RAW_ORDER_FIELDS as $field) {
-            $raw[$field] = $order->{$field};
-        }
-
-        return $raw;
+        return array_intersect_key($row, array_flip($fields));
     }
 
     private static function amount(float $amount): float
