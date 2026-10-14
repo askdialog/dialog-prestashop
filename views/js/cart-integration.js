@@ -186,6 +186,14 @@
     // (theme, quick view, assistant) or a "+" on the cart page. A decrease is not an add.
     var pendingAdds = [];
 
+    function decodeParameter(value) {
+        try {
+            return decodeURIComponent(value.replace(/\+/g, ' '));
+        } catch (e) {
+            return '';
+        }
+    }
+
     function requestParameters(settings) {
         var query = String(settings.url || '').split('?')[1] || '';
         var data = typeof settings.data === 'string' ? settings.data : '';
@@ -193,32 +201,45 @@
         (query + '&' + data).split('&').forEach(function (pair) {
             var parts = pair.split('=');
             if (parts[0]) {
-                parameters[decodeURIComponent(parts[0])] = decodeURIComponent((parts[1] || '').replace(/\+/g, ' '));
+                parameters[decodeParameter(parts[0])] = decodeParameter(parts[1] || '');
             }
         });
 
         return parameters;
     }
 
-    function isCartRequest(url, parameters) {
+    // Checked on the raw request, before parsing anything: every jQuery request of the page comes here.
+    function isCartRequest(settings) {
+        var url = String(settings.url || '');
+        var data = typeof settings.data === 'string' ? settings.data : '';
         var cartUrl = prestashop.urls && prestashop.urls.pages && prestashop.urls.pages.cart;
 
-        return parameters.controller === 'cart'
-            || (typeof cartUrl === 'string' && String(url).split('?')[0] === cartUrl.split('?')[0]);
+        return /(^|[?&])controller=cart(&|$)/.test(url.split('?')[1] || '')
+            || /(^|&)controller=cart(&|$)/.test(data)
+            || (typeof cartUrl === 'string' && url.split('?')[0] === cartUrl.split('?')[0]);
     }
 
-    function onAjaxSend(event, xhr, settings) {
+    function trackCartRequest(xhr, settings) {
+        if (!isCartRequest(settings)) {
+            return;
+        }
         var parameters = requestParameters(settings);
-        if (!isCartRequest(settings.url, parameters) || !parameters.id_product) {
+        var idProduct = Number(parameters.id_product);
+        if (!idProduct) {
             return;
         }
         var isAdd = parameters.add === '1' || (parameters.update === '1' && parameters.op === 'up');
         if (!isAdd) {
+            // A decrease or a removal of the product: no earlier add of it may still be waiting.
+            pendingAdds = pendingAdds.filter(function (pending) {
+                return pending.idProduct !== idProduct;
+            });
+
             return;
         }
         pendingAdds.push({
             xhr: xhr,
-            idProduct: Number(parameters.id_product),
+            idProduct: idProduct,
             // Absent on the theme's add, which sends the attribute groups instead.
             idProductAttribute: parameters.id_product_attribute !== undefined ? Number(parameters.id_product_attribute) : null,
             quantity: Number(parameters.qty) || 1
@@ -227,7 +248,13 @@
 
     // A request answered with an error or without the cart gets no `updateCart` to consume it: drop it,
     // so a later change of the same line does not count as this add.
-    function onAjaxComplete(event, xhr) {
+    function dropFailedRequest(xhr) {
+        var isPending = pendingAdds.some(function (pending) {
+            return pending.xhr === xhr;
+        });
+        if (!isPending) {
+            return;
+        }
         var resp = null;
         try {
             resp = JSON.parse(xhr.responseText);
@@ -238,6 +265,15 @@
         pendingAdds = pendingAdds.filter(function (pending) {
             return pending.xhr !== xhr;
         });
+    }
+
+    // Storefront tracking must never throw into jQuery's or PrestaShop's event dispatch.
+    function guarded(handler) {
+        return function () {
+            try {
+                handler.apply(null, arguments);
+            } catch (e) {}
+        };
     }
 
     function takePendingAdd(resp) {
@@ -348,11 +384,15 @@
     }
 
     if (typeof prestashop !== 'undefined' && typeof prestashop.on === 'function') {
-        rememberCart(prestashop.cart);
         if (typeof jQuery !== 'undefined') {
-            jQuery(document).ajaxSend(onAjaxSend).ajaxComplete(onAjaxComplete);
+            jQuery(document)
+                .ajaxSend(guarded(function (event, xhr, settings) { trackCartRequest(xhr, settings); }))
+                .ajaxComplete(guarded(function (event, xhr) { dropFailedRequest(xhr); }));
         }
-        prestashop.on('updateCart', onUpdateCart);
-        sendCartPageEvent();
+        prestashop.on('updateCart', guarded(onUpdateCart));
+        guarded(function () {
+            rememberCart(prestashop.cart);
+            sendCartPageEvent();
+        })();
     }
 })();
