@@ -53,7 +53,8 @@ class StockRepository extends AbstractRepository
                     sa.id_product,
                     sa.quantity,
                     sa.physical_quantity,
-                    sa.reserved_quantity
+                    sa.reserved_quantity,
+                    sa.out_of_stock
                 FROM ' . $this->getPrefix() . 'stock_available sa
                 WHERE sa.id_product IN (' . $this->escapeIds($productIds) . ')
                     AND sa.id_product_attribute = 0
@@ -99,6 +100,38 @@ class StockRepository extends AbstractRepository
         }
 
         return $this->indexBy($results, 'id_product_attribute');
+    }
+
+    /**
+     * Product-level out_of_stock of each shop, for a multistore export where
+     * every shop allows or refuses orders at zero stock on its own.
+     *
+     * @param array $productIds Array of product IDs
+     * @param array $shopIds Array of shop IDs
+     *
+     * @return array id_shop => [id_product => out_of_stock]
+     */
+    public function findOutOfStockByProductIdsPerShop(array $productIds, array $shopIds)
+    {
+        $outOfStockByShop = [];
+        if (empty($productIds)) {
+            return $outOfStockByShop;
+        }
+
+        foreach ($shopIds as $idShop) {
+            $sql = 'SELECT sa.id_product, sa.out_of_stock
+                    FROM ' . $this->getPrefix() . 'stock_available sa
+                    WHERE sa.id_product IN (' . $this->escapeIds($productIds) . ')
+                        AND sa.id_product_attribute = 0
+                        AND ' . $this->getStockShopRestriction($idShop);
+
+            $outOfStockByShop[(int) $idShop] = [];
+            foreach ($this->executeS($sql) ?: [] as $row) {
+                $outOfStockByShop[(int) $idShop][(int) $row['id_product']] = (int) $row['out_of_stock'];
+            }
+        }
+
+        return $outOfStockByShop;
     }
 
     /**
