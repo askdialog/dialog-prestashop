@@ -73,6 +73,7 @@ class ProductExportService
     private $productTagsData = [];
     private $productFeaturesData = [];
     private $productShopsData = [];
+    private $outOfStockByShop = [];
 
     // Per-language data for translationsByLocale (indexed for O(1) lookup)
     private $productNamesByLanguage = [];
@@ -134,6 +135,7 @@ class ProductExportService
         $this->productTagsData = [];
         $this->productFeaturesData = [];
         $this->productShopsData = [];
+        $this->outOfStockByShop = [];
         $this->productNamesByLanguage = [];
         $this->combinationAttributesByLanguage = [];
         $this->productOptionsByLanguage = [];
@@ -503,6 +505,15 @@ class ProductExportService
         if ($this->isMultistore) {
             $this->productShopsData = $this->productRepository->getActiveShopsByProductIds($productIds);
             Logger::log('[AskDialog] bulkLoadData: [11/11] Product shops loaded: ' . count($this->productShopsData), 1);
+
+            $shopIds = [];
+            foreach (array_keys($this->productShopsData) as $productId) {
+                $shopIds = array_merge($shopIds, $this->activeShopIdsFor($productId));
+            }
+            $this->outOfStockByShop = $this->stockRepository->findOutOfStockByProductIdsPerShop(
+                $productIds,
+                array_unique($shopIds)
+            );
         }
 
         Logger::log('[AskDialog] bulkLoadData: COMPLETED', 1);
@@ -787,17 +798,58 @@ class ProductExportService
      * resolves the "default" value (2) against PS_ORDER_OUT_OF_STOCK and returns
      * true when stock management is disabled.
      *
+     * Dialog carries one policy per variant for every market, so a multistore
+     * product is CONTINUE only when each shop selling it takes the order.
+     *
      * @param int $productId
      *
      * @return string
      */
     private function inventoryPolicy($productId)
     {
-        $outOfStock = isset($this->productStockData[$productId]['out_of_stock'])
-            ? (int) $this->productStockData[$productId]['out_of_stock']
-            : 0;
+        if (!$this->isMultistore) {
+            $outOfStock = isset($this->productStockData[$productId]['out_of_stock'])
+                ? (int) $this->productStockData[$productId]['out_of_stock']
+                : 0;
 
-        return \Product::isAvailableWhenOutOfStock($outOfStock) ? 'CONTINUE' : 'DENY';
+            return \Product::isAvailableWhenOutOfStock($outOfStock) ? 'CONTINUE' : 'DENY';
+        }
+
+        $shopIds = $this->activeShopIdsFor($productId);
+        if (empty($shopIds)) {
+            return 'DENY';
+        }
+
+        foreach ($shopIds as $idShop) {
+            $outOfStock = isset($this->outOfStockByShop[$idShop][$productId])
+                ? $this->outOfStockByShop[$idShop][$productId]
+                : 0;
+            if (!$this->shopTakesOrdersOutOfStock($outOfStock, $idShop)) {
+                return 'DENY';
+            }
+        }
+
+        return 'CONTINUE';
+    }
+
+    /**
+     * Product::isAvailableWhenOutOfStock with the given shop's configuration
+     * instead of the ambient one.
+     *
+     * @param int $outOfStock
+     * @param int $idShop
+     *
+     * @return bool
+     */
+    private function shopTakesOrdersOutOfStock($outOfStock, $idShop)
+    {
+        if (!ShopMarketMap::shopConfiguration('PS_STOCK_MANAGEMENT', $idShop)) {
+            return true;
+        }
+
+        return $outOfStock === 2
+            ? (bool) ShopMarketMap::shopConfiguration('PS_ORDER_OUT_OF_STOCK', $idShop)
+            : (bool) $outOfStock;
     }
 
     /**
