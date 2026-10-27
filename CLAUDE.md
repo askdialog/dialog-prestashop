@@ -24,16 +24,17 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `controllers/front/feed.php`: Export endpoint (private API key protected). **Only the compressed files are archived**, under `var/modules/askdialog/sent/shop_<id>/`, and only the newest export per shop is kept (`SENT_FILES_PER_EXPORT`). The uncompressed JSON is deleted after upload: nothing reads it, and it is an order of magnitude larger than the `.gz` (868 MB vs ~130 MB on a large catalogue) — keeping several days of both filled merchants' disks with gigabytes. **Archives are per shop on purpose**: the tree is shared across a multistore install while `downloadlatestexport.php` resolves the latest successful export *per shop*, so a shared directory lets one shop's retention delete another's archive — including that of a shop whose exports are currently failing. Archives written by earlier versions sit flat at the root; the download endpoint falls back to them, and they are cleared **only once every shop owns an archive** — removing them on any single shop's export would strip that fallback from a shop with a slower cadence or failing exports, which is the very cross-shop deletion the per-shop layout prevents.
 
 ### 2. Frontend SDK Integration
-- Loads Dialog conversational AI widget on frontend
+- Loads Dialog through the storefront tag only, `https://cdn.askdialog.com/assets/dialog.js` (1.5.0, DEC-3531): the tag loads the widget (`index.js`) and the product block (`dialog-product-block.js`) from the same CDN, so a merchant's Content-Security-Policy lists no Shopify or CloudFront host. Before 1.5.0 the module loaded the Shopify theme extension's `setupModal.js`/`instant.js` from `cdn.shopify.com` and `index.js` from `d2zm7i5bmzo6ze.cloudfront.net`
+- The module hands the tag a `dialogLayer` `config`: API key, the assistant's country (bound to the shop in multistore), language and display currency, and on product pages the product, its combination and the product block's slot and mode. The fields are documented in dialog-ecom, `docs/reference/DEC-3531_storefront-tag-store-modules.md`
+- The config declares no `producer`: the tag sends no storefront event for the module, so a shop also running the GTM template does not count its page views twice (the reason DAT-1632 was reverted)
 - Appearance (colors, font, borders) comes from the Dialog dashboard; the module declares none (removed in 1.3.0)
-- Can be enabled on product pages with instant questions
-- Analytics tracking with PostHog
+- Can be enabled on product pages with instant questions (`ASKDIALOG_ENABLE_PRODUCT_HOOK`, AI button mode with `ASKDIALOG_AI_BUTTON_MODE`)
+- Add to cart: the widget calls PrestaShop's CartController itself; `cart-integration.js` still exposes `window.askDialogAddToCart` and `window.askDialogAddCurrentProductToCart`
 
 **Key Files:**
-- `views/js/askdialog.js`: Main SDK
-- `views/js/ai-input.js`: AI input for general pages
-- `views/js/instant.js`: Instant questions on product pages
-- `views/js/setupModal.js`: Modal configuration
+- `askdialog.php`: `hookActionFrontControllerSetMedia` defines `askDialogConfig` and `DIALOG_VARIABLES` (`Media::addJsDef`, no inline script of the module's own) and registers the scripts
+- `views/js/dialog-layer.js`: pushes the config, again on the theme's `updatedProduct`, which re-renders the product block's slot
+- `views/templates/hook/displayproduct.tpl`: the product block's slot, `#dialog-product-block`, with the product and selected combination
 
 ### 3. Public API
 - Provides product and catalog data to Dialog AI
@@ -74,9 +75,9 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `ASKDIALOG_ENABLE_PRODUCT_HOOK`: Enable on product pages
 
 ### Hooks Used
-- `actionFrontControllerSetMedia`: Load CSS/JS files
-- `displayFooterAfter`: Inject Dialog SDK with configuration
-- `displayProductAdditionalInfo`: Display assistant on product pages
+- `actionFrontControllerSetMedia`: Load CSS/JS files and define the storefront tag's config
+- `displayProductAdditionalInfo`: Render the product block's slot on product pages
+- `displayFooterAfter`: no longer registered since 1.5.0 (`upgrade/upgrade-1.5.0.php`), it rendered the widget container the tag now creates
 - `actionFrontControllerInitBefore`: Handle CORS (currently commented)
 - `actionCartUpdateQuantityBefore`: Track add to cart events (PostHog PHP)
 - `actionValidateOrder`: Track order confirmation events (PostHog PHP)

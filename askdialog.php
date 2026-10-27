@@ -59,20 +59,15 @@ class AskDialog extends Module
     private const DIALOG_API_URL = 'https://api.askdialog.ai';
 
     /**
-     * Dialog SDK CDN URL
+     * Dialog's storefront tag: loads the assistant and the product block from the same CDN
      */
-    private const DIALOG_SDK_CDN_URL = 'https://d2zm7i5bmzo6ze.cloudfront.net/assets/index.js';
-
-    /**
-     * Shopify theme extension assets, pinned to one extension version
-     */
-    private const DIALOG_EXTENSION_ASSETS_URL = 'https://cdn.shopify.com/extensions/01a0fc0a-8f70-7922-aaf7-eb7761b97d79/dialog-e-commerce-ai-agent-553/assets/';
+    private const DIALOG_TAG_URL = 'https://cdn.askdialog.com/assets/dialog.js';
 
     public function __construct()
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.4.1';
+        $this->version = '1.5.0';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -116,7 +111,6 @@ class AskDialog extends Module
         return parent::install()
             && $this->installDb()
             && $this->registerHook('actionFrontControllerSetMedia')
-            && $this->registerHook('displayFooterAfter')
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('displayOrderConfirmation')
             && $this->registerHook('actionCartUpdateQuantityBefore')
@@ -161,56 +155,40 @@ class AskDialog extends Module
             ]
         );
 
-        // Register JS files from CDN
-        // Note: CDN URLs are temporary and will be updated in future versions
-        // Version parameter forces cache invalidation when module is updated
-        $jsParams = [
-            'position' => 'bottom',
-            'priority' => 200,
-            'server' => 'remote',
-            'version' => $this->version,
-            'attributes' => 'defer',
-        ];
+        // The config the module's dialogLayer snippet hands to the storefront tag
+        Media::addJsDef([
+            'askDialogConfig' => $this->dialogConfig(),
+            // Read by the widget to populate window.dialog.audit (DEC-2368)
+            'DIALOG_VARIABLES' => [
+                'integration' => [
+                    'platform' => 'prestashop',
+                    'moduleVersion' => $this->version,
+                    'psVersion' => _PS_VERSION_,
+                ],
+            ],
+        ]);
 
-        // Shopify compatibility patch - MUST load before instant.js (product pages only)
-        // This monkey-patches fetch/XMLHttpRequest to redirect Shopify API calls to PrestaShop endpoints
-        // WARNING: If additional Shopify errors appear, abandon this approach and create native implementation
-        if ($this->context->controller instanceof ProductController) {
-            $this->context->controller->registerJavascript(
-                'module-askdialog-shopify-compat-patch',
-                'modules/' . $this->name . '/views/js/shopify-compat-patch.js',
-                [
-                    'position' => 'bottom',
-                    'priority' => 190, // Must load BEFORE instant.js (priority 200)
-                ]
-            );
-        }
-
-        // setupModal.js - all pages
         $this->context->controller->registerJavascript(
-            'module-askdialog-setupmodal',
-            self::DIALOG_EXTENSION_ASSETS_URL . 'setupModal.js',
-            $jsParams
+            'module-askdialog-dialog-layer',
+            'modules/' . $this->name . '/views/js/dialog-layer.js',
+            [
+                'position' => 'bottom',
+                'priority' => 200,
+            ]
         );
 
-        // Load specific JS for product pages
-        if ($this->context->controller instanceof ProductController) {
-            // instant.js - product pages only
-            $this->context->controller->registerJavascript(
-                'module-askdialog-instant',
-                self::DIALOG_EXTENSION_ASSETS_URL . 'instant.js',
-                $jsParams
-            );
-        } else {
-            // ai-input.js - all pages except product pages
-            $this->context->controller->registerJavascript(
-                'module-askdialog-ai-input',
-                self::DIALOG_EXTENSION_ASSETS_URL . 'ai-input.js',
-                $jsParams
-            );
-        }
-
-        // index.js - loaded directly in displayfooterafter.tpl with type="module"
+        // Version parameter forces cache invalidation when module is updated
+        $this->context->controller->registerJavascript(
+            'module-askdialog-dialog-tag',
+            self::DIALOG_TAG_URL,
+            [
+                'position' => 'bottom',
+                'priority' => 200,
+                'server' => 'remote',
+                'version' => $this->version,
+                'attributes' => 'defer',
+            ]
+        );
 
         // cart-integration.js - PrestaShop-specific cart integration (must stay local)
         $this->context->controller->registerJavascript(
@@ -221,6 +199,44 @@ class AskDialog extends Module
                 'priority' => 200,
             ]
         );
+    }
+
+    /**
+     * The storefront tag's config: the assistant's market, language and display currency
+     *
+     * @return array
+     */
+    private function dialogConfig(): array
+    {
+        $idShop = (int) $this->context->shop->id;
+
+        // In multistore the currency is decided by the shop, not by the visitor:
+        // reporting a geolocated country served by another shop would have the
+        // assistant quote that shop's currency while the page shows this one's.
+        $shopMarketMap = new ShopMarketMap();
+        $countryCode = $shopMarketMap->boundCountryIso($idShop, $this->context->country->iso_code);
+
+        // The visitor-selected display currency and its per-shop rate
+        // (ps_currency_shop, relative to this shop's default currency). The
+        // widget converts only base-currency amounts with it, so exposing the
+        // base ISO alongside makes the rule self-contained.
+        $currency = $this->context->currency;
+        $idBaseCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
+        $baseCurrency = $idBaseCurrency > 0 ? new Currency($idBaseCurrency) : null;
+
+        return [
+            'apiKey' => (string) Configuration::get('ASKDIALOG_API_KEY_PUBLIC'),
+            'assistant' => [
+                'countryCode' => $countryCode,
+                'locale' => $this->context->language->iso_code,
+                'language' => $this->context->language->name,
+                'displayCurrency' => [
+                    'iso' => $currency !== null ? $currency->iso_code : '',
+                    'rate' => $currency !== null ? (float) $currency->conversion_rate : 1.0,
+                    'baseIso' => $baseCurrency !== null ? $baseCurrency->iso_code : '',
+                ],
+            ],
+        ];
     }
 
     public function hookDisplayOrderConfirmation($params)
@@ -267,72 +283,16 @@ class AskDialog extends Module
 
         $product = $params['product'];
 
-        $this->context->smarty->assign('product', $product);
-
-        $product_id = $product['id_product'];
-        $product_title = $product['name'];
-        $product_slug = $product['link_rewrite'];
-        $selected_variant_id = $product['id_product_attribute'];
-        $assistant_name = $this->trans('Your Expert', [], 'Modules.Askdialog.Admin');
-        $assistant_description = $this->trans('A question about this product?', [], 'Modules.Askdialog.Admin');
-        $ai_button_mode = (bool) Configuration::get(GeneralDataConfiguration::ASKDIALOG_AI_BUTTON_MODE);
-
+        // The slot the storefront tag mounts the product block in, and the product and
+        // combination it declares as the page's. The theme re-renders this hook on a
+        // combination change, so the slot always carries the selected combination.
         $this->context->smarty->assign([
-            'product_id' => $product_id,
-            'product_title' => $product_title,
-            'product_slug' => $product_slug,
-            'selected_variant_id' => $selected_variant_id,
-            'assistant_name' => $assistant_name,
-            'assistant_description' => $assistant_description,
-            'ai_button_mode' => $ai_button_mode,
-            'ask_something_else_label' => $ai_button_mode ? $this->trans('Ask something else', [], 'Modules.Askdialog.Admin') : '',
-            'ask_anything_placeholder' => $ai_button_mode ? '' : $this->trans('How can I help you with this product?', [], 'Modules.Askdialog.Admin'),
-            'suggestions' => ['suggestion-0', 'suggestion-1'],
+            'product_id' => (int) $product['id_product'],
+            'selected_variant_id' => (int) $product['id_product_attribute'],
+            'ai_button_mode' => (bool) Configuration::get(GeneralDataConfiguration::ASKDIALOG_AI_BUTTON_MODE),
         ]);
 
         return $this->display(__FILE__, 'views/templates/hook/displayproduct.tpl');
-    }
-
-    public function hookDisplayFooterAfter($params)
-    {
-        $customer = $this->context->customer;
-        $customerId = $customer->isLogged() ? $customer->id : 'anonymous';
-
-        $publicApiKey = Configuration::get('ASKDIALOG_API_KEY_PUBLIC');
-        $idShop = (int) $this->context->shop->id;
-
-        // In multistore the currency is decided by the shop, not by the visitor:
-        // reporting a geolocated country served by another shop would have the
-        // assistant quote that shop's currency while the page shows this one's.
-        $shopMarketMap = new ShopMarketMap();
-        $countryCode = $shopMarketMap->boundCountryIso($idShop, $this->context->country->iso_code);
-        $languageCode = $this->context->language->iso_code;
-        $languageName = $this->context->language->name;
-
-        // The visitor-selected display currency and its per-shop rate
-        // (ps_currency_shop, relative to this shop's default currency). The
-        // widget converts only base-currency amounts with it, so exposing the
-        // base ISO alongside makes the rule self-contained.
-        $currency = $this->context->currency;
-        $idBaseCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
-        $baseCurrency = $idBaseCurrency > 0 ? new Currency($idBaseCurrency) : null;
-
-        $this->context->smarty->assign([
-            'module_dir' => $this->_path,
-            'customer_id' => $customerId,
-            'public_api_key' => $publicApiKey,
-            'country_code' => $countryCode,
-            'language_code' => $languageCode,
-            'language_name' => $languageName,
-            'currency_iso' => $currency !== null ? $currency->iso_code : '',
-            'currency_rate' => $currency !== null ? (float) $currency->conversion_rate : 1.0,
-            'currency_base_iso' => $baseCurrency !== null ? $baseCurrency->iso_code : '',
-            'index_dot_js_cdn_url' => self::DIALOG_SDK_CDN_URL,
-            'module_version' => $this->version,
-            'ps_version' => _PS_VERSION_,
-        ]);
-
-        return $this->display(__FILE__, 'views/templates/hook/displayfooterafter.tpl');
     }
 
     /**
