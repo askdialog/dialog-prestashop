@@ -59,9 +59,14 @@
 
     dialog('config', pageConfig());
 
-    // The theme re-renders the product's additional info, slot included, on a combination change
+    // The classic theme re-renders the product's additional info, slot included, on a combination
+    // change; a theme that does not leaves the slot on the previous combination
     if (typeof prestashop !== 'undefined' && typeof prestashop.on === 'function') {
-        prestashop.on('updatedProduct', function() {
+        prestashop.on('updatedProduct', function(event) {
+            var slot = document.getElementById(PRODUCT_BLOCK_ID);
+            if (slot !== null && event && event.id_product_attribute !== undefined) {
+                slot.dataset.selectedVariantId = String(event.id_product_attribute);
+            }
             dialog('config', pageConfig());
         });
     }

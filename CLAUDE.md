@@ -29,7 +29,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - The config declares no `producer`: the tag sends no storefront event for the module, so a shop also running the GTM template does not count its page views twice (the reason DAT-1632 was reverted)
 - Appearance (colors, font, borders) comes from the Dialog dashboard; the module declares none (removed in 1.3.0)
 - Can be enabled on product pages with instant questions (`ASKDIALOG_ENABLE_PRODUCT_HOOK`, AI button mode with `ASKDIALOG_AI_BUTTON_MODE`)
-- Add to cart: the widget calls PrestaShop's CartController itself; `cart-integration.js` only keeps `window.askDialogAddToCart` for older widgets
+- Add to cart: the widget calls PrestaShop's CartController itself; `cart-integration.js` still exposes `window.askDialogAddToCart` and `window.askDialogAddCurrentProductToCart`
 
 **Key Files:**
 - `askdialog.php`: `hookActionFrontControllerSetMedia` defines `askDialogConfig` and `DIALOG_VARIABLES` (`Media::addJsDef`, no inline script of the module's own) and registers the scripts
