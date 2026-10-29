@@ -48,6 +48,7 @@ spl_autoload_register(function ($class) {
 use Dialog\AskDialog\Form\GeneralDataConfiguration;
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
+use Dialog\AskDialog\Repository\CartOriginRepository;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Service\PostHogService;
 
@@ -114,6 +115,7 @@ class AskDialog extends Module
             && $this->registerHook('displayProductAdditionalInfo')
             && $this->registerHook('displayOrderConfirmation')
             && $this->registerHook('actionCartUpdateQuantityBefore')
+            && $this->registerHook('actionValidateOrder')
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
             && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
             && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false)
@@ -372,4 +374,41 @@ class AskDialog extends Module
         }
     }
 
+    /**
+     * Hook: actionValidateOrder (DEC-3660 spike)
+     *
+     * Fired by PaymentModule::validateOrder on the server, once per order created from the
+     * cart, whoever triggers it: the shopper's browser, a payment provider's webhook or an
+     * employee in the back office. No cookie or consent is involved, so an order from a
+     * cart handed over by Dialog is reported even when the confirmation page never loads.
+     *
+     * @param array $params ['cart' => Cart, 'order' => Order, 'customer' => Customer, ...]
+     */
+    public function hookActionValidateOrder($params)
+    {
+        try {
+            $order = isset($params['order']) ? $params['order'] : null;
+            if (!$order || !Validate::isLoadedObject($order)) {
+                return;
+            }
+
+            $origin = (new CartOriginRepository())->findByCart((int) $order->id_cart);
+            if ($origin === null) {
+                return;
+            }
+
+            // Prototype report: the real one goes to Dialog (see the verdict on DEC-3660)
+            Logger::info(sprintf(
+                '[AskDialog] Order %d (%s) from a cart handed over by %s, ref %s: %s %s',
+                (int) $order->id,
+                $order->reference,
+                $origin['origin'],
+                $origin['handoff_ref'],
+                $order->total_paid_tax_incl,
+                (new Currency((int) $order->id_currency))->iso_code
+            ));
+        } catch (Throwable $e) {
+            Logger::error('[AskDialog] actionValidateOrder error: ' . $e->getMessage());
+        }
+    }
 }

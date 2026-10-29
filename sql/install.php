@@ -60,6 +60,15 @@ $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_export_state`
     UNIQUE KEY `idx_shop_type` (`id_shop`, `export_type`)
 ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 
+// The Dialog surface a cart was handed over from (DEC-3660 spike)
+$sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_cart_origin` (
+    `id_cart` int(10) unsigned NOT NULL,
+    `origin` varchar(32) NOT NULL,
+    `handoff_ref` varchar(64) NOT NULL DEFAULT \'\',
+    `date_add` datetime NOT NULL,
+    PRIMARY KEY (`id_cart`)
+) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
+
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {
         return false;
