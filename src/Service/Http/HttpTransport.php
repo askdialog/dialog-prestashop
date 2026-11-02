@@ -59,8 +59,11 @@ class HttpTransport
     /** @var int */
     private $timeout;
 
+    /** @var float Cap on the whole transfer in seconds, 0 for none */
+    private $maxDuration;
+
     /**
-     * @param array $options base_uri, headers, timeout
+     * @param array $options base_uri, headers, timeout, max_duration
      */
     public function __construct(array $options = [])
     {
@@ -69,6 +72,7 @@ class HttpTransport
             ? $options['headers']
             : [];
         $this->timeout = isset($options['timeout']) ? (int) $options['timeout'] : self::DEFAULT_TIMEOUT;
+        $this->maxDuration = isset($options['max_duration']) ? (float) $options['max_duration'] : 0.0;
     }
 
     /**
@@ -165,6 +169,7 @@ class HttpTransport
                 'headers' => $headers,
                 'body' => $body,
                 'timeout' => $this->timeout,
+                'max_duration' => $this->maxDuration,
             ]);
 
             // `false` keeps 4xx/5xx out of the exception path: the status is
@@ -268,6 +273,13 @@ class HttpTransport
         curl_setopt($handle, CURLOPT_CONNECTTIMEOUT, $this->timeout);
         curl_setopt($handle, CURLOPT_LOW_SPEED_LIMIT, self::MIN_BYTES_PER_SECOND);
         curl_setopt($handle, CURLOPT_LOW_SPEED_TIME, $this->timeout);
+
+        if ($this->maxDuration > 0) {
+            // Without NOSIGNAL, a timeout under a second fails at once on
+            // builds of cURL resolving names through signals.
+            curl_setopt($handle, CURLOPT_NOSIGNAL, true);
+            curl_setopt($handle, CURLOPT_TIMEOUT_MS, (int) ($this->maxDuration * 1000));
+        }
 
         curl_setopt($handle, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($handle, CURLOPT_SSL_VERIFYHOST, 2);
