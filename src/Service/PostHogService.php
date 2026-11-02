@@ -28,12 +28,15 @@ if (!defined('_PS_VERSION_')) {
 
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Service\Http\HttpTransport;
-use Dialog\AskDialog\Service\Http\HttpTransportException;
 
 /**
  * PostHog Analytics Service
  *
  * Handles server-side event tracking to PostHog using their HTTP API.
+ *
+ * Events are only buffered while the request runs and leave in one batch from
+ * a shutdown function: a blocking POST per event cost a shopper's cart about
+ * 300 ms per product on a store rebuilding a whole cart server-side.
  *
  * @see https://posthog.com/docs/api/capture
  */
@@ -50,25 +53,25 @@ class PostHogService
     private const API_KEY = 'phc_EKMR6Jt4OTMEYmoUlz0v58KPwqcFxI7aZCLckpSD8Tv';
 
     /**
-     * @var HttpTransport HTTP transport (Symfony HttpClient or cURL)
+     * Longest a batch may take once the client has its response, in seconds
      */
-    private $httpClient;
+    private const MAX_DURATION_AFTER_RESPONSE = 3.0;
 
     /**
-     * PostHogService constructor
-     *
-     * Uses HttpTransport, which falls back to cURL where Symfony's HttpClient
-     * is absent (PrestaShop 1.7.x ships Symfony 3.4, which has no such
-     * component). This constructor runs inside front-office hooks, so a
-     * missing class here used to be a fatal on the page itself.
+     * Longest a batch may take where the SAPI cannot end the response early
+     * (mod_php, CLI), in seconds: the client is still waiting on this request
      */
-    public function __construct()
-    {
-        $this->httpClient = new HttpTransport([
-            'base_uri' => self::API_ENDPOINT,
-            'timeout' => 5, // 5 second timeout to avoid blocking requests
-        ]);
-    }
+    private const MAX_DURATION_BEFORE_RESPONSE = 0.5;
+
+    /**
+     * @var array Events buffered until the end of the request
+     */
+    private static $pendingEvents = [];
+
+    /**
+     * @var bool Whether the shutdown function is registered for this request
+     */
+    private static $shutdownRegistered = false;
 
     /**
      * Capture an event to PostHog
@@ -77,7 +80,7 @@ class PostHogService
      * @param array $properties Event properties
      * @param string|null $distinctId Unique identifier for the user (if null, will be generated)
      *
-     * @return bool True if event was sent successfully, false otherwise
+     * @return bool True once the event is buffered for the end of the request
      */
     public function capture($event, array $properties = [], $distinctId = null)
     {
@@ -86,16 +89,111 @@ class PostHogService
             $distinctId = $this->getDistinctId();
         }
 
-        // Build event payload
-        $payload = [
-            'api_key' => self::API_KEY,
+        // Timestamped here: PostHog would otherwise date it at the batch's arrival
+        self::$pendingEvents[] = [
             'event' => $event,
             'distinct_id' => $distinctId,
             'properties' => $this->buildEventProperties($properties),
+            'timestamp' => self::formatNow(),
         ];
 
-        // Send to PostHog API
-        return $this->sendToPostHog($payload);
+        if (!self::$shutdownRegistered) {
+            self::$shutdownRegistered = true;
+            register_shutdown_function([self::class, 'scheduleFlush']);
+        }
+
+        return true;
+    }
+
+    /**
+     * Move the flush behind every other shutdown function
+     *
+     * Ending the response drops anything sent afterwards, so a shutdown
+     * function registered after this one must still get to write its output.
+     *
+     * @return void
+     */
+    public static function scheduleFlush()
+    {
+        register_shutdown_function([self::class, 'flushPendingEvents']);
+    }
+
+    /**
+     * Send the buffered events to PostHog as one batch
+     *
+     * Runs in a shutdown function, where an uncaught failure would land on the
+     * page, so this catches Throwable and only ever logs.
+     *
+     * @return void
+     */
+    public static function flushPendingEvents()
+    {
+        $batch = self::$pendingEvents;
+        self::$pendingEvents = [];
+
+        if (empty($batch)) {
+            return;
+        }
+
+        try {
+            $responseEnded = self::endResponse();
+
+            $httpClient = new HttpTransport([
+                'base_uri' => self::API_ENDPOINT,
+                'max_duration' => $responseEnded
+                    ? self::MAX_DURATION_AFTER_RESPONSE
+                    : self::MAX_DURATION_BEFORE_RESPONSE,
+            ]);
+            $response = $httpClient->postJson('/batch/', [
+                'api_key' => self::API_KEY,
+                'sent_at' => self::formatNow(), // Lets PostHog correct the shop's clock drift
+                'batch' => $batch,
+            ]);
+
+            if ($response->getStatusCode() !== 200) {
+                Logger::log('PostHog API HTTP error', 3, $response->getStatusCode(), 'PostHogService');
+            }
+        } catch (\Throwable $e) {
+            Logger::log('PostHog API transport error: ' . $e->getMessage(), 3, null, 'PostHogService');
+        }
+    }
+
+    /**
+     * Hand the client its response, where the SAPI can do that before the script ends
+     *
+     * The cookie must go first: PrestaShop otherwise writes it from
+     * Cookie::__destruct, which runs after shutdown functions, so the headers
+     * of a first add-to-cart would leave without the new cart's id.
+     *
+     * @return bool True if the client is no longer waiting on this request
+     */
+    private static function endResponse()
+    {
+        $context = \Context::getContext();
+        if (isset($context->cookie)) {
+            $context->cookie->write();
+        }
+
+        if (function_exists('fastcgi_finish_request')) {
+            return fastcgi_finish_request();
+        }
+
+        if (function_exists('litespeed_finish_request')) {
+            return litespeed_finish_request();
+        }
+
+        return false;
+    }
+
+    /**
+     * Current time as PostHog expects it, to the millisecond: attribution
+     * compares these events with the browser's
+     *
+     * @return string
+     */
+    private static function formatNow()
+    {
+        return \DateTime::createFromFormat('U.u', sprintf('%.6F', microtime(true)))->format('Y-m-d\\TH:i:s.v\\Z');
     }
 
     /**
@@ -240,44 +338,6 @@ class PostHogService
     }
 
     /**
-     * Send event payload to PostHog HTTP API using Symfony HttpClient
-     *
-     * @param array $payload Event payload
-     *
-     * @return bool True if successful, false otherwise
-     */
-    private function sendToPostHog(array $payload)
-    {
-        try {
-            $response = $this->httpClient->postJson('/capture/', $payload);
-
-            // PostHog returns 200 on success
-            if ($response->getStatusCode() !== 200) {
-                Logger::log(
-                    'PostHog API HTTP error',
-                    3,
-                    $response->getStatusCode(),
-                    'PostHogService'
-                );
-
-                return false;
-            }
-
-            return true;
-        } catch (HttpTransportException $e) {
-            // Log transport errors but don't break execution
-            Logger::log(
-                'PostHog API transport error: ' . $e->getMessage(),
-                3,
-                null,
-                'PostHogService'
-            );
-
-            return false;
-        }
-    }
-
-    /**
      * Track add to cart event
      *
      * Only tracks positive quantity increments (not decrements/removals)
@@ -287,7 +347,7 @@ class PostHogService
      * @param int $quantity Quantity added (must be positive)
      * @param \Cart $cart Cart object
      *
-     * @return bool True if event sent successfully, false otherwise
+     * @return bool True once the event is buffered, false if it does not qualify
      */
     public function trackAddToCart($idProduct, $idProductAttribute, $quantity, $cart)
     {
