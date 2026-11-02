@@ -82,6 +82,7 @@ class CategoryRepository extends AbstractRepository
         $sql = 'SELECT
                     c.id_category,
                     c.active,
+                    c.is_root_category,
                     cl.name,
                     cl.description,
                     ' . ($hasAdditionalDesc ? 'cl.additional_description,' : '') . '

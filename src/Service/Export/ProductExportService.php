@@ -520,6 +520,25 @@ class ProductExportService
     }
 
     /**
+     * Name of the product's default category, the closest PrestaShop has to a
+     * product type. A shop's root category says nothing about the product.
+     *
+     * @param int $defaultCategoryId Default category ID
+     *
+     * @return string Category name, empty when there is no meaningful one
+     */
+    private function getProductType($defaultCategoryId)
+    {
+        if (!isset($this->categoriesData[$defaultCategoryId])) {
+            return '';
+        }
+
+        $category = $this->categoriesData[$defaultCategoryId];
+
+        return (int) $category['is_root_category'] === 1 ? '' : (string) $category['name'];
+    }
+
+    /**
      * Transform single product data into Dialog AI format
      *
      * @param int $product_id Product ID
@@ -730,6 +749,7 @@ class ProductExportService
             }
         }
         $productItem['categories'] = $categories;
+        $productItem['productType'] = $this->getProductType((int) $productData['id_category_default']);
 
         // Use preloaded tags
         $productItem['tags'] = [];
