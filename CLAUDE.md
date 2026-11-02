@@ -128,9 +128,14 @@ the table are gone; `upgrade/upgrade-1.3.0.php` drops the table on existing inst
 - **GDPR compliant**: No person profiles created
 
 **API Configuration:**
-- Endpoint: `https://eu.i.posthog.com/capture/`
-- API Key: `phc_WM5MRkqG7AiqOKeTmNKj0fNIl41ZOQex7wRhEswRlTA`
-- Timeout: 5 seconds (non-blocking)
+- Endpoint: `https://eu.i.posthog.com/batch/`
+- API Key: `phc_EKMR6Jt4OTMEYmoUlz0v58KPwqcFxI7aZCLckpSD8Tv` (the storefront project, shared with the widget)
+
+**Sending (1.5.1):** `capture()` only buffers. One shutdown function sends the request's events as one batch, after the response where the SAPI allows it:
+- FPM (`fastcgi_finish_request`) and LiteSpeed (`litespeed_finish_request`, which has no `fastcgi_` alias) end the response first; the batch then has 3 seconds.
+- mod_php and CLI cannot: the client still waits on the single batch, capped at 0.5 second.
+- `Cookie::write()` must run before the response ends. PrestaShop otherwise writes the cookie from `Cookie::__destruct`, after shutdown functions, and a first add-to-cart loses the shopper's cart.
+- The hook fires on every `Cart::updateQty()` with `up`, whoever calls it: `Cart::duplicate()` and third-party checkouts rebuild a cart line by line in one request, so a blocking send there costs one round trip per product.
 
 **Benefits:**
 - 100% reliable tracking (no client-side blocking)
@@ -428,6 +433,6 @@ GET /module/askdialog/exportstatus?action=cleanupOldLogs&days=90
 ## Notes
 
 - Module is compatible with PrestaShop 1.7.6 to 8.x (check `ps_versions_compliancy`); it must boot WITHOUT vendor/ (source checkouts are vendorless — askdialog.php registers its own PSR-4 autoloader)
-- **HTTP calls must go through `Service\Http\HttpTransport`, never Symfony directly.** `Symfony\Component\HttpClient` and `Symfony\Component\Mime` are Symfony 4.3+ components: PrestaShop only ships them from 8.0, and 1.7.6–1.7.8 (Symfony 3.4) do not have them. Referencing them there raises `Class not found` — a fatal, not an exception, which escapes `catch (Exception)` and takes the front-office page down (it did, on an add-to-cart hook). HttpTransport uses Symfony when available and falls back to cURL otherwise, so the module works on every supported version. Front-office hooks additionally catch `\Throwable`, not `\Exception`, so analytics can never break a page. In the cURL path, `timeout` is an IDLE timeout (CONNECTTIMEOUT + LOW_SPEED_*), never CURLOPT_TIMEOUT — Symfony's `max_duration` is unlimited by default, and a total cap would abort a large catalogue upload that is still progressing. TLS verification is always on and cannot be turned off.
+- **HTTP calls must go through `Service\Http\HttpTransport`, never Symfony directly.** `Symfony\Component\HttpClient` and `Symfony\Component\Mime` are Symfony 4.3+ components: PrestaShop only ships them from 8.0, and 1.7.6–1.7.8 (Symfony 3.4) do not have them. Referencing them there raises `Class not found` — a fatal, not an exception, which escapes `catch (Exception)` and takes the front-office page down (it did, on an add-to-cart hook). HttpTransport uses Symfony when available and falls back to cURL otherwise, so the module works on every supported version. Front-office hooks additionally catch `\Throwable`, not `\Exception`, so analytics can never break a page. In the cURL path, `timeout` is an IDLE timeout (CONNECTTIMEOUT + LOW_SPEED_*), never CURLOPT_TIMEOUT — Symfony's `max_duration` is unlimited by default, and a total cap would abort a large catalogue upload that is still progressing; a caller that wants a cap sets `max_duration` itself, as the PostHog batch does. TLS verification is always on and cannot be turned off.
 - Uses HttpClient for API calls
 - Symfony YAML component for configuration
