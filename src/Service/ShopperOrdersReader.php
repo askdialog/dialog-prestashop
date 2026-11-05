@@ -148,8 +148,9 @@ class ShopperOrdersReader
     private function closingStates(int $idShop): array
     {
         if (!isset($this->closingStates[$idShop])) {
+            $idShopGroup = (int) \Shop::getGroupFromShop($idShop);
             foreach (['PS_OS_CANCELED', 'PS_OS_ERROR', 'PS_OS_REFUND'] as $key) {
-                $this->closingStates[$idShop][$key] = (int) \Configuration::get($key, null, null, $idShop);
+                $this->closingStates[$idShop][$key] = (int) \Configuration::get($key, null, $idShopGroup, $idShop);
             }
         }
 

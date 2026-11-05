@@ -88,7 +88,7 @@ Declared once in `AskDialog::HOOKS`: `install()` registers them, and an upgrade 
 Feeds the Shoppers page in Dialog. After the shopper consents, the widget posts `userId`, `consentLevel` (`a` or `am`) and `token` (`prestashop.static_token`) to `controllers/front/identity.php`, which answers 204 (403 on a wrong token, 400 on invalid input). `CartVisitorLink` keeps the visitor in the PrestaShop cookie, links the current cart at once, and `actionCartSave` links every cart saved afterwards. The link is kept per cart, never read from the cookie at order time: `actionValidateOrder` can run from a payment webhook, with no browser. The hook catches `Throwable` and only logs, since it runs on every cart write. The spike's `askdialog_cart_origin` (DEC-3660, unmerged) is a separate table on purpose: it records once where a handed-over cart came from, while this one follows the shopper's consent on every save.
 
 ### Shoppers read (DEC-3924, DEC-3928)
-`controllers/front/shoppers.php`, private key, read by Dialog every 5 minutes.
+`controllers/front/shoppers.php`, private key: what Dialog reads to build its Shoppers page.
 
 - `getModuleInfo` returns `version` and `actions`: Dialog checks it before turning identification on.
 - `getCarts`, `getOrders` and `getCreditSlips` take a cursor, `updatedAfter=<ISO 8601 with offset>&afterId=<id>&limit=<1-500, default 100>`, and return their rows after it in `(date_upd, id)` order, with `nextCursor` to send back as is. PrestaShop dates are local and to the second, so a page never returns the current second, which can still receive writes.
