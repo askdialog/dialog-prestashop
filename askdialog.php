@@ -48,6 +48,7 @@ spl_autoload_register(function ($class) {
 use Dialog\AskDialog\Form\GeneralDataConfiguration;
 use Dialog\AskDialog\Helper\ContextHelper;
 use Dialog\AskDialog\Helper\Logger;
+use Dialog\AskDialog\Service\CartVisitorLink;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
 use Dialog\AskDialog\Service\PostHogService;
 
@@ -71,6 +72,7 @@ class AskDialog extends Module
         'displayProductAdditionalInfo',
         'displayOrderConfirmation',
         'actionCartUpdateQuantityBefore',
+        'actionCartSave',
     ];
 
     /**
@@ -85,7 +87,7 @@ class AskDialog extends Module
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.5.2';
+        $this->version = '1.6.0';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -352,6 +354,25 @@ class AskDialog extends Module
      *
      * @param array $params Hook parameters
      */
+    /**
+     * Links the saved cart to the visitor the widget reported after consent (identity controller)
+     *
+     * Runs on every cart write, so nothing it throws may reach the shopper: Throwable, not
+     * Exception, as a missing class raises an Error.
+     */
+    public function hookActionCartSave($params)
+    {
+        try {
+            $cart = isset($params['cart']) ? $params['cart'] : $this->context->cart;
+            if (Validate::isLoadedObject($cart)
+                && !(new CartVisitorLink())->linkCart($this->context->cookie, (int) $cart->id)) {
+                Logger::log('[AskDialog] Cart visitor link not saved for cart ' . (int) $cart->id, 3);
+            }
+        } catch (Throwable $e) {
+            Logger::log('[AskDialog] Cart visitor link error: ' . $e->getMessage(), 3);
+        }
+    }
+
     public function hookActionCartUpdateQuantityBefore($params)
     {
         // Only track additions (not removals)

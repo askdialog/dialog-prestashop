@@ -67,6 +67,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 
 ### Database Tables
 - `askdialog_export_log`: Tracks export status (init, pending, success, error) for S3 uploads
+- `askdialog_cart_visitor`: The Dialog visitor of each cart (`id_cart` key, visitor id, consent level `a`/`am`); `date_upd` moves only when the visitor or the level changes
 
 ### Configuration (Configuration::get)
 - `ASKDIALOG_API_KEY`: Private API key
@@ -80,7 +81,11 @@ Declared once in `AskDialog::HOOKS`: `install()` registers them, and an upgrade 
 - `displayProductAdditionalInfo`: Render the product block's slot on product pages
 - `displayOrderConfirmation`: Track the order (PostHog PHP, `user_submitted_checkout` with `order_reference`) and render the confirmation template
 - `actionCartUpdateQuantityBefore`: Track add to cart events (PostHog PHP)
+- `actionCartSave`: Link the saved cart to the Dialog visitor kept in the cookie (`askdialog_cart_visitor`, see Shopper identification)
 - Retired: `displayFooterAfter` (1.5.0, the tag now creates the widget container) and `actionValidateOrder` (1.5.2: no method handled it; only installs upgraded through 1.0.5 had it)
+
+### Shopper identification (1.6.0)
+Feeds the Shoppers page in Dialog. After the shopper consents, the widget posts `userId`, `consentLevel` (`a` or `am`) and `token` (`prestashop.static_token`) to `controllers/front/identity.php`, which answers 204 (403 on a wrong token, 400 on invalid input). `CartVisitorLink` keeps the visitor in the PrestaShop cookie, links the current cart at once, and `actionCartSave` links every cart saved afterwards. The link is kept per cart, never read from the cookie at order time: `actionValidateOrder` can run from a payment webhook, with no browser. The hook catches `Throwable` and only logs, since it runs on every cart write. The spike's `askdialog_cart_origin` (DEC-3660, unmerged) is a separate table on purpose: it records once where a handed-over cart came from, while this one follows the shopper's consent on every save.
 
 ### API authentication
 Front controllers called by Dialog run as AJAX from their constructor, so PrestaShop skips the storefront header and its `actionFrontControllerSetMedia` hook. `ApiKeyAuthTrait::requireApiKey()` reads the key from `X-Api-Key`, then `Authorization: Token <key>`, then the same in `$_SERVER` (`HTTP_X_API_KEY`, `HTTP_AUTHORIZATION`, `REDIRECT_HTTP_AUTHORIZATION`) for hosts that strip headers, and compares it in constant time: 401 when missing, 403 when wrong. `feed`, `exportstatus` and `logs` take the private key; `api` takes the public key, which is printed in every storefront page and so never gates customer data.
