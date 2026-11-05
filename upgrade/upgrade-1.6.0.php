@@ -36,11 +36,22 @@ if (!defined('_PS_VERSION_')) {
  */
 function upgrade_module_1_6_0($module)
 {
-    if (!Db::getInstance()->execute(\Dialog\AskDialog\Repository\CartVisitorRepository::createTableSql())) {
+    // Db throws on 8.x and returns false on 1.7: both are logged, neither fails the upgrade
+    try {
+        $created = Db::getInstance()->execute(\Dialog\AskDialog\Repository\CartVisitorRepository::createTableSql());
+    } catch (Throwable $e) {
+        $created = false;
+    }
+    if (!$created) {
         PrestaShopLogger::addLog('AskDialog 1.6.0: could not create the cart-visitor table', 3, null, 'Module', (int) $module->id);
     }
 
-    if (!$module->registerHooks()) {
+    try {
+        $hooked = $module->registerHooks();
+    } catch (Throwable $e) {
+        $hooked = false;
+    }
+    if (!$hooked) {
         PrestaShopLogger::addLog('AskDialog 1.6.0: could not bring the hooks up to date', 2, null, 'Module', (int) $module->id);
     }
 

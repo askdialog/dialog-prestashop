@@ -22,6 +22,7 @@
 
 namespace Dialog\AskDialog\Service;
 
+use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Repository\CartVisitorRepository;
 
 if (!defined('_PS_VERSION_')) {
@@ -66,8 +67,18 @@ class CartVisitorLink
         $context->cookie->{self::COOKIE_CONSENT} = $consentLevel;
         $context->cookie->write();
 
-        if (\Validate::isLoadedObject($context->cart)) {
-            $this->repository->save((int) $context->cart->id, $visitorId, $consentLevel);
+        if (!\Validate::isLoadedObject($context->cart)) {
+            return;
+        }
+
+        // The cookie is already kept, so the next cart save retries: a failure here is only logged
+        try {
+            $linked = $this->repository->save((int) $context->cart->id, $visitorId, $consentLevel);
+        } catch (\Throwable $e) {
+            $linked = false;
+        }
+        if (!$linked) {
+            Logger::log('[AskDialog] Cart visitor link not saved for cart ' . (int) $context->cart->id, 3);
         }
     }
 

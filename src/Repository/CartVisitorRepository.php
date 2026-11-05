@@ -66,7 +66,7 @@ class CartVisitorRepository extends AbstractRepository
             . ' (`id_cart`, `visitor_id`, `consent_level`, `date_add`, `date_upd`)'
             . " VALUES ($idCart, '$visitor', '$level', '$now', '$now')"
             . ' ON DUPLICATE KEY UPDATE'
-            . " `date_upd` = IF(`visitor_id` = '$visitor' AND `consent_level` = '$level', `date_upd`, '$now'),"
+            . " `date_upd` = IF(BINARY `visitor_id` = '$visitor' AND `consent_level` = '$level', `date_upd`, '$now'),"
             . " `visitor_id` = '$visitor', `consent_level` = '$level'"
         );
     }
