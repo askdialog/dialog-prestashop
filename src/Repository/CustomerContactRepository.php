@@ -34,7 +34,7 @@ class CustomerContactRepository extends AbstractRepository
     /**
      * @param int[] $customerIds
      *
-     * @return array<int|string, array<string, string>> keyed by id_customer
+     * @return array<int|string, array<string, mixed>> keyed by id_customer
      */
     public function findCustomers(array $customerIds): array
     {

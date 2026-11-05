@@ -67,7 +67,7 @@ abstract class AbstractRepository
     /**
      * Rows of a SELECT; a failed query throws instead of reading as an empty result
      *
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      *
      * @throws \RuntimeException
      */

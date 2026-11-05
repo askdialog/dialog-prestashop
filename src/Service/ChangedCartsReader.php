@@ -80,7 +80,7 @@ class ChangedCartsReader
     }
 
     /**
-     * @param array<string, string>|null $customer
+     * @param array<string, mixed>|null $customer
      * @param array<int|string, string> $phones
      *
      * @return array<string, mixed>

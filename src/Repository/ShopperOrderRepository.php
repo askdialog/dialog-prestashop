@@ -38,7 +38,7 @@ class ShopperOrderRepository extends AbstractRepository
         . ' o.`id_currency`, o.`total_paid`, o.`current_state`, os.`paid`, o.`date_add`, o.`date_upd`';
 
     /**
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findChangedOrders(string $after, int $afterId, string $before, int $limit): array
     {
@@ -55,7 +55,7 @@ class ShopperOrderRepository extends AbstractRepository
     /**
      * Nothing for a customer without a linked cart
      *
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findRecentOrders(int $idCustomer, int $limit): array
     {
@@ -72,7 +72,7 @@ class ShopperOrderRepository extends AbstractRepository
     /**
      * @param int[] $orderIds
      *
-     * @return array<int|string, array<int, array<string, string>>> keyed by id_order
+     * @return array<int|string, array<int, array<string, mixed>>> keyed by id_order
      */
     public function findLines(array $orderIds): array
     {
@@ -89,7 +89,7 @@ class ShopperOrderRepository extends AbstractRepository
     }
 
     /**
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findChangedCreditSlips(string $after, int $afterId, string $before, int $limit): array
     {

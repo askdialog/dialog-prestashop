@@ -80,7 +80,7 @@ class CartVisitorRepository extends AbstractRepository
      * @param string $before local datetime, excluded
      * @param int[] $shopIds lets the cart side use PrestaShop's (id_shop, date_upd) index
      *
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findChanged(string $after, int $afterId, string $before, array $shopIds, int $limit): array
     {
