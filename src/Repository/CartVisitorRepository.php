@@ -70,4 +70,43 @@ class CartVisitorRepository extends AbstractRepository
             . " `visitor_id` = '$visitor', `consent_level` = '$level'"
         );
     }
+
+    /**
+     * The linked carts of a customer changed after the cursor and before `$before`, in
+     * cursor order. A cart changes when PrestaShop saves it or when its link changes.
+     *
+     * @param string $after local datetime of the cursor
+     * @param int $afterId cart id of the cursor, among the carts changed in that second
+     * @param string $before local datetime, excluded
+     * @param int[] $shopIds lets the cart side use PrestaShop's (id_shop, date_upd) index
+     *
+     * @return array<int, array<string, string>>
+     */
+    public function findChanged(string $after, int $afterId, string $before, array $shopIds, int $limit): array
+    {
+        $prefix = $this->getPrefix();
+        $after = pSQL($after);
+        $before = pSQL($before);
+        $changedAt = 'GREATEST(c.`date_upd`, v.`date_upd`)';
+
+        $rows = $this->executeS(
+            'SELECT c.`id_cart`, c.`id_shop`, c.`id_customer`, c.`id_currency`,'
+            . ' c.`id_address_delivery`, c.`id_address_invoice`, c.`date_add`,'
+            . " v.`visitor_id`, v.`consent_level`, $changedAt AS `changed_at`"
+            . ' FROM ('
+            . "SELECT `id_cart` FROM `{$prefix}" . self::TABLE . "` WHERE `date_upd` >= '$after'"
+            . " UNION SELECT `id_cart` FROM `{$prefix}cart`"
+            . ' WHERE `id_shop` IN (' . $this->escapeIds($shopIds) . ") AND `date_upd` >= '$after'"
+            . ') changed'
+            . " JOIN `{$prefix}" . self::TABLE . '` v ON v.`id_cart` = changed.`id_cart`'
+            . " JOIN `{$prefix}cart` c ON c.`id_cart` = changed.`id_cart`"
+            . ' WHERE c.`id_customer` > 0'
+            . " AND $changedAt < '$before'"
+            . " AND ($changedAt > '$after' OR ($changedAt = '$after' AND c.`id_cart` > $afterId))"
+            . ' ORDER BY `changed_at`, c.`id_cart`'
+            . ' LIMIT ' . $limit
+        );
+
+        return is_array($rows) ? $rows : [];
+    }
 }
