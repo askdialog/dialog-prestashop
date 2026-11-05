@@ -42,7 +42,7 @@ trait ApiKeyAuthTrait
      * @param string $configurationKey ASKDIALOG_API_KEY or ASKDIALOG_API_KEY_PUBLIC
      * @param string $label Key name used in the error message
      */
-    protected function requireApiKey($configurationKey, $label)
+    protected function requireApiKey(string $configurationKey, string $label): void
     {
         $token = $this->readApiToken();
         if ($token === null) {
@@ -55,19 +55,16 @@ trait ApiKeyAuthTrait
         }
     }
 
-    /**
-     * @return string|null
-     */
-    private function readApiToken()
+    private function readApiToken(): ?string
     {
         $headers = function_exists('getallheaders') ? getallheaders() : [];
 
         $candidates = [
             $this->getHeaderCaseInsensitive($headers, 'X-Api-Key'),
             $this->tokenFromAuthorization($this->getHeaderCaseInsensitive($headers, 'Authorization')),
-            isset($_SERVER['HTTP_X_API_KEY']) ? $_SERVER['HTTP_X_API_KEY'] : null,
-            $this->tokenFromAuthorization(isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : null),
-            $this->tokenFromAuthorization(isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) ? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] : null),
+            $_SERVER['HTTP_X_API_KEY'] ?? null,
+            $this->tokenFromAuthorization($_SERVER['HTTP_AUTHORIZATION'] ?? null),
+            $this->tokenFromAuthorization($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? null),
         ];
         foreach ($candidates as $candidate) {
             if (is_string($candidate) && $candidate !== '') {
@@ -79,11 +76,9 @@ trait ApiKeyAuthTrait
     }
 
     /**
-     * @param string|null $value
-     *
-     * @return string|null
+     * @param mixed $value a header value, null when absent
      */
-    private function tokenFromAuthorization($value)
+    private function tokenFromAuthorization($value): ?string
     {
         if (!is_string($value) || strncmp($value, 'Token ', 6) !== 0) {
             return null;

@@ -85,32 +85,24 @@ class CartVisitorRepository extends AbstractRepository
     public function findChanged(string $after, int $afterId, string $before, array $shopIds, int $limit): array
     {
         $prefix = $this->getPrefix();
-        $after = pSQL($after);
-        $before = pSQL($before);
+        $since = pSQL($after);
         $changedAt = 'GREATEST(c.`date_upd`, v.`date_upd`)';
 
-        $rows = $this->executeS(
+        return $this->selectRows(
             'SELECT c.`id_cart`, c.`id_shop`, c.`id_customer`, c.`id_currency`,'
             . ' c.`id_address_delivery`, c.`id_address_invoice`, c.`date_add`,'
             . " v.`visitor_id`, v.`consent_level`, $changedAt AS `changed_at`"
             . ' FROM ('
-            . "SELECT `id_cart` FROM `{$prefix}" . self::TABLE . "` WHERE `date_upd` >= '$after'"
+            . "SELECT `id_cart` FROM `{$prefix}" . self::TABLE . "` WHERE `date_upd` >= '$since'"
             . " UNION SELECT `id_cart` FROM `{$prefix}cart`"
-            . ' WHERE `id_shop` IN (' . $this->escapeIds($shopIds) . ") AND `date_upd` >= '$after'"
+            . ' WHERE `id_shop` IN (' . $this->escapeIds($shopIds) . ") AND `date_upd` >= '$since'"
             . ') changed'
             . " JOIN `{$prefix}" . self::TABLE . '` v ON v.`id_cart` = changed.`id_cart`'
             . " JOIN `{$prefix}cart` c ON c.`id_cart` = changed.`id_cart`"
             . ' WHERE c.`id_customer` > 0'
-            . " AND $changedAt < '$before'"
-            . " AND ($changedAt > '$after' OR ($changedAt = '$after' AND c.`id_cart` > $afterId))"
+            . ' AND ' . $this->afterCursorSql($changedAt, 'c.`id_cart`', $after, $afterId, $before)
             . ' ORDER BY `changed_at`, c.`id_cart`'
             . ' LIMIT ' . $limit
         );
-
-        if (!is_array($rows)) {
-            throw new \RuntimeException('Changed carts query failed: ' . $this->getDb()->getMsgError());
-        }
-
-        return $rows;
     }
 }
