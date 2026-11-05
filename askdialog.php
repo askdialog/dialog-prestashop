@@ -63,11 +63,29 @@ class AskDialog extends Module
      */
     private const DIALOG_TAG_URL = 'https://cdn.askdialog.com/assets/dialog.js';
 
+    /**
+     * Every hook the module handles, registered by install() and by upgrades through registerHooks()
+     */
+    private const HOOKS = [
+        'actionFrontControllerSetMedia',
+        'displayProductAdditionalInfo',
+        'displayOrderConfirmation',
+        'actionCartUpdateQuantityBefore',
+    ];
+
+    /**
+     * Hooks earlier versions registered and no method handles any more
+     */
+    private const RETIRED_HOOKS = [
+        'actionValidateOrder',
+        'displayFooterAfter',
+    ];
+
     public function __construct()
     {
         $this->name = 'askdialog';
         $this->tab = 'front_office_features';
-        $this->version = '1.5.1';
+        $this->version = '1.5.2';
         $this->author = 'AskDialog';
         $this->need_instance = 0;
         // 1.7.6 and 1.7.7 behave identically here: both bundle Symfony 3.4, and
@@ -110,14 +128,27 @@ class AskDialog extends Module
     {
         return parent::install()
             && $this->installDb()
-            && $this->registerHook('actionFrontControllerSetMedia')
-            && $this->registerHook('displayProductAdditionalInfo')
-            && $this->registerHook('displayOrderConfirmation')
-            && $this->registerHook('actionCartUpdateQuantityBefore')
+            && $this->registerHook(self::HOOKS)
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
             && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
             && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false)
             && Configuration::updateValue('ASKDIALOG_AI_BUTTON_MODE', false);
+    }
+
+    /**
+     * Brings an installed module to the hooks of this version: an upgrade calls it, so a
+     * fresh install and an upgraded one end up registered on the same hooks.
+     */
+    public function registerHooks(): bool
+    {
+        $registered = $this->registerHook(self::HOOKS);
+        foreach (self::RETIRED_HOOKS as $hook) {
+            if ($this->isRegisteredInHook($hook)) {
+                $registered = $this->unregisterHook($hook) && $registered;
+            }
+        }
+
+        return $registered;
     }
 
     public function uninstall()

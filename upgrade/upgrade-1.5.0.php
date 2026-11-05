@@ -37,8 +37,8 @@ if (!defined('_PS_VERSION_')) {
  */
 function upgrade_module_1_5_0($module)
 {
-    if (!$module->unregisterHook('displayFooterAfter')) {
-        PrestaShopLogger::addLog('AskDialog 1.5.0: could not unregister displayFooterAfter', 2, null, 'Module', (int) $module->id);
+    if (!$module->registerHooks()) {
+        PrestaShopLogger::addLog('AskDialog 1.5.0: could not bring the hooks up to date', 2, null, 'Module', (int) $module->id);
     }
 
     return true;
