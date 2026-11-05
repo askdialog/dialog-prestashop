@@ -25,28 +25,30 @@ if (!defined('_PS_VERSION_')) {
 
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Service\ChangedCartsReader;
+use Dialog\AskDialog\Service\ShopperOrdersReader;
 use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 
 /**
  * Class AskDialogShoppersModuleFrontController
  *
- * What Dialog reads to build the Shoppers page: the module's version and actions, and the
- * carts of identified shoppers changed since a cursor.
+ * What Dialog reads to build the Shoppers page: the module's version and actions, then the
+ * carts, orders and credit slips of identified shoppers changed since a cursor, and a
+ * shopper's order history when Dialog first links them.
  */
 class AskDialogShoppersModuleFrontController extends ModuleFrontController
 {
     use ApiKeyAuthTrait;
     use JsonResponseTrait;
 
-    private const ACTIONS = ['getModuleInfo', 'getCarts'];
+    private const ACTIONS = ['getModuleInfo', 'getCarts', 'getOrders', 'getCreditSlips', 'getCustomerOrders'];
 
     private const DEFAULT_LIMIT = 100;
 
     private const MAX_LIMIT = 500;
 
     /**
-     * Seconds a page may spend reading carts: the caller gives up after 75
+     * Seconds a page may spend pricing carts: the caller gives up after 75
      */
     private const TIME_BUDGET = 60;
 
@@ -74,7 +76,34 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
                 break;
 
             case 'getCarts':
-                $this->handleGetCarts();
+                list($updatedAfter, $afterId, $limit) = $this->readCursor();
+                $this->respond('carts', function () use ($updatedAfter, $afterId, $limit) {
+                    return (new ChangedCartsReader())->read($updatedAfter, $afterId, $limit, $this->getDeadline());
+                });
+                break;
+
+            case 'getOrders':
+                list($updatedAfter, $afterId, $limit) = $this->readCursor();
+                $this->respond('orders', function () use ($updatedAfter, $afterId, $limit) {
+                    return (new ShopperOrdersReader())->readChanged($updatedAfter, $afterId, $limit);
+                });
+                break;
+
+            case 'getCreditSlips':
+                list($updatedAfter, $afterId, $limit) = $this->readCursor();
+                $this->respond('credit slips', function () use ($updatedAfter, $afterId, $limit) {
+                    return (new ShopperOrdersReader())->readChangedCreditSlips($updatedAfter, $afterId, $limit);
+                });
+                break;
+
+            case 'getCustomerOrders':
+                $idCustomer = (string) Tools::getValue('idCustomer');
+                if (!ctype_digit($idCustomer) || (int) $idCustomer < 1) {
+                    $this->sendJsonResponse(['error' => 'idCustomer must be a customer id'], 400);
+                }
+                $this->respond('customer orders', function () use ($idCustomer) {
+                    return (new ShopperOrdersReader())->readCustomerHistory((int) $idCustomer);
+                });
                 break;
 
             default:
@@ -82,28 +111,38 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
         }
     }
 
-    private function handleGetCarts()
+    /**
+     * The `updatedAfter`, `afterId` and `limit` of a cursor read, or a 400
+     *
+     * @return array{0: DateTime, 1: int, 2: int}
+     */
+    private function readCursor(): array
     {
         $updatedAfter = $this->parseDate((string) Tools::getValue('updatedAfter'));
-        $afterId = Tools::getValue('afterId', '0');
-        $limit = Tools::getValue('limit', (string) self::DEFAULT_LIMIT);
+        $afterId = (string) Tools::getValue('afterId', '0');
+        $limit = (string) Tools::getValue('limit', (string) self::DEFAULT_LIMIT);
 
         if ($updatedAfter === null
-            || !ctype_digit((string) $afterId)
-            || !ctype_digit((string) $limit)
+            || !ctype_digit($afterId)
+            || !ctype_digit($limit)
             || (int) $limit < 1
             || (int) $limit > self::MAX_LIMIT
         ) {
             $this->sendJsonResponse([
-                'error' => 'updatedAfter must be ISO 8601 with an offset, afterId a cart id, limit 1 to ' . self::MAX_LIMIT,
+                'error' => 'updatedAfter must be ISO 8601 with an offset, afterId an id, limit 1 to ' . self::MAX_LIMIT,
             ], 400);
         }
 
+        return [$updatedAfter, (int) $afterId, (int) $limit];
+    }
+
+    private function respond(string $what, callable $read)
+    {
         try {
-            $page = (new ChangedCartsReader())->read($updatedAfter, (int) $afterId, (int) $limit, $this->getDeadline());
+            $page = $read();
         } catch (Throwable $e) {
-            Logger::log('[AskDialog] Shoppers::getCarts: ERROR - ' . $e->getMessage(), 3);
-            $this->sendJsonResponse(['error' => 'Carts could not be read'], 500);
+            Logger::log('[AskDialog] Shoppers: ' . $what . ' read failed - ' . $e->getMessage(), 3);
+            $this->sendJsonResponse(['error' => ucfirst($what) . ' could not be read'], 500);
         }
 
         $this->sendJsonResponse($page);

@@ -26,6 +26,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use Dialog\AskDialog\Helper\ShopperFormat;
 use Dialog\AskDialog\Repository\CartVisitorRepository;
 use Dialog\AskDialog\Repository\CustomerContactRepository;
 
@@ -43,14 +44,10 @@ class ChangedCartsReader
     /** @var CustomerContactRepository */
     private $contacts;
 
-    /** @var \DateTimeZone */
-    private $timezone;
-
     public function __construct()
     {
         $this->carts = new CartVisitorRepository();
         $this->contacts = new CustomerContactRepository();
-        $this->timezone = new \DateTimeZone(date_default_timezone_get());
     }
 
     /**
@@ -60,7 +57,7 @@ class ChangedCartsReader
      */
     public function read(\DateTimeInterface $updatedAfter, int $afterId, int $limit, float $deadline): array
     {
-        $after = (new \DateTime('@' . $updatedAfter->getTimestamp()))->setTimezone($this->timezone)->format('Y-m-d H:i:s');
+        $after = ShopperFormat::toLocal($updatedAfter);
         $rows = $this->carts->findChanged($after, $afterId, date('Y-m-d H:i:s'), \Shop::getCompleteListOfShopsID(), $limit);
 
         $customers = $this->contacts->findCustomers(array_unique(array_column($rows, 'id_customer')));
@@ -70,13 +67,13 @@ class ChangedCartsReader
         )));
 
         $carts = [];
-        $nextCursor = ['updatedAfter' => $this->toIso($after), 'afterId' => $afterId];
+        $nextCursor = ['updatedAfter' => ShopperFormat::toIso($after), 'afterId' => $afterId];
         foreach ($rows as $row) {
             if ($carts !== [] && microtime(true) > $deadline) {
                 break;
             }
             $carts[] = $this->toCart($row, $customers[$row['id_customer']] ?? null, $phones);
-            $nextCursor = ['updatedAfter' => $this->toIso($row['changed_at']), 'afterId' => (int) $row['id_cart']];
+            $nextCursor = ['updatedAfter' => ShopperFormat::toIso($row['changed_at']), 'afterId' => (int) $row['id_cart']];
         }
 
         return ['carts' => $carts, 'nextCursor' => $nextCursor];
@@ -103,11 +100,11 @@ class ChangedCartsReader
                     'idProductAttribute' => (int) $product['id_product_attribute'],
                     'title' => $product['name'],
                     'quantity' => (int) $product['cart_quantity'],
-                    'unitPrice' => $this->toAmount((float) $product['price_wt']),
+                    'unitPrice' => ShopperFormat::toAmount((float) $product['price_wt']),
                 ];
             }
             // Without shipping: pricing it would call the carrier modules, some of them remote
-            $total = $this->toAmount((float) $cart->getOrderTotal(true, \Cart::BOTH_WITHOUT_SHIPPING));
+            $total = ShopperFormat::toAmount((float) $cart->getOrderTotal(true, \Cart::BOTH_WITHOUT_SHIPPING));
         } finally {
             $context->currency = $requestCurrency;
         }
@@ -118,8 +115,8 @@ class ChangedCartsReader
             'idCustomer' => (int) $row['id_customer'],
             'visitorId' => $row['visitor_id'],
             'consentLevel' => $row['consent_level'],
-            'createdAt' => $this->toIso($row['date_add']),
-            'updatedAt' => $this->toIso($row['changed_at']),
+            'createdAt' => ShopperFormat::toIso($row['date_add']),
+            'updatedAt' => ShopperFormat::toIso($row['changed_at']),
             'currency' => \Currency::getIsoCodeById((int) $row['id_currency']),
             'total' => $total,
             'lines' => $lines,
@@ -129,18 +126,5 @@ class ChangedCartsReader
                 'isGuest' => $customer !== null ? (bool) $customer['is_guest'] : null,
             ],
         ];
-    }
-
-    /**
-     * A decimal string: json_encode prints floats at serialize_precision, often 17 digits
-     */
-    private function toAmount(float $amount): string
-    {
-        return number_format($amount, 6, '.', '');
-    }
-
-    private function toIso(string $localDateTime): string
-    {
-        return (new \DateTime($localDateTime, $this->timezone))->format(DATE_ATOM);
     }
 }
