@@ -39,14 +39,16 @@ class AskDialogDownloadlatestexportModuleFrontController extends ModuleFrontCont
 {
     use JsonResponseTrait;
 
+    public function __construct()
+    {
+        parent::__construct();
+        // Before init(), which then skips the storefront header and its media hook
+        $this->ajax = true;
+    }
+
     /**
      * Initialize controller
      */
-    public function initContent()
-    {
-        parent::initContent();
-        $this->ajax = true;
-    }
 
     /**
      * Main handler - streams the latest catalog export file

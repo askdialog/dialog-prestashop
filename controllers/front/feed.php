@@ -33,6 +33,7 @@ use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\Export\ProductExportService;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
+use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 use Dialog\AskDialog\Service\Http\HttpTransportException;
 
@@ -44,7 +45,15 @@ use Dialog\AskDialog\Service\Http\HttpTransportException;
  */
 class AskDialogFeedModuleFrontController extends ModuleFrontController
 {
+    use ApiKeyAuthTrait;
     use JsonResponseTrait;
+
+    public function __construct()
+    {
+        parent::__construct();
+        // Before init(), which then skips the storefront header and its media hook
+        $this->ajax = true;
+    }
 
     /**
      * Safety margin in seconds before max_execution_time
@@ -82,56 +91,7 @@ class AskDialogFeedModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        // Check if token is valid
-        $token = $this->getApiToken();
-
-        if ($token === null) {
-            $this->sendJsonResponse(['error' => 'Private API Token is missing'], 401);
-        }
-
-        if ($token !== \Configuration::get('ASKDIALOG_API_KEY')) {
-            $this->sendJsonResponse(['error' => 'Private API Token is wrong'], 403);
-        }
-
-        $this->ajax = true;
-    }
-
-    /**
-     * Get API token from various sources
-     * Some hosting providers (OVH, FastCGI) strip the Authorization header
-     *
-     * @return string|null Token value (without "Token " prefix)
-     */
-    private function getApiToken()
-    {
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-
-        // 1. Standard Authorization header: "Token xxx"
-        $authHeader = $this->getHeaderCaseInsensitive($headers, 'Authorization');
-        if ($authHeader !== null && substr($authHeader, 0, 6) === 'Token ') {
-            return substr($authHeader, 6);
-        }
-
-        // 2. X-Api-Key header (bypass for hosts that strip Authorization)
-        $xApiKey = $this->getHeaderCaseInsensitive($headers, 'X-Api-Key');
-        if ($xApiKey !== null) {
-            return $xApiKey;
-        }
-
-        // 3. $_SERVER variants (FastCGI, CGI, after rewrites)
-        if (!empty($_SERVER['HTTP_AUTHORIZATION']) && substr($_SERVER['HTTP_AUTHORIZATION'], 0, 6) === 'Token ') {
-            return substr($_SERVER['HTTP_AUTHORIZATION'], 6);
-        }
-
-        if (!empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) && substr($_SERVER['REDIRECT_HTTP_AUTHORIZATION'], 0, 6) === 'Token ') {
-            return substr($_SERVER['REDIRECT_HTTP_AUTHORIZATION'], 6);
-        }
-
-        if (!empty($_SERVER['HTTP_X_API_KEY'])) {
-            return $_SERVER['HTTP_X_API_KEY'];
-        }
-
-        return null;
+        $this->requireApiKey('ASKDIALOG_API_KEY', 'Private');
     }
 
     /**

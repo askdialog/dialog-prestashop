@@ -24,6 +24,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 use Dialog\AskDialog\Repository\LogRepository;
+use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 
 /**
@@ -34,7 +35,15 @@ use Dialog\AskDialog\Traits\JsonResponseTrait;
  */
 class AskDialogLogsModuleFrontController extends ModuleFrontController
 {
+    use ApiKeyAuthTrait;
     use JsonResponseTrait;
+
+    public function __construct()
+    {
+        parent::__construct();
+        // Before init(), which then skips the storefront header and its media hook
+        $this->ajax = true;
+    }
 
     /**
      * Initialize controller and verify private API key authentication
@@ -43,61 +52,7 @@ class AskDialogLogsModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        $token = $this->getApiToken();
-
-        if ($token === null) {
-            $this->sendJsonResponse(['error' => 'Private API Token is missing'], 401);
-        }
-
-        if ($token !== \Configuration::get('ASKDIALOG_API_KEY')) {
-            $this->sendJsonResponse(['error' => 'Private API Token is wrong'], 403);
-        }
-
-        $this->ajax = true;
-    }
-
-    /**
-     * Get API token from X-Api-Key header
-     *
-     * @return string|null Token value
-     */
-    private function getApiToken()
-    {
-        // 1. X-Api-Key header via getallheaders()
-        if (function_exists('getallheaders')) {
-            $headers = getallheaders();
-            $xApiKey = $this->getHeaderCaseInsensitive($headers, 'X-Api-Key');
-            if ($xApiKey !== null) {
-                return $xApiKey;
-            }
-        }
-
-        // 2. $_SERVER fallback (FastCGI, CGI, some shared hosting)
-        if (!empty($_SERVER['HTTP_X_API_KEY'])) {
-            return $_SERVER['HTTP_X_API_KEY'];
-        }
-
-        return null;
-    }
-
-    /**
-     * Get header value case-insensitively
-     *
-     * @param array $headers Headers array
-     * @param string $name Header name to find
-     *
-     * @return string|null Header value or null if not found
-     */
-    private function getHeaderCaseInsensitive($headers, $name)
-    {
-        $nameLower = strtolower($name);
-        foreach ($headers as $key => $value) {
-            if (strtolower($key) === $nameLower) {
-                return $value;
-            }
-        }
-
-        return null;
+        $this->requireApiKey('ASKDIALOG_API_KEY', 'Private');
     }
 
     /**
