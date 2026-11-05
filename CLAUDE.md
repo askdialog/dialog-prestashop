@@ -75,13 +75,15 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `ASKDIALOG_ENABLE_PRODUCT_HOOK`: Enable on product pages
 
 ### Hooks Used
+Declared once in `AskDialog::HOOKS`: `install()` registers them, and every upgrade script calls `registerHooks()`, which registers them and unregisters `AskDialog::RETIRED_HOOKS`, so a fresh install and an upgraded one hold the same hooks.
 - `actionFrontControllerSetMedia`: Load CSS/JS files and define the storefront tag's config
 - `displayProductAdditionalInfo`: Render the product block's slot on product pages
-- `displayFooterAfter`: no longer registered since 1.5.0 (`upgrade/upgrade-1.5.0.php`), it rendered the widget container the tag now creates
-- `actionFrontControllerInitBefore`: Handle CORS (currently commented)
+- `displayOrderConfirmation`: Track the order (PostHog PHP, `user_submitted_checkout` with `order_reference`) and render the confirmation template
 - `actionCartUpdateQuantityBefore`: Track add to cart events (PostHog PHP)
-- `actionValidateOrder`: Track order confirmation events (PostHog PHP)
-- `displayOrderConfirmation`: Display order confirmation message
+- Retired: `displayFooterAfter` (1.5.0, the tag now creates the widget container) and `actionValidateOrder` (1.5.2: no method handled it; only installs upgraded through 1.0.5 had it)
+
+### API authentication
+Front controllers called by Dialog run as AJAX from their constructor, so PrestaShop skips the storefront header and its `actionFrontControllerSetMedia` hook. `ApiKeyAuthTrait::requireApiKey()` reads the key from `X-Api-Key`, then `Authorization: Token <key>`, then the same in `$_SERVER` (`HTTP_X_API_KEY`, `HTTP_AUTHORIZATION`, `REDIRECT_HTTP_AUTHORIZATION`) for hosts that strip headers, and compares it in constant time: 401 when missing, 403 when wrong. `feed`, `exportstatus` and `logs` take the private key; `api` takes the public key, which is printed in every storefront page and so never gates customer data.
 
 ## Refactoring History
 
@@ -102,7 +104,7 @@ the table are gone; `upgrade/upgrade-1.3.0.php` drops the table on existing inst
 **Changes:**
 - ✅ Created `src/Service/PostHogService.php`: Server-side analytics service
 - ✅ Uses Symfony HttpClient for HTTP requests (consistent with AskDialogClient)
-- ✅ Registered hooks: `actionCartUpdateQuantityBefore`, `actionValidateOrder`
+- ✅ Registered hooks: `actionCartUpdateQuantityBefore`, `displayOrderConfirmation`
 - ✅ Removed old JavaScript files: `posthog.js`, `posthog_order_confirmation.js`
 - ✅ Sets `$process_person_profile: false` for GDPR compliance
 
@@ -113,11 +115,11 @@ the table are gone; `upgrade/upgrade-1.3.0.php` drops the table on existing inst
    - `quantity`: Quantity added
    - `currency`: ISO currency code
 
-2. **Order Confirmation** (via `actionValidateOrder`)
-   - `order_id`: Order ID
-   - `total_amount`: Total paid
+2. **user_submitted_checkout** (via `displayOrderConfirmation`)
+   - `items`: product, combination, title, quantity, unit price
+   - `orderValue`: Total paid
    - `currency`: ISO currency code
-   - `customer_email`: Customer email
+   - `order_reference`: Order reference
 
 **Key Features:**
 - **Ad-blocker proof**: Server-side tracking cannot be blocked
@@ -229,6 +231,8 @@ The Export Status API allows Dialog admin server to monitor S3 upload progress. 
 
 ### Authentication
 ```bash
+X-Api-Key: {ASKDIALOG_API_KEY}
+# or
 Authorization: Token {ASKDIALOG_API_KEY}
 ```
 
