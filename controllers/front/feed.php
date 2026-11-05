@@ -33,9 +33,9 @@ use Dialog\AskDialog\Service\AskDialogClient;
 use Dialog\AskDialog\Service\DataGenerator;
 use Dialog\AskDialog\Service\Export\ProductExportService;
 use Dialog\AskDialog\Service\Export\ShopMarketMap;
+use Dialog\AskDialog\Service\Http\HttpTransportException;
 use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
-use Dialog\AskDialog\Service\Http\HttpTransportException;
 
 /**
  * Class AskDialogFeedModuleFrontController
