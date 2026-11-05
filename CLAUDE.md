@@ -75,7 +75,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `ASKDIALOG_ENABLE_PRODUCT_HOOK`: Enable on product pages
 
 ### Hooks Used
-Declared once in `AskDialog::HOOKS`: `install()` registers them, and every upgrade script calls `registerHooks()`, which registers them and unregisters `AskDialog::RETIRED_HOOKS`, so a fresh install and an upgraded one hold the same hooks.
+Declared once in `AskDialog::HOOKS`: `install()` registers them, and an upgrade script that changes hooks calls `registerHooks()` (1.0.5, 1.5.0, 1.5.2), which registers them and unregisters `AskDialog::RETIRED_HOOKS` in every shop, so a fresh install and an upgraded one hold the same hooks. A new hook goes in `HOOKS` plus an upgrade script calling `registerHooks()`.
 - `actionFrontControllerSetMedia`: Load CSS/JS files and define the storefront tag's config
 - `displayProductAdditionalInfo`: Render the product block's slot on product pages
 - `displayOrderConfirmation`: Track the order (PostHog PHP, `user_submitted_checkout` with `order_reference`) and render the confirmation template

@@ -143,7 +143,8 @@ class AskDialog extends Module
     {
         $registered = $this->registerHook(self::HOOKS);
         foreach (self::RETIRED_HOOKS as $hook) {
-            if ($this->isRegisteredInHook($hook)) {
+            // Without a shop list, the removal covers every shop, not only the one in context
+            if (Hook::getIdByName($hook)) {
                 $registered = $this->unregisterHook($hook) && $registered;
             }
         }
