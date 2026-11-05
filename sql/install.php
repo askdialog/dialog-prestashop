@@ -60,7 +60,7 @@ $sql[] = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'askdialog_export_state`
     UNIQUE KEY `idx_shop_type` (`id_shop`, `export_type`)
 ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8mb4;';
 
-$sql[] = \Dialog\AskDialog\Repository\CartVisitorRepository::createTableSql();
+$sql[] = Dialog\AskDialog\Repository\CartVisitorRepository::createTableSql();
 
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {

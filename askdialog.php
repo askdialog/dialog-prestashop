@@ -347,14 +347,6 @@ class AskDialog extends Module
     }
 
     /**
-     * Hook: actionCartUpdateQuantityBefore
-     *
-     * Triggered before cart quantity is updated (product added/removed)
-     * Tracks add to cart events to PostHog (increments only, not decrements)
-     *
-     * @param array $params Hook parameters
-     */
-    /**
      * Links the saved cart to the visitor the widget reported after consent (identity controller)
      *
      * Runs on every cart write, so nothing it throws may reach the shopper: Throwable, not
@@ -363,7 +355,7 @@ class AskDialog extends Module
     public function hookActionCartSave($params)
     {
         try {
-            $cart = isset($params['cart']) ? $params['cart'] : $this->context->cart;
+            $cart = $params['cart'] ?? $this->context->cart;
             if (Validate::isLoadedObject($cart)
                 && !(new CartVisitorLink())->linkCart($this->context->cookie, (int) $cart->id)) {
                 Logger::log('[AskDialog] Cart visitor link not saved for cart ' . (int) $cart->id, 3);
@@ -373,6 +365,14 @@ class AskDialog extends Module
         }
     }
 
+    /**
+     * Hook: actionCartUpdateQuantityBefore
+     *
+     * Triggered before cart quantity is updated (product added/removed)
+     * Tracks add to cart events to PostHog (increments only, not decrements)
+     *
+     * @param array $params Hook parameters
+     */
     public function hookActionCartUpdateQuantityBefore($params)
     {
         // Only track additions (not removals)
@@ -388,7 +388,7 @@ class AskDialog extends Module
 
         // Get product and cart
         $product = isset($params['product']) ? $params['product'] : null;
-        $cart = isset($params['cart']) ? $params['cart'] : $this->context->cart;
+        $cart = $params['cart'] ?? $this->context->cart;
 
         if (!$product || !Validate::isLoadedObject($product)) {
             return;

@@ -38,7 +38,7 @@ function upgrade_module_1_6_0($module)
 {
     // Db throws on 8.x and returns false on 1.7: both are logged, neither fails the upgrade
     try {
-        $created = Db::getInstance()->execute(\Dialog\AskDialog\Repository\CartVisitorRepository::createTableSql());
+        $created = Db::getInstance()->execute(Dialog\AskDialog\Repository\CartVisitorRepository::createTableSql());
     } catch (Throwable $e) {
         $created = false;
     }

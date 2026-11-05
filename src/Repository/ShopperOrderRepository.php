@@ -38,16 +38,16 @@ class ShopperOrderRepository extends AbstractRepository
         . ' o.`id_currency`, o.`total_paid`, o.`current_state`, os.`paid`, o.`date_add`, o.`date_upd`';
 
     /**
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findChangedOrders(string $after, int $afterId, string $before, int $limit): array
     {
-        return $this->select(
+        return $this->selectRows(
             'SELECT ' . self::ORDER_COLUMNS
             . ' FROM (' . $this->linkedCustomersSql() . ') linked'
             . " JOIN `{$this->getPrefix()}orders` o ON o.`id_customer` = linked.`id_customer`"
             . $this->orderStateJoinSql()
-            . $this->cursorSql('o.`date_upd`', 'o.`id_order`', $after, $afterId, $before)
+            . ' WHERE ' . $this->afterCursorSql('o.`date_upd`', 'o.`id_order`', $after, $afterId, $before)
             . ' ORDER BY o.`date_upd`, o.`id_order` LIMIT ' . $limit
         );
     }
@@ -55,11 +55,11 @@ class ShopperOrderRepository extends AbstractRepository
     /**
      * Nothing for a customer without a linked cart
      *
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findRecentOrders(int $idCustomer, int $limit): array
     {
-        return $this->select(
+        return $this->selectRows(
             'SELECT ' . self::ORDER_COLUMNS
             . " FROM `{$this->getPrefix()}orders` o"
             . $this->orderStateJoinSql()
@@ -72,7 +72,7 @@ class ShopperOrderRepository extends AbstractRepository
     /**
      * @param int[] $orderIds
      *
-     * @return array<int|string, array<int, array<string, string>>> keyed by id_order
+     * @return array<int|string, array<int, array<string, mixed>>> keyed by id_order
      */
     public function findLines(array $orderIds): array
     {
@@ -80,7 +80,7 @@ class ShopperOrderRepository extends AbstractRepository
             return [];
         }
 
-        return $this->groupBy($this->select(
+        return $this->groupBy($this->selectRows(
             'SELECT `id_order`, `product_id`, `product_attribute_id`, `product_name`, `product_quantity`, `unit_price_tax_incl`'
             . " FROM `{$this->getPrefix()}order_detail`"
             . ' WHERE `id_order` IN (' . $this->escapeIds($orderIds) . ')'
@@ -89,16 +89,16 @@ class ShopperOrderRepository extends AbstractRepository
     }
 
     /**
-     * @return array<int, array<string, string>>
+     * @return array<int, array<string, mixed>>
      */
     public function findChangedCreditSlips(string $after, int $afterId, string $before, int $limit): array
     {
-        return $this->select(
+        return $this->selectRows(
             'SELECT s.`id_order_slip`, s.`id_order`, s.`total_products_tax_incl`, s.`total_shipping_tax_incl`,'
             . ' s.`date_add`, s.`date_upd`'
             . ' FROM (' . $this->linkedCustomersSql() . ') linked'
             . " JOIN `{$this->getPrefix()}order_slip` s ON s.`id_customer` = linked.`id_customer`"
-            . $this->cursorSql('s.`date_upd`', 's.`id_order_slip`', $after, $afterId, $before)
+            . ' WHERE ' . $this->afterCursorSql('s.`date_upd`', 's.`id_order_slip`', $after, $afterId, $before)
             . ' ORDER BY s.`date_upd`, s.`id_order_slip` LIMIT ' . $limit
         );
     }
@@ -114,30 +114,5 @@ class ShopperOrderRepository extends AbstractRepository
     private function orderStateJoinSql(): string
     {
         return " LEFT JOIN `{$this->getPrefix()}order_state` os ON os.`id_order_state` = o.`current_state`";
-    }
-
-    /**
-     * After the `(date, id)` cursor and before `$before`, excluded
-     */
-    private function cursorSql(string $date, string $id, string $after, int $afterId, string $before): string
-    {
-        $after = pSQL($after);
-        $before = pSQL($before);
-
-        return " WHERE $date >= '$after' AND $date < '$before'"
-            . " AND ($date > '$after' OR $id > $afterId)";
-    }
-
-    /**
-     * @return array<int, array<string, string>>
-     */
-    private function select(string $sql): array
-    {
-        $rows = $this->executeS($sql);
-        if (!is_array($rows)) {
-            throw new \RuntimeException('Shopper order query failed: ' . $this->getDb()->getMsgError());
-        }
-
-        return $rows;
     }
 }

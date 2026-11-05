@@ -34,7 +34,7 @@ class CustomerContactRepository extends AbstractRepository
     /**
      * @param int[] $customerIds
      *
-     * @return array<int|string, array<string, string>> keyed by id_customer
+     * @return array<int|string, array<string, mixed>> keyed by id_customer
      */
     public function findCustomers(array $customerIds): array
     {
@@ -42,16 +42,10 @@ class CustomerContactRepository extends AbstractRepository
             return [];
         }
 
-        $rows = $this->executeS(
+        return $this->indexBy($this->selectRows(
             'SELECT `id_customer`, `email`, `is_guest` FROM `' . $this->getPrefix() . 'customer`'
             . ' WHERE `id_customer` IN (' . $this->escapeIds($customerIds) . ')'
-        );
-
-        if (!is_array($rows)) {
-            throw new \RuntimeException('Customer query failed: ' . $this->getDb()->getMsgError());
-        }
-
-        return $this->indexBy($rows, 'id_customer');
+        ), 'id_customer');
     }
 
     /**
@@ -65,14 +59,10 @@ class CustomerContactRepository extends AbstractRepository
             return [];
         }
 
-        $rows = $this->executeS(
+        $rows = $this->selectRows(
             'SELECT `id_address`, `phone`, `phone_mobile` FROM `' . $this->getPrefix() . 'address`'
             . ' WHERE `id_address` IN (' . $this->escapeIds($addressIds) . ')'
         );
-
-        if (!is_array($rows)) {
-            throw new \RuntimeException('Address query failed: ' . $this->getDb()->getMsgError());
-        }
 
         $phones = [];
         foreach ($rows as $row) {

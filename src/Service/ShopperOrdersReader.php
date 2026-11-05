@@ -98,7 +98,7 @@ class ShopperOrdersReader
     }
 
     /**
-     * @param array<int, array<string, string>> $rows
+     * @param array<int, array<string, mixed>> $rows
      *
      * @return array<int, array<string, mixed>>
      */
@@ -158,7 +158,7 @@ class ShopperOrdersReader
     }
 
     /**
-     * @param array<int, array<string, string>> $rows
+     * @param array<int, array<string, mixed>> $rows
      *
      * @return array{updatedAfter: string, afterId: int}
      */

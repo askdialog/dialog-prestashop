@@ -65,6 +65,37 @@ abstract class AbstractRepository
     }
 
     /**
+     * Rows of a SELECT; a failed query throws instead of reading as an empty result
+     *
+     * @return array<int, array<string, mixed>>
+     *
+     * @throws \RuntimeException
+     */
+    protected function selectRows(string $sql): array
+    {
+        $rows = $this->executeS($sql);
+        if (!is_array($rows)) {
+            throw new \RuntimeException('Query failed: ' . $this->getDb()->getMsgError());
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Rows after a `($date, $id)` cursor and dated before `$before`, which is excluded
+     *
+     * @param string $after local datetime of the cursor
+     * @param string $before local datetime
+     */
+    protected function afterCursorSql(string $date, string $id, string $after, int $afterId, string $before): string
+    {
+        $after = pSQL($after);
+        $before = pSQL($before);
+
+        return "$date >= '$after' AND $date < '$before' AND ($date > '$after' OR $id > $afterId)";
+    }
+
+    /**
      * Safely escape array of integers for SQL IN clause
      *
      * @param array $ids Array of IDs
