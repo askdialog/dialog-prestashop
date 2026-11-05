@@ -25,7 +25,10 @@ if (!defined('_PS_VERSION_')) {
 
 /**
  * Upgrade script for version 1.0.5
- * Registers PostHog tracking hooks that were accidentally lost during a merge
+ * Registers the PostHog tracking hooks that were accidentally lost during a merge.
+ *
+ * A hook left registered only renders nothing, so a failure is logged rather than failing the upgrade,
+ * which would disable the module.
  *
  * @param AskDialog $module
  *
@@ -33,6 +36,9 @@ if (!defined('_PS_VERSION_')) {
  */
 function upgrade_module_1_0_5($module)
 {
-    return $module->registerHook('actionCartUpdateQuantityBefore')
-        && $module->registerHook('actionValidateOrder');
+    if (!$module->registerHooks()) {
+        PrestaShopLogger::addLog('AskDialog 1.0.5: could not bring the hooks up to date', 2, null, 'Module', (int) $module->id);
+    }
+
+    return true;
 }

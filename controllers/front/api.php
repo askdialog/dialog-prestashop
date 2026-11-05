@@ -24,6 +24,7 @@ if (!defined('_PS_VERSION_')) {
 }
 
 use Dialog\AskDialog\Service\DataGenerator;
+use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
 
 /**
@@ -34,7 +35,15 @@ use Dialog\AskDialog\Traits\JsonResponseTrait;
  */
 class AskDialogApiModuleFrontController extends ModuleFrontController
 {
+    use ApiKeyAuthTrait;
     use JsonResponseTrait;
+
+    public function __construct()
+    {
+        parent::__construct();
+        // Before init(), which then skips the storefront header and its media hook
+        $this->ajax = true;
+    }
 
     /**
      * Initialize controller and verify public API key authentication
@@ -43,55 +52,7 @@ class AskDialogApiModuleFrontController extends ModuleFrontController
     {
         parent::initContent();
 
-        $token = $this->getApiToken();
-
-        if ($token === null) {
-            $this->sendJsonResponse(['error' => 'Public API Token is missing'], 401);
-        }
-
-        if ($token !== \Configuration::get('ASKDIALOG_API_KEY_PUBLIC')) {
-            $this->sendJsonResponse(['error' => 'Public API Token is wrong'], 403);
-        }
-
-        $this->ajax = true;
-    }
-
-    /**
-     * Get API token from various sources
-     * Supports both X-Api-Key header and legacy Authorization: Token format
-     *
-     * @return string|null Token value
-     */
-    private function getApiToken()
-    {
-        $headers = function_exists('getallheaders') ? getallheaders() : [];
-
-        // 1. X-Api-Key header (preferred, not stripped by FastCGI)
-        $xApiKey = $this->getHeaderCaseInsensitive($headers, 'X-Api-Key');
-        if ($xApiKey !== null) {
-            return $xApiKey;
-        }
-
-        // 2. Legacy: Authorization: Token xxx
-        $authHeader = $this->getHeaderCaseInsensitive($headers, 'Authorization');
-        if ($authHeader !== null && substr($authHeader, 0, 6) === 'Token ') {
-            return substr($authHeader, 6);
-        }
-
-        // 3. $_SERVER fallbacks (FastCGI, CGI, after rewrites)
-        if (!empty($_SERVER['HTTP_X_API_KEY'])) {
-            return $_SERVER['HTTP_X_API_KEY'];
-        }
-
-        if (!empty($_SERVER['HTTP_AUTHORIZATION']) && substr($_SERVER['HTTP_AUTHORIZATION'], 0, 6) === 'Token ') {
-            return substr($_SERVER['HTTP_AUTHORIZATION'], 6);
-        }
-
-        if (!empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION']) && substr($_SERVER['REDIRECT_HTTP_AUTHORIZATION'], 0, 6) === 'Token ') {
-            return substr($_SERVER['REDIRECT_HTTP_AUTHORIZATION'], 6);
-        }
-
-        return null;
+        $this->requireApiKey('ASKDIALOG_API_KEY_PUBLIC', 'Public');
     }
 
     /**
