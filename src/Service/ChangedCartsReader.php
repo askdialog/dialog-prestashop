@@ -91,15 +91,25 @@ class ChangedCartsReader
     private function toCart(array $row, ?array $customer, array $phones): array
     {
         $cart = new \Cart((int) $row['id_cart']);
-        $lines = [];
-        foreach ($cart->getProducts() as $product) {
-            $lines[] = [
-                'idProduct' => (int) $product['id_product'],
-                'idProductAttribute' => (int) $product['id_product_attribute'],
-                'title' => $product['name'],
-                'quantity' => (int) $product['cart_quantity'],
-                'unitPrice' => $this->toAmount((float) $product['price_wt']),
-            ];
+        // PrestaShop prices each line in the context currency; it switches the shop by itself
+        $context = \Context::getContext();
+        $requestCurrency = $context->currency;
+        $context->currency = new \Currency((int) $row['id_currency']);
+        try {
+            $lines = [];
+            foreach ($cart->getProducts() as $product) {
+                $lines[] = [
+                    'idProduct' => (int) $product['id_product'],
+                    'idProductAttribute' => (int) $product['id_product_attribute'],
+                    'title' => $product['name'],
+                    'quantity' => (int) $product['cart_quantity'],
+                    'unitPrice' => $this->toAmount((float) $product['price_wt']),
+                ];
+            }
+            // Without shipping: pricing it would call the carrier modules, some of them remote
+            $total = $this->toAmount((float) $cart->getOrderTotal(true, \Cart::BOTH_WITHOUT_SHIPPING));
+        } finally {
+            $context->currency = $requestCurrency;
         }
 
         return [
@@ -111,8 +121,7 @@ class ChangedCartsReader
             'createdAt' => $this->toIso($row['date_add']),
             'updatedAt' => $this->toIso($row['changed_at']),
             'currency' => \Currency::getIsoCodeById((int) $row['id_currency']),
-            // Without shipping: pricing it would call the carrier modules, some of them remote
-            'total' => $this->toAmount((float) $cart->getOrderTotal(true, \Cart::BOTH_WITHOUT_SHIPPING)),
+            'total' => $total,
             'lines' => $lines,
             'customer' => [
                 'email' => $customer['email'] ?? null,

@@ -47,7 +47,11 @@ class CustomerContactRepository extends AbstractRepository
             . ' WHERE `id_customer` IN (' . $this->escapeIds($customerIds) . ')'
         );
 
-        return is_array($rows) ? $this->indexBy($rows, 'id_customer') : [];
+        if (!is_array($rows)) {
+            throw new \RuntimeException('Customer query failed: ' . $this->getDb()->getMsgError());
+        }
+
+        return $this->indexBy($rows, 'id_customer');
     }
 
     /**
@@ -66,8 +70,12 @@ class CustomerContactRepository extends AbstractRepository
             . ' WHERE `id_address` IN (' . $this->escapeIds($addressIds) . ')'
         );
 
+        if (!is_array($rows)) {
+            throw new \RuntimeException('Address query failed: ' . $this->getDb()->getMsgError());
+        }
+
         $phones = [];
-        foreach (is_array($rows) ? $rows : [] as $row) {
+        foreach ($rows as $row) {
             $mobile = (string) $row['phone_mobile'];
             $phone = $mobile !== '' ? $mobile : (string) $row['phone'];
             if ($phone !== '') {

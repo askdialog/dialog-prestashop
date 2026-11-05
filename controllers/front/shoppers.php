@@ -23,6 +23,7 @@ if (!defined('_PS_VERSION_')) {
     exit;
 }
 
+use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Service\ChangedCartsReader;
 use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
@@ -83,11 +84,11 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
 
     private function handleGetCarts()
     {
-        $updatedAfter = (string) Tools::getValue('updatedAfter');
+        $updatedAfter = $this->parseDate((string) Tools::getValue('updatedAfter'));
         $afterId = Tools::getValue('afterId', '0');
         $limit = Tools::getValue('limit', (string) self::DEFAULT_LIMIT);
 
-        if (!preg_match(self::ISO_8601, $updatedAfter)
+        if ($updatedAfter === null
             || !ctype_digit((string) $afterId)
             || !ctype_digit((string) $limit)
             || (int) $limit < 1
@@ -98,12 +99,32 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
             ], 400);
         }
 
-        $this->sendJsonResponse((new ChangedCartsReader())->read(
-            new DateTime($updatedAfter),
-            (int) $afterId,
-            (int) $limit,
-            $this->getDeadline()
-        ));
+        try {
+            $page = (new ChangedCartsReader())->read($updatedAfter, (int) $afterId, (int) $limit, $this->getDeadline());
+        } catch (Throwable $e) {
+            Logger::log('[AskDialog] Shoppers::getCarts: ERROR - ' . $e->getMessage(), 3);
+            $this->sendJsonResponse(['error' => 'Carts could not be read'], 500);
+        }
+
+        $this->sendJsonResponse($page);
+    }
+
+    /**
+     * An ISO 8601 date with an offset; null for any other value, including an impossible date
+     */
+    private function parseDate(string $value): ?DateTime
+    {
+        if (!preg_match(self::ISO_8601, $value)) {
+            return null;
+        }
+
+        $date = DateTime::createFromFormat('Y-m-d\TH:i:sP', preg_replace(['/\.\d+/', '/Z$/'], ['', '+00:00'], $value));
+        $errors = DateTime::getLastErrors();
+        if ($date === false || (is_array($errors) && $errors['warning_count'] > 0)) {
+            return null;
+        }
+
+        return $date;
     }
 
     private function getDeadline(): float

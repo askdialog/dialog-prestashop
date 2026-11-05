@@ -107,6 +107,10 @@ class CartVisitorRepository extends AbstractRepository
             . ' LIMIT ' . $limit
         );
 
-        return is_array($rows) ? $rows : [];
+        if (!is_array($rows)) {
+            throw new \RuntimeException('Changed carts query failed: ' . $this->getDb()->getMsgError());
+        }
+
+        return $rows;
     }
 }
