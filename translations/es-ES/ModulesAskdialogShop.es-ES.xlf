@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2">
+  <file original="controllers/front/handoff.php" source-language="es-ES" target-language="es-ES" datatype="plaintext">
+    <body>
+      <trans-unit id="1c42070bf91e4f2264c7cf91440b1efe">
+        <source>This cart link is invalid or has expired.</source>
+        <target>Este enlace de carrito no es válido o ha caducado.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="89286c2f4a58aaef1cf1c0b46139e3ef">
+        <source>Your selection could not be added to your cart.</source>
+        <target>No se ha podido añadir su selección al carrito.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="834ff249b8be1b6fb44449c23011b708">
+        <source>A product from your selection could not be added to your cart.</source>
+        <target>No se ha podido añadir al carrito un producto de su selección.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="7482768b56904ffc5acd053a713d2953">
+        <source>A product from your selection is no longer available.</source>
+        <target>Un producto de su selección ya no está disponible.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="f2506c49005a8eaa86dcfc2167add185">
+        <source>%s needs to be personalised on its page before it can be added.</source>
+        <target>%s debe personalizarse en su página antes de poder añadirse.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="caa5bb97810c58b394e136e3ca740b21">
+        <source>The selected option of %s no longer exists.</source>
+        <target>La opción elegida de %s ya no existe.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="bc3cc0bad192529972ddad292d9df1fb">
+        <source>Choose an option for %s on its page.</source>
+        <target>Elija una opción de %s en su página.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="b331c02628c7d4792a74d18886d3b527">
+        <source>%s is sold by %d at least: the quantity was raised.</source>
+        <target>%s se vende por %d como mínimo: se ha aumentado la cantidad.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="3189f18b777155debf72451aff4a64ae">
+        <source>%s is out of stock.</source>
+        <target>%s está agotado.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="bea06cfb5e2940cca259d906dae217aa">
+        <source>Only %d of %s were left: the quantity was lowered.</source>
+        <target>Solo quedaban %d unidades de %s: se ha reducido la cantidad.</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="558f5d8704e7fb0b059b88059e75fc45">
+        <source>%s could not be added to your cart.</source>
+        <target>No se ha podido añadir %s al carrito.</target>
+        <note>Line: </note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>
