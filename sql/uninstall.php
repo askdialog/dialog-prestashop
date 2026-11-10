@@ -29,6 +29,7 @@ $sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_export_log`;';
 $sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_appearance`;';
 $sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_export_state`;';
 $sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_cart_visitor`;';
+$sql[] = 'DROP TABLE IF EXISTS `' . _DB_PREFIX_ . 'askdialog_cart_origin`;';
 
 foreach ($sql as $query) {
     if (!Db::getInstance()->execute($query)) {
