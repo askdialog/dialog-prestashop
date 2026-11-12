@@ -30,6 +30,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - Appearance (colors, font, borders) comes from the Dialog dashboard; the module declares none (removed in 1.3.0)
 - Can be enabled on product pages with instant questions (`ASKDIALOG_ENABLE_PRODUCT_HOOK`, AI button mode with `ASKDIALOG_AI_BUTTON_MODE`)
 - Add to cart: the widget calls PrestaShop's CartController itself; `cart-integration.js` still exposes `window.askDialogAddToCart` and `window.askDialogAddCurrentProductToCart`
+- Dialog search (`ASKDIALOG_ENABLE_SEARCH`, off by default, DEC-4099): the config gains `search` (the shop's localized search page, `queryParam: 's'`, `formSelector: '#search_widget form'`, `resultsSelector: '#main'`, `cart: 'prestashop'`), and the tag mounts Dialog's suggestions on ps_searchbar's form and Dialog's results in the search page's `#main`. `views/js/search-bar.js` disables ps_searchbar's jQuery UI autocomplete (disabled, not destroyed: ps_searchbar passes it options again on a resize, which would rebuild it). `views/css/search-page.css`, on the search page only, hides `#main` until the tag sets `data-dialog-search-results-attached` on `<html>`, and fades the native results in after 3 s when it never does. Needs a `dialog.js` that knows `search` (DEC-4098)
 
 **Key Files:**
 - `askdialog.php`: `hookActionFrontControllerSetMedia` defines `askDialogConfig` and `DIALOG_VARIABLES` (`Media::addJsDef`, no inline script of the module's own) and registers the scripts
@@ -75,6 +76,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 - `ASKDIALOG_API_KEY_PUBLIC`: Public API key
 - `ASKDIALOG_API_URL`: API URL (default: defined in `AskDialog::DIALOG_API_URL`)
 - `ASKDIALOG_ENABLE_PRODUCT_HOOK`: Enable on product pages
+- `ASKDIALOG_ENABLE_SEARCH`: Dialog search in the search bar and on the search page
 
 ### Hooks Used
 Declared once in `AskDialog::HOOKS`: `install()` registers them, and an upgrade script that changes hooks calls `registerHooks()` (1.0.5, 1.5.0, 1.5.2), which registers them and unregisters `AskDialog::RETIRED_HOOKS` in every shop, so a fresh install and an upgraded one hold the same hooks. A new hook goes in `HOOKS` plus an upgrade script calling `registerHooks()`.
