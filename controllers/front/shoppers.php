@@ -43,6 +43,12 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
 
     private const ACTIONS = ['getModuleInfo', 'getCarts', 'getOrders', 'getCreditSlips', 'getCustomerOrders'];
 
+    /**
+     * What the module serves outside this controller, listed with its actions: `handoff` is
+     * the cart handoff controller, which Dialog checks before signing links for this store
+     */
+    private const OTHER_CAPABILITIES = ['handoff'];
+
     private const DEFAULT_LIMIT = 100;
 
     private const MAX_LIMIT = 500;
@@ -72,7 +78,10 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
     {
         switch (Tools::getValue('action')) {
             case 'getModuleInfo':
-                $this->sendJsonResponse(['version' => $this->module->version, 'actions' => self::ACTIONS]);
+                $this->sendJsonResponse([
+                    'version' => $this->module->version,
+                    'actions' => array_merge(self::ACTIONS, self::OTHER_CAPABILITIES),
+                ]);
                 break;
 
             case 'getCarts':

@@ -1,0 +1,62 @@
+{
+  "description": "Cart handoff v1 test vectors. derivedKey = HMAC-SHA256(key=privateKey, msg=\"dialog-cart-handoff-v1\") (raw 32 bytes); p = base64url(JSON, no padding); s = hex(HMAC-SHA256(key=derivedKey, msg=p)). Verifiers sign the received p string, never a re-encoded JSON.",
+  "privateKey": "test-private-key-0123456789abcdef",
+  "derivedKeyHex": "395f96cdab5db90d29aa706d677eec071e0838173ad9e9d4f7b38afc0d4647b7",
+  "cases": [
+    {
+      "name": "two lines, one without variant",
+      "payload": {
+        "v": 1,
+        "items": [
+          {
+            "id": "12",
+            "variant": "34",
+            "qty": 2
+          },
+          {
+            "id": "7",
+            "qty": 1
+          }
+        ],
+        "origin": "dialog_plugin",
+        "ref": "hR3f9KqL2mXz8VbN1cWd0A",
+        "exp": 1767225600,
+        "utm": {
+          "utm_source": "chatgpt.com",
+          "utm_medium": "dialog_plugin",
+          "utm_campaign": "my-shop"
+        }
+      },
+      "p": "eyJ2IjoxLCJpdGVtcyI6W3siaWQiOiIxMiIsInZhcmlhbnQiOiIzNCIsInF0eSI6Mn0seyJpZCI6IjciLCJxdHkiOjF9XSwib3JpZ2luIjoiZGlhbG9nX3BsdWdpbiIsInJlZiI6ImhSM2Y5S3FMMm1YejhWYk4xY1dkMEEiLCJleHAiOjE3NjcyMjU2MDAsInV0bSI6eyJ1dG1fc291cmNlIjoiY2hhdGdwdC5jb20iLCJ1dG1fbWVkaXVtIjoiZGlhbG9nX3BsdWdpbiIsInV0bV9jYW1wYWlnbiI6Im15LXNob3AifX0",
+      "s": "46dfcb13a588086c80d49568a27ac2d28634fa63e69e7558e46db83bbe9d4f13"
+    },
+    {
+      "name": "unicode-free single line",
+      "payload": {
+        "v": 1,
+        "items": [
+          {
+            "id": "1",
+            "variant": "3",
+            "qty": 99
+          }
+        ],
+        "origin": "dialog_plugin",
+        "ref": "AAAAAAAAAAAAAAAAAAAAAA",
+        "exp": 1767225600,
+        "utm": {
+          "utm_source": "chatgpt.com",
+          "utm_medium": "dialog_plugin",
+          "utm_campaign": "my-shop"
+        }
+      },
+      "p": "eyJ2IjoxLCJpdGVtcyI6W3siaWQiOiIxIiwidmFyaWFudCI6IjMiLCJxdHkiOjk5fV0sIm9yaWdpbiI6ImRpYWxvZ19wbHVnaW4iLCJyZWYiOiJBQUFBQUFBQUFBQUFBQUFBQUFBQUFBIiwiZXhwIjoxNzY3MjI1NjAwLCJ1dG0iOnsidXRtX3NvdXJjZSI6ImNoYXRncHQuY29tIiwidXRtX21lZGl1bSI6ImRpYWxvZ19wbHVnaW4iLCJ1dG1fY2FtcGFpZ24iOiJteS1zaG9wIn19",
+      "s": "d9bac646761eb39a223004dcc6c50f1b85b536bfd5eb932b854a0770f0d706b8"
+    }
+  ],
+  "tampered": {
+    "p": "eyJ2IjoxLCJpdGVtcyI6W3siaWQiOiIxMiIsInZhcmlhbnQiOiIzNCIsInF0eSI6Mn0seyJpZCI6IjciLCJxdHkiOjF9XSwib3JpZ2luIjoiZGlhbG9nX3BsdWdpbiIsInJlZiI6ImhSM2Y5S3FMMm1YejhWYk4xY1dkMEEiLCJleHAiOjE3NjcyMjU2MDAsInV0bSI6eyJ1dG1fc291cmNlIjoiY2hhdGdwdC5jb20iLCJ1dG1fbWVkaXVtIjoiZGlhbG9nX3BsdWdpbiIsInV0bV9jYW1wYWlnbiI6Im15LXNob3AifX0",
+    "s": "46dfcb13a588086c80d49568a27ac2d28634fa63e69e7558e46db83bbe9d4f10",
+    "valid": false
+  }
+}

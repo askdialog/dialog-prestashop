@@ -68,6 +68,7 @@ AskDialog is a PrestaShop module that integrates conversational AI into e-commer
 ### Database Tables
 - `askdialog_export_log`: Tracks export status (init, pending, success, error) for S3 uploads
 - `askdialog_cart_visitor`: The Dialog visitor of each cart (`id_cart` key, visitor id, consent level `a`/`am`); `date_upd` moves only when the visitor or the level changes
+- `askdialog_cart_origin`: The handoff links each cart received (`(id_cart, handoff_ref)` key, origin, date); see Cart handoff
 
 ### Configuration (Configuration::get)
 - `ASKDIALOG_API_KEY`: Private API key
@@ -85,18 +86,27 @@ Declared once in `AskDialog::HOOKS`: `install()` registers them, and an upgrade 
 - Retired: `displayFooterAfter` (1.5.0, the tag now creates the widget container) and `actionValidateOrder` (1.5.2: no method handled it; only installs upgraded through 1.0.5 had it)
 
 ### Shopper identification (1.6.0)
-Feeds the Shoppers page in Dialog. After the shopper consents, the widget posts `userId`, `consentLevel` (`a` or `am`) and `token` (`prestashop.static_token`) to `controllers/front/identity.php`, which answers 204 (403 on a wrong token, 400 on invalid input). `CartVisitorLink` keeps the visitor in the PrestaShop cookie, links the current cart at once, and `actionCartSave` links every cart saved afterwards. The link is kept per cart, never read from the cookie at order time: `actionValidateOrder` can run from a payment webhook, with no browser. The hook catches `Throwable` and only logs, since it runs on every cart write. The spike's `askdialog_cart_origin` (DEC-3660, unmerged) is a separate table on purpose: it records once where a handed-over cart came from, while this one follows the shopper's consent on every save.
+Feeds the Shoppers page in Dialog. After the shopper consents, the widget posts `userId`, `consentLevel` (`a` or `am`) and `token` (`prestashop.static_token`) to `controllers/front/identity.php`, which answers 204 (403 on a wrong token, 400 on invalid input). `CartVisitorLink` keeps the visitor in the PrestaShop cookie, links the current cart at once, and `actionCartSave` links every cart saved afterwards. The link is kept per cart, never read from the cookie at order time: `actionValidateOrder` can run from a payment webhook, with no browser. The hook catches `Throwable` and only logs, since it runs on every cart write. `askdialog_cart_origin` (Cart handoff) is a separate table on purpose: it records the links a cart received, while this one follows the shopper's consent on every save.
 
 ### Shoppers read (DEC-3924, DEC-3928)
 `controllers/front/shoppers.php`, private key: what Dialog reads to build its Shoppers page.
 
-- `getModuleInfo` returns `version` and `actions`: Dialog checks it before turning identification on.
+- `getModuleInfo` returns `version` and `actions`: Dialog checks it before turning identification on. `actions` also lists `handoff` (`OTHER_CAPABILITIES`, not dispatched here): Dialog signs cart links only for a module that lists it.
 - `getCarts`, `getOrders` and `getCreditSlips` take a cursor, `updatedAfter=<ISO 8601 with offset>&afterId=<id>&limit=<1-500, default 100>`, and return their rows after it in `(date_upd, id)` order, with `nextCursor` to send back as is. PrestaShop dates are local and to the second, so a page never returns the current second, which can still receive writes.
 - `getCarts` returns the carts that have a customer and a linked visitor. A cart changes when PrestaShop saves it or when its link changes (the later of the two `date_upd`). Pricing runs in the cart's currency, and a page closes after 60 s (less under a low `max_execution_time`) on the carts priced so far. `total` leaves out shipping, which would call the carrier modules.
 - `getOrders` and `getCreditSlips` cover the customers with a linked cart only. A state change updates `ps_orders.date_upd`, so the order comes back on the next read. Each order carries its state id, the state's `paid` flag and whether it is `PS_OS_CANCELED`, `PS_OS_ERROR` or `PS_OS_REFUND`. A credit slip's `amount` is products plus shipping, tax included.
 - `getCustomerOrders&idCustomer=<id>` returns that customer's 200 most recent orders, in the `getOrders` shape, and nothing for a customer without a linked cart. Dialog reads it once, when it first links the customer.
 - `ps_orders` and `order_slip` have no index on `date_upd`: the order reads start from the linked customers and their `id_customer` index.
 - Amounts are decimal strings, tax included. `ChangedCartsReader` and `ShopperOrdersReader` build the pages; `ShopperFormat` writes their dates and amounts.
+
+### Cart handoff (1.7.0, DEC-4029)
+Dialog (the ChatGPT plugin) hands a cart over in a signed link to `controllers/front/handoff.php`, `index.php?fc=module&module=askdialog&controller=handoff&p=<p>&s=<s>`, a form that works with friendly URLs on or off. The contract is shared with dialog-ecom and dialog-mcp-server (payload v1); `tests/fixtures/handoff-v1-vectors.json` holds its vectors, copied byte for byte.
+
+- `HandoffPayload::verify()` (`src/Service/CartHandoff/`) checks `s = hex(HMAC-SHA256(p))` under the key `hash_hmac('sha256', 'dialog-cart-handoff-v1', <private key>, true)`, on the received `p`, never a re-encoded JSON. It refuses `v` other than 1, `now > exp + 60`, `exp > now + 960`, and malformed lines: 1 to 50, `id`/`variant` digit strings (`variant` absent = 0, no combination), `qty` 1 to 99. Only `utm_source|medium|campaign|content|term` with values `^[A-Za-z0-9._-]{1,100}$` go onto the redirect.
+- A refused link shows "This cart link is invalid or has expired." and creates no cart. Otherwise the controller claims `(id_cart, ref)` with `INSERT IGNORE` before adding lines: a claimed pair adds nothing (reload, double click), a claim that added no line is released, several links into one cart are all kept. Lines that cannot go in as asked get a notice each (unavailable, option missing, personalisation required, minimal quantity raised, stock lowered, out of stock), domain `Modules.Askdialog.Shop`, translated in `translations/` (9.0.3 reads them; 1.7.6.7 shows them in English, as it does the module's admin strings).
+- Always redirects to the cart page (`cart`, `action=show`), never the checkout (DEC-3659), with `Cache-Control: no-store`.
+- `handoff_ref` is base64url, stored `ascii_bin` to compare case-sensitively. Upgrade 1.7.0 drops and recreates the table: the unreleased DEC-3660 spike (#70) made one keyed on the cart alone. Crediting orders to a handoff is later work; the spike's `actionValidateOrder` stays retired.
+- Unit tests: `composer install` then `composer test` (PHPUnit, PHP 8.1+; dev-only, the module ships without vendor/).
 
 ### API authentication
 Front controllers called by Dialog run as AJAX from their constructor, so PrestaShop skips the storefront header and its `actionFrontControllerSetMedia` hook. `ApiKeyAuthTrait::requireApiKey()` reads the key from `X-Api-Key`, then `Authorization: Token <key>`, then the same in `$_SERVER` (`HTTP_X_API_KEY`, `HTTP_AUTHORIZATION`, `REDIRECT_HTTP_AUTHORIZATION`) for hosts that strip headers, and compares it in constant time: 401 when missing, 403 when wrong. `feed`, `exportstatus`, `logs` and `shoppers` take the private key; `api` takes the public key, which is printed in every storefront page and so never gates customer data.
