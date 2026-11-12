@@ -44,7 +44,7 @@
       </trans-unit>
       <trans-unit id="3189f18b777155debf72451aff4a64ae">
         <source>%s is out of stock.</source>
-        <target>%s está agotado.</target>
+        <target>El producto %s está agotado.</target>
         <note>Line: </note>
       </trans-unit>
       <trans-unit id="bea06cfb5e2940cca259d906dae217aa">
