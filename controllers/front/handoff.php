@@ -77,10 +77,26 @@ class AskDialogHandoffModuleFrontController extends ModuleFrontController
 
         // Already claimed: a reload or a second click, whose lines are in the cart already
         if ($claimed && $this->addLines($cart, $payload->getLines()) === 0) {
-            $origins->release((int) $cart->id, $payload->getRef());
+            $this->release($origins, (int) $cart->id, $payload->getRef());
         }
 
         $this->redirectToCart($payload->getUtm());
+    }
+
+    /**
+     * A claim left behind makes the link add nothing when followed again: the failure is logged,
+     * the shopper already has the notices of the lines that did not go in
+     */
+    private function release(CartOriginRepository $origins, int $idCart, string $ref)
+    {
+        try {
+            $released = $origins->release($idCart, $ref);
+        } catch (Throwable $e) {
+            $released = false;
+        }
+        if (!$released) {
+            Logger::log('[AskDialog] Handoff: could not release the claim of cart ' . $idCart, Logger::ERROR);
+        }
     }
 
     /**
