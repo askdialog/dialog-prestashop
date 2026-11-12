@@ -38,6 +38,7 @@ use PrestaShop\PrestaShop\Core\Form\FormDataProviderInterface;
  *  - api_key : string
  *  - enable_product_hook : bool
  *  - ai_button_mode : bool
+ *  - enable_search : bool
  */
 class GeneralFormDataProvider implements FormDataProviderInterface
 {
@@ -52,7 +53,7 @@ class GeneralFormDataProvider implements FormDataProviderInterface
     }
 
     /**
-     * @return array{api_key_public:string,api_key:string,enable_product_hook:bool,ai_button_mode:bool}
+     * @return array{api_key_public:string,api_key:string,enable_product_hook:bool,ai_button_mode:bool,enable_search:bool}
      */
     public function getData(): array
     {
@@ -60,7 +61,7 @@ class GeneralFormDataProvider implements FormDataProviderInterface
     }
 
     /**
-     * @param array{api_key_public?:string,api_key?:string,enable_product_hook?:bool,ai_button_mode?:bool} $data
+     * @param array{api_key_public?:string,api_key?:string,enable_product_hook?:bool,ai_button_mode?:bool,enable_search?:bool} $data
      *
      * @return array<string> List of error messages (empty if success)
      */

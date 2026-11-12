@@ -134,7 +134,8 @@ class AskDialog extends Module
             && Configuration::updateValue('ASKDIALOG_API_URL', self::DIALOG_API_URL)
             && Configuration::updateValue('ASKDIALOG_BATCH_SIZE', 5000)
             && Configuration::updateValue('ASKDIALOG_ENABLE_LOGS', false)
-            && Configuration::updateValue('ASKDIALOG_AI_BUTTON_MODE', false);
+            && Configuration::updateValue('ASKDIALOG_AI_BUTTON_MODE', false)
+            && Configuration::updateValue('ASKDIALOG_ENABLE_SEARCH', false);
     }
 
     /**
@@ -163,6 +164,7 @@ class AskDialog extends Module
             && \Configuration::deleteByName('ASKDIALOG_ENABLE_PRODUCT_HOOK')
             && \Configuration::deleteByName('ASKDIALOG_ENABLE_LOGS')
             && \Configuration::deleteByName('ASKDIALOG_AI_BUTTON_MODE')
+            && \Configuration::deleteByName('ASKDIALOG_ENABLE_SEARCH')
             && $this->uninstallDb();
     }
 

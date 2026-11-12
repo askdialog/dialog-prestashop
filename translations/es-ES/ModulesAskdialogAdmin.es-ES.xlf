@@ -267,6 +267,16 @@
         <target>Pregunta otra cosa</target>
         <note>Line: </note>
       </trans-unit>
+      <trans-unit id="8c9e9ed9f9e527b10ae4faf1338f6222">
+        <source>Dialog search</source>
+        <target>Búsqueda Dialog</target>
+        <note>Line: </note>
+      </trans-unit>
+      <trans-unit id="0e3865748dea072e12f2f2ee597564e6">
+        <source>Shows Dialog's suggestions in the store's search bar and Dialog's results on the search page</source>
+        <target>Muestra las sugerencias de Dialog en la barra de búsqueda de la tienda y los resultados de Dialog en la página de búsqueda</target>
+        <note>Line: </note>
+      </trans-unit>
     </body>
   </file>
 </xliff>
