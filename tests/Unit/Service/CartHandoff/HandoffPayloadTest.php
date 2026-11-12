@@ -115,6 +115,7 @@ class HandoffPayloadTest extends TestCase
             [['id' => '12abc', 'qty' => 1]],
             [['id' => '12', 'variant' => 34, 'qty' => 1]],
             [['id' => '12', 'variant' => '', 'qty' => 1]],
+            [['id' => '12', 'variant' => null, 'qty' => 1]],
             [['id' => '12', 'qty' => 0]],
             [['id' => '12', 'qty' => 100]],
             [['id' => '12', 'qty' => '2']],

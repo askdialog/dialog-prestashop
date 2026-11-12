@@ -214,18 +214,19 @@ class HandoffPayload
         }
 
         $id = isset($item['id']) ? $item['id'] : null;
-        // The signer omits the variant of a product without combinations
-        $variant = array_key_exists('variant', $item) ? $item['variant'] : null;
+        // The signer omits the variant of a product without combinations; an explicit null is malformed
+        $hasVariant = array_key_exists('variant', $item);
+        $variant = $hasVariant ? $item['variant'] : null;
         $quantity = isset($item['qty']) ? $item['qty'] : null;
 
         if (!is_string($id) || !preg_match(self::ID, $id)
-            || ($variant !== null && (!is_string($variant) || !preg_match(self::ID, $variant)))
+            || ($hasVariant && (!is_string($variant) || !preg_match(self::ID, $variant)))
             || !is_int($quantity) || $quantity < 1 || $quantity > self::MAX_QUANTITY
         ) {
             throw new InvalidHandoffException('items');
         }
 
-        return ['id' => (int) $id, 'variant' => $variant === null ? 0 : (int) $variant, 'qty' => $quantity];
+        return ['id' => (int) $id, 'variant' => $hasVariant ? (int) $variant : 0, 'qty' => $quantity];
     }
 
     /**
