@@ -226,6 +226,10 @@ class AskDialog extends Module
             ]
         );
 
+        if ($this->isSearchEnabled()) {
+            $this->registerSearchMedia();
+        }
+
         // cart-integration.js - PrestaShop-specific cart integration (must stay local)
         $this->context->controller->registerJavascript(
             'module-askdialog-cart-integration',
@@ -237,8 +241,29 @@ class AskDialog extends Module
         );
     }
 
+    private function isSearchEnabled(): bool
+    {
+        return (bool) Configuration::get(GeneralDataConfiguration::ASKDIALOG_ENABLE_SEARCH);
+    }
+
     /**
-     * The storefront tag's config: the assistant's market, language and display currency
+     * Dialog search enhances the theme's own search: ps_searchbar's suggestions make way for Dialog's
+     */
+    private function registerSearchMedia(): void
+    {
+        $this->context->controller->registerJavascript(
+            'module-askdialog-search-bar',
+            'modules/' . $this->name . '/views/js/search-bar.js',
+            [
+                'position' => 'bottom',
+                'priority' => 200,
+            ]
+        );
+    }
+
+    /**
+     * The storefront tag's config: the assistant's market, language and display currency, and
+     * where the theme's search lives when Dialog search is on
      *
      * @return array
      */
@@ -260,7 +285,7 @@ class AskDialog extends Module
         $idBaseCurrency = (int) ShopMarketMap::shopConfiguration('PS_CURRENCY_DEFAULT', $idShop);
         $baseCurrency = $idBaseCurrency > 0 ? new Currency($idBaseCurrency) : null;
 
-        return [
+        $config = [
             'apiKey' => (string) Configuration::get('ASKDIALOG_API_KEY_PUBLIC'),
             'assistant' => [
                 'countryCode' => $countryCode,
@@ -273,6 +298,19 @@ class AskDialog extends Module
                 ],
             ],
         ];
+        if ($this->isSearchEnabled()) {
+            $config['search'] = [
+                // The shop's search page in the visitor's language, which ps_searchbar's form submits to
+                'url' => $this->context->link->getPageLink('search'),
+                'queryParam' => 's',
+                'formSelector' => '#search_widget form',
+                'resultsSelector' => '#main',
+                // The tag's adapter for PrestaShop's CartController
+                'cart' => 'prestashop',
+            ];
+        }
+
+        return $config;
     }
 
     public function hookDisplayOrderConfirmation($params)
