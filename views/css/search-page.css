@@ -1,0 +1,37 @@
+/**
+ * 2026 Dialog
+ *
+ * NOTICE OF LICENSE
+ *
+ * This source file is subject to the Academic Free License (AFL 3.0)
+ * that is bundled with this package in the file LICENSE.txt.
+ * It is also available through the world-wide-web at this URL:
+ * http://opensource.org/licenses/afl-3.0.php
+ *
+ * DISCLAIMER
+ *
+ * Do not edit or add to this file if you wish to upgrade PrestaShop to newer
+ * versions in the future. If you wish to customize PrestaShop for your
+ * needs please refer to http://www.prestashop.com for more information.
+ *
+ * @author    Axel Paillaud <contact@axelweb.fr>
+ * @copyright 2026 Dialog
+ * @license   http://opensource.org/licenses/afl-3.0.php  Academic Free License (AFL 3.0)
+ */
+/*
+ * The native results stay hidden until Dialog's mount: the tag then sets the attribute on <html> and
+ * takes #main over. When they never mount (dialog.js blocked, no search for the shopper's country),
+ * the native results fade in after 3 s.
+ */
+html:not([data-dialog-search-results-attached]) #main {
+  visibility: hidden;
+  opacity: 0;
+  animation: askdialog-native-results-reveal 0.3s ease-out 3s forwards;
+}
+
+@keyframes askdialog-native-results-reveal {
+  to {
+    visibility: visible;
+    opacity: 1;
+  }
+}

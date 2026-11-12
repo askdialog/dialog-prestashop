@@ -247,7 +247,8 @@ class AskDialog extends Module
     }
 
     /**
-     * Dialog search enhances the theme's own search: ps_searchbar's suggestions make way for Dialog's
+     * Dialog search enhances the theme's own search: ps_searchbar's suggestions make way for
+     * Dialog's, and the search page hides its native results until Dialog's mount
      */
     private function registerSearchMedia(): void
     {
@@ -259,6 +260,17 @@ class AskDialog extends Module
                 'priority' => 200,
             ]
         );
+
+        if ($this->context->controller instanceof SearchController) {
+            $this->context->controller->registerStylesheet(
+                'module-askdialog-search-page',
+                'modules/' . $this->name . '/views/css/search-page.css',
+                [
+                    'media' => 'all',
+                    'priority' => 200,
+                ]
+            );
+        }
     }
 
     /**
