@@ -21,9 +21,10 @@
 /*
  * The native results stay hidden until Dialog's mount: the tag then sets the attribute on <html> and
  * takes #main over. When they never mount (dialog.js blocked, no search for the shopper's country),
- * the native results fade in after 3 s.
+ * the native results fade in after 3 s. When the tag hands #main back (its first search failed),
+ * search-page.js marks <html> and they show at once.
  */
-html:not([data-dialog-search-results-attached]) #main {
+html:not([data-dialog-search-results-attached]):not([data-askdialog-search-handed-back]) #main {
   visibility: hidden;
   opacity: 0;
   animation: askdialog-native-results-reveal 0.3s ease-out 3s forwards;
