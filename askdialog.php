@@ -262,6 +262,14 @@ class AskDialog extends Module
         );
 
         if ($this->context->controller instanceof SearchController) {
+            $this->context->controller->registerJavascript(
+                'module-askdialog-search-page',
+                'modules/' . $this->name . '/views/js/search-page.js',
+                [
+                    'position' => 'bottom',
+                    'priority' => 200,
+                ]
+            );
             $this->context->controller->registerStylesheet(
                 'module-askdialog-search-page',
                 'modules/' . $this->name . '/views/css/search-page.css',
