@@ -76,7 +76,8 @@ class ProductExportService
     private $outOfStockByShop = [];
 
     // Per-language data for translationsByLocale (indexed for O(1) lookup)
-    private $productNamesByLanguage = [];
+    private $productLangFields = [];
+    private $categoryLinkRewrites = [];
     private $combinationAttributesByLanguage = [];
     private $productOptionsByLanguage = [];
 
@@ -97,6 +98,8 @@ class ProductExportService
     private $taxCalculatorByCountryAndGroup = [];
     private $shopContextCache = [];
     private $taxManagerPrimed = false;
+    private $servedLanguageIdsByShop = [];
+    private $defaultLanguageByShop = [];
 
     /** @var \Cart|null Unsaved, address-less cart: pricing then follows Context::country. */
     private $neutralCart;
@@ -136,7 +139,8 @@ class ProductExportService
         $this->productFeaturesData = [];
         $this->productShopsData = [];
         $this->outOfStockByShop = [];
-        $this->productNamesByLanguage = [];
+        $this->productLangFields = [];
+        $this->categoryLinkRewrites = [];
         $this->combinationAttributesByLanguage = [];
         $this->productOptionsByLanguage = [];
         // $activeLanguages is intentionally NOT cleared — it is shop-wide and reused across batches
@@ -426,13 +430,17 @@ class ProductExportService
         }
         Logger::log('[AskDialog] bulkLoadData: [1/10] Products loaded: ' . count($this->productsData), 1);
 
-        // 1b. Load product names for every active language (per-locale translations)
+        // 1b. Load product names and slugs for every active language (per-locale translations)
         $this->loadActiveLanguages();
-        $this->productNamesByLanguage = $this->productRepository->findNamesByIdsAllLanguages(
+        $this->productLangFields = $this->productRepository->findLangFieldsByIdsAllLanguages(
             $productIds,
             $this->isMultistore ? null : $idShop
         );
-        Logger::log('[AskDialog] bulkLoadData: [1b] Product names by language loaded: ' . count($this->productNamesByLanguage), 1);
+        Logger::log('[AskDialog] bulkLoadData: [1b] Product names by language loaded: ' . count($this->productLangFields), 1);
+        $this->categoryLinkRewrites = $this->categoryRepository->findLinkRewritesByIdsAllLanguages(
+            array_unique(array_column($this->productsData, 'id_category_default')),
+            $idShop
+        );
 
         // 2. Load combinations
         $this->combinationsData = $this->combinationRepository->findByProductIds($productIds);
@@ -564,24 +572,12 @@ class ProductExportService
         $productItem['title'] = $productData['name'];
         $productItem['handle'] = $productData['link_rewrite'];
 
-        $defaultCategoryId = (int) $productData['id_category_default'];
-        $defaultCategoryLinkRewrite = isset($this->categoriesData[$defaultCategoryId])
-            ? $this->categoriesData[$defaultCategoryId]['link_rewrite']
-            : null;
-        $productItem['url'] = $linkObj->getProductLink(
-            (int) $product_id,
-            $productData['link_rewrite'],
-            $defaultCategoryLinkRewrite,
-            null,
-            $defaultLang
-        );
+        $productItem['url'] = $this->productLink($linkObj, $productData, $defaultLang);
 
         if ($this->shopMarketMap->isMultishop()) {
             $urlByMarket = $this->buildUrlByMarket(
-                $product_id,
+                $productData,
                 $linkObj,
-                $productData['link_rewrite'],
-                $defaultCategoryLinkRewrite,
                 $defaultLang,
                 $this->activeShopIdsFor($product_id)
             );
@@ -799,8 +795,8 @@ class ProductExportService
             }
         }
 
-        // Per-locale product title translations
-        $productTranslations = $this->buildProductTranslations($product_id);
+        // Per-locale product titles and URLs
+        $productTranslations = $this->buildProductTranslations($productData, $linkObj);
         if (!empty($productTranslations)) {
             $productItem['translationsByLocale'] = $productTranslations;
         }
@@ -1420,18 +1416,17 @@ class ProductExportService
      * The exporting shop is skipped: its URL is already `product.url`, and it
      * owns the bulk of the countries — an entry each would repeat one URL some
      * thirty times on every product. Satellite shops own few countries, so what
-     * remains is a handful of entries.
+     * remains is a handful of entries. Each URL is in its shop's default
+     * language, the one its shoppers browse it in.
      *
-     * @param int $productId
+     * @param array $productData Preloaded product row
      * @param \Link $linkObj
-     * @param string $linkRewrite
-     * @param string|null $categoryLinkRewrite
-     * @param int $defaultLang
+     * @param int $defaultLang Fallback for a shop whose default language is unknown
      * @param array $availableShopIds Shops carrying the product; empty when unknown
      *
      * @return array
      */
-    private function buildUrlByMarket($productId, $linkObj, $linkRewrite, $categoryLinkRewrite, $defaultLang, array $availableShopIds)
+    private function buildUrlByMarket(array $productData, $linkObj, $defaultLang, array $availableShopIds)
     {
         $context = \Context::getContext();
         $exportingShopId = $context->shop !== null ? (int) $context->shop->id : null;
@@ -1447,14 +1442,8 @@ class ProductExportService
                 continue;
             }
 
-            $url = $linkObj->getProductLink(
-                (int) $productId,
-                $linkRewrite,
-                $categoryLinkRewrite,
-                null,
-                $defaultLang,
-                (int) $idShop
-            );
+            $idLang = $this->shopDefaultLanguage((int) $idShop, $defaultLang);
+            $url = $this->productLink($linkObj, $productData, $idLang, (int) $idShop);
 
             foreach ($shop['ownedCountries'] as $iso) {
                 $urlByMarket[$iso] = $url;
@@ -1592,30 +1581,106 @@ class ProductExportService
     }
 
     /**
-     * Build per-locale product title translations.
+     * Build per-locale product translations: the title, and the product page
+     * in that language when the exporting shop serves it, so Dialog links a
+     * shopper to the page in the language they browse.
      *
-     * @param int $product_id Product ID
+     * @param array $productData Preloaded product row
+     * @param \Link $linkObj Link object for URL generation
      *
-     * @return array { locale => [['key' => 'title', 'value' => name]] }
+     * @return array { locale => [['key' => 'title', 'value' => name], ['key' => 'url', 'value' => url]] }
      */
-    private function buildProductTranslations($product_id)
+    private function buildProductTranslations(array $productData, $linkObj)
     {
+        $product_id = (int) $productData['id_product'];
         $translations = [];
-        if (!isset($this->productNamesByLanguage[$product_id])) {
+        if (!isset($this->productLangFields[$product_id])) {
             return $translations;
         }
 
-        foreach ($this->productNamesByLanguage[$product_id] as $idLang => $name) {
+        $shop = \Context::getContext()->shop;
+        $servedLanguageIds = $shop !== null ? $this->servedLanguageIds((int) $shop->id) : [];
+        foreach ($this->productLangFields[$product_id] as $idLang => $fields) {
             $locale = isset($this->activeLanguages[$idLang]) ? $this->activeLanguages[$idLang] : null;
+            $name = $fields['name'];
             if ($locale === null || $name === null || $name === '') {
                 continue;
             }
             $translations[$locale] = [
                 ['key' => 'title', 'value' => $name],
             ];
+            if (in_array($idLang, $servedLanguageIds, true)) {
+                $translations[$locale][] = ['key' => 'url', 'value' => $this->productLink($linkObj, $productData, $idLang)];
+            }
         }
 
         return $translations;
+    }
+
+    /**
+     * The product page in a language, built from the preloaded slugs. Link
+     * loads the product for any argument it is not given (the EAN-13 too,
+     * which the default route carries), so every known one is passed.
+     *
+     * @param \Link $linkObj
+     * @param array $productData Preloaded product row
+     * @param int $idLang
+     * @param int|null $idShop Null for the context shop
+     *
+     * @return string
+     */
+    private function productLink($linkObj, array $productData, $idLang, $idShop = null)
+    {
+        $productId = (int) $productData['id_product'];
+        $categoryId = (int) $productData['id_category_default'];
+        $linkRewrite = isset($this->productLangFields[$productId][$idLang]['link_rewrite'])
+            ? $this->productLangFields[$productId][$idLang]['link_rewrite']
+            : $productData['link_rewrite'];
+        $categoryLinkRewrite = isset($this->categoryLinkRewrites[$categoryId][$idLang])
+            ? $this->categoryLinkRewrites[$categoryId][$idLang]
+            : null;
+
+        return $linkObj->getProductLink(
+            $productId,
+            $linkRewrite,
+            $categoryLinkRewrite,
+            $productData['ean13'],
+            (int) $idLang,
+            $idShop
+        );
+    }
+
+    /**
+     * Ids of the languages a shop serves its storefront in.
+     *
+     * @param int $idShop
+     *
+     * @return int[]
+     */
+    private function servedLanguageIds($idShop)
+    {
+        if (!isset($this->servedLanguageIdsByShop[$idShop])) {
+            $this->servedLanguageIdsByShop[$idShop] = array_map('intval', \Language::getLanguages(true, $idShop, true));
+        }
+
+        return $this->servedLanguageIdsByShop[$idShop];
+    }
+
+    /**
+     * A shop's default language, or the fallback when it has none.
+     *
+     * @param int $idShop
+     * @param int $fallback
+     *
+     * @return int
+     */
+    private function shopDefaultLanguage($idShop, $fallback)
+    {
+        if (!isset($this->defaultLanguageByShop[$idShop])) {
+            $this->defaultLanguageByShop[$idShop] = (int) ShopMarketMap::shopConfiguration('PS_LANG_DEFAULT', $idShop);
+        }
+
+        return $this->defaultLanguageByShop[$idShop] > 0 ? $this->defaultLanguageByShop[$idShop] : (int) $fallback;
     }
 
     /**
@@ -1630,12 +1695,13 @@ class ProductExportService
     private function buildVariantTranslations($product_id, $combinationId)
     {
         $translations = [];
-        if (!isset($this->productNamesByLanguage[$product_id])) {
+        if (!isset($this->productLangFields[$product_id])) {
             return $translations;
         }
 
-        foreach ($this->productNamesByLanguage[$product_id] as $idLang => $name) {
+        foreach ($this->productLangFields[$product_id] as $idLang => $fields) {
             $locale = isset($this->activeLanguages[$idLang]) ? $this->activeLanguages[$idLang] : null;
+            $name = $fields['name'];
             if ($locale === null || $name === null || $name === '') {
                 continue;
             }
