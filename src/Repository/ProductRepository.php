@@ -52,6 +52,7 @@ class ProductRepository extends AbstractRepository
                     p.active,
                     p.date_add,
                     p.id_category_default,
+                    p.ean13,
                     pl.name,
                     pl.description,
                     pl.description_short,
@@ -181,6 +182,7 @@ class ProductRepository extends AbstractRepository
                     p.active,
                     p.date_add,
                     p.id_category_default,
+                    p.ean13,
                     pl.name,
                     pl.description,
                     pl.description_short,
@@ -202,15 +204,15 @@ class ProductRepository extends AbstractRepository
     }
 
     /**
-     * Bulk load product names for ALL active languages.
+     * Bulk load product names and URL slugs for ALL active languages.
      * Used to emit per-locale translations (translationsByLocale).
      *
      * @param array $productIds Array of product IDs
      * @param int|null $idShop Shop ID to scope names to, or null for all shops (multistore)
      *
-     * @return array Nested: [id_product => [id_lang => name]]
+     * @return array Nested: [id_product => [id_lang => ['name' => ..., 'link_rewrite' => ...]]]
      */
-    public function findNamesByIdsAllLanguages(array $productIds, $idShop = null)
+    public function findLangFieldsByIdsAllLanguages(array $productIds, $idShop = null)
     {
         if (empty($productIds)) {
             return [];
@@ -227,7 +229,8 @@ class ProductRepository extends AbstractRepository
         $sql = 'SELECT
                     pl.id_product,
                     pl.id_lang,
-                    pl.name
+                    pl.name,
+                    pl.link_rewrite
                 FROM ' . $this->getPrefix() . 'product p
                 INNER JOIN ' . $this->getPrefix() . 'product_lang pl
                     ON pl.id_product = p.id_product
@@ -243,11 +246,14 @@ class ProductRepository extends AbstractRepository
             return [];
         }
 
-        $namesByProduct = [];
+        $fieldsByProduct = [];
         foreach ($results as $row) {
-            $namesByProduct[(int) $row['id_product']][(int) $row['id_lang']] = $row['name'];
+            $fieldsByProduct[(int) $row['id_product']][(int) $row['id_lang']] = [
+                'name' => $row['name'],
+                'link_rewrite' => $row['link_rewrite'],
+            ];
         }
 
-        return $namesByProduct;
+        return $fieldsByProduct;
     }
 }

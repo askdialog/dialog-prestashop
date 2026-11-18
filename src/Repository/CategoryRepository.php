@@ -105,6 +105,46 @@ class CategoryRepository extends AbstractRepository
     }
 
     /**
+     * Bulk load category URL slugs for every active language, to build each
+     * language's product URL without the Link class loading the product.
+     *
+     * @param array $categoryIds Array of category IDs
+     * @param int $idShop Shop ID
+     *
+     * @return array Nested: [id_category => [id_lang => link_rewrite]]
+     */
+    public function findLinkRewritesByIdsAllLanguages(array $categoryIds, $idShop)
+    {
+        if (empty($categoryIds)) {
+            return [];
+        }
+
+        $sql = 'SELECT
+                    cl.id_category,
+                    cl.id_lang,
+                    cl.link_rewrite
+                FROM ' . $this->getPrefix() . 'category_lang cl
+                INNER JOIN ' . $this->getPrefix() . 'lang l
+                    ON cl.id_lang = l.id_lang
+                    AND l.active = 1
+                WHERE cl.id_category IN (' . $this->escapeIds($categoryIds) . ')
+                    AND cl.id_shop = ' . (int) $idShop;
+
+        $results = $this->executeS($sql);
+
+        if (!$results) {
+            return [];
+        }
+
+        $rewrites = [];
+        foreach ($results as $row) {
+            $rewrites[(int) $row['id_category']][(int) $row['id_lang']] = $row['link_rewrite'];
+        }
+
+        return $rewrites;
+    }
+
+    /**
      * Load all active categories for export with full multilingual data
      *
      * @param int $idLang Language ID
