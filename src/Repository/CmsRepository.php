@@ -33,7 +33,9 @@ if (!defined('_PS_VERSION_')) {
 class CmsRepository extends AbstractRepository
 {
     /**
-     * Get all CMS pages for a specific language
+     * Get the active CMS pages for a specific language
+     *
+     * A page the merchant disabled is left out: Dialog keeps only the pages of the last export.
      *
      * @param int $idLang Language ID
      *
@@ -45,7 +47,9 @@ class CmsRepository extends AbstractRepository
                     cl.meta_title,
                     cl.content
                 FROM ' . $this->getPrefix() . 'cms_lang cl
-                WHERE cl.id_lang = ' . (int) $idLang;
+                INNER JOIN ' . $this->getPrefix() . 'cms c ON c.id_cms = cl.id_cms
+                WHERE cl.id_lang = ' . (int) $idLang . '
+                    AND c.active = 1';
 
         $results = $this->executeS($sql);
 
