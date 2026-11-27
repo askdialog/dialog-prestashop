@@ -101,6 +101,15 @@ Feeds the Shoppers page in Dialog. After the shopper consents, the widget posts 
 - `ps_orders` and `order_slip` have no index on `date_upd`: the order reads start from the linked customers and their `id_customer` index.
 - Amounts are decimal strings, tax included. `ChangedCartsReader` and `ShopperOrdersReader` build the pages; `ShopperFormat` writes their dates and amounts.
 
+### Order tracking (DEC-4672)
+`shoppers?action=getOrderByReference&reference=<9 letters>&email=<email>`, private key: the order a shopper tracks in the assistant. Dialog uses it only when `getModuleInfo.actions` lists `getOrderByReference`.
+
+- The reference is the order's 9-letter `reference`, case-insensitive; a numeric `id_order` is refused (sequential, enumerable). A bad reference or email answers 400.
+- `OrderOwnership::matches()` compares the email, trimmed and lowercased, with `hash_equals`, to the customer email of every order of the reference. An unknown reference and another email both answer 200 `{"order": null}`, after the same comparison (against a stand-in for an unknown reference). No email or customer field ever leaves the store.
+- The lookup filters on the shop of the request (`$this->context->shop->id`): one org, one shop in a multistore install.
+- A split order (orders sharing a reference) is one summary with one entry per order: its state (`paid`, `shipped`, `delivered` flags of `order_state`; `canceled`, `refund`, `error` against `PS_OS_*`), dates from `order_history` (first shipped, first delivered, latest cancelled or payment error), latest `order_carrier` (tracking number, carrier name, `carrier.url` with `@` replaced by the number) and lines. No estimated delivery date.
+- `OrderByReferenceReader` reads, `OrderSummaryBuilder` writes the answer (unit tested, with `OrderOwnership`).
+
 ### Cart handoff (1.7.0, DEC-4029)
 Dialog (the ChatGPT plugin) hands a cart over in a signed link to `controllers/front/handoff.php`, `index.php?fc=module&module=askdialog&controller=handoff&p=<p>&s=<s>`, a form that works with friendly URLs on or off. The contract is shared with dialog-ecom and dialog-mcp-server (payload v1); `tests/fixtures/handoff-v1-vectors.json` holds its vectors, copied byte for byte.
 

@@ -44,7 +44,7 @@ class OrderOwnership
         $given = self::normalize($email);
         $candidates = $orderEmails === [] ? [self::STAND_IN] : $orderEmails;
 
-        $matches = $orderEmails !== [];
+        $matches = $orderEmails !== [] && $given !== '';
         foreach ($candidates as $orderEmail) {
             $matches = hash_equals(self::normalize((string) $orderEmail), $given) && $matches;
         }
