@@ -25,6 +25,7 @@ if (!defined('_PS_VERSION_')) {
 
 use Dialog\AskDialog\Helper\Logger;
 use Dialog\AskDialog\Service\ChangedCartsReader;
+use Dialog\AskDialog\Service\OrderLookup\OrderByReferenceReader;
 use Dialog\AskDialog\Service\ShopperOrdersReader;
 use Dialog\AskDialog\Traits\ApiKeyAuthTrait;
 use Dialog\AskDialog\Traits\JsonResponseTrait;
@@ -33,15 +34,16 @@ use Dialog\AskDialog\Traits\JsonResponseTrait;
  * Class AskDialogShoppersModuleFrontController
  *
  * What Dialog reads to build the Shoppers page: the module's version and actions, then the
- * carts, orders and credit slips of identified shoppers changed since a cursor, and a
- * shopper's order history when Dialog first links them.
+ * carts, orders and credit slips of identified shoppers changed since a cursor, a
+ * shopper's order history when Dialog first links them, and the order a shopper tracks with
+ * its reference and email.
  */
 class AskDialogShoppersModuleFrontController extends ModuleFrontController
 {
     use ApiKeyAuthTrait;
     use JsonResponseTrait;
 
-    private const ACTIONS = ['getModuleInfo', 'getCarts', 'getOrders', 'getCreditSlips', 'getCustomerOrders'];
+    private const ACTIONS = ['getModuleInfo', 'getCarts', 'getOrders', 'getCreditSlips', 'getCustomerOrders', 'getOrderByReference'];
 
     /**
      * What the module serves outside this controller, listed with its actions: `handoff` is
@@ -112,6 +114,17 @@ class AskDialogShoppersModuleFrontController extends ModuleFrontController
                 }
                 $this->respond('customer orders', function () use ($idCustomer) {
                     return (new ShopperOrdersReader())->readCustomerHistory((int) $idCustomer);
+                });
+                break;
+
+            case 'getOrderByReference':
+                $reference = (string) Tools::getValue('reference');
+                $email = (string) Tools::getValue('email');
+                if (!preg_match(OrderByReferenceReader::REFERENCE_PATTERN, $reference) || !Validate::isEmail($email)) {
+                    $this->sendJsonResponse(['error' => 'reference must be 9 letters, email an email'], 400);
+                }
+                $this->respond('order', function () use ($reference, $email) {
+                    return (new OrderByReferenceReader())->read($reference, $email, (int) $this->context->shop->id);
                 });
                 break;
 
