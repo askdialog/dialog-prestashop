@@ -36,15 +36,18 @@ use Dialog\AskDialog\Helper\ShopperFormat;
  */
 class OrderSummaryBuilder
 {
-    /** @var array<string, int> PS_OS_CANCELED, PS_OS_ERROR and PS_OS_REFUND state ids */
-    private $closingStates;
+    /**
+     * @var array<string, int> PS_OS_DELIVERED, PS_OS_CANCELED, PS_OS_ERROR and PS_OS_REFUND state
+     *                         ids: `order_state` flags a shipped and a paid state, never these
+     */
+    private $states;
 
     /**
-     * @param array<string, int> $closingStates
+     * @param array<string, int> $states
      */
-    public function __construct(array $closingStates)
+    public function __construct(array $states)
     {
-        $this->closingStates = $closingStates;
+        $this->states = $states;
     }
 
     /**
@@ -82,7 +85,8 @@ class OrderSummaryBuilder
     private function toPart(array $order, ?array $carrier, array $history, array $lines): array
     {
         $state = (int) $order['current_state'];
-        $canceledStates = [$this->closingStates['PS_OS_CANCELED'], $this->closingStates['PS_OS_ERROR']];
+        $delivered = $this->states['PS_OS_DELIVERED'];
+        $canceledStates = [$this->states['PS_OS_CANCELED'], $this->states['PS_OS_ERROR']];
 
         return [
             'idOrder' => (int) $order['id_order'],
@@ -91,21 +95,25 @@ class OrderSummaryBuilder
                 'id' => $state,
                 'paid' => (bool) $order['paid'],
                 'shipped' => (bool) $order['shipped'],
-                'delivered' => (bool) $order['delivered'],
-                'canceled' => $state === $this->closingStates['PS_OS_CANCELED'],
-                'refund' => $state === $this->closingStates['PS_OS_REFUND'],
-                'error' => $state === $this->closingStates['PS_OS_ERROR'],
+                'delivered' => $state === $delivered,
+                'canceled' => $state === $this->states['PS_OS_CANCELED'],
+                'refund' => $state === $this->states['PS_OS_REFUND'],
+                'error' => $state === $this->states['PS_OS_ERROR'],
             ],
             'dates' => [
                 'shippedAt' => $this->firstDate($history, function (array $entry): bool {
                     return (bool) $entry['shipped'];
                 }),
-                'deliveredAt' => $this->firstDate($history, function (array $entry): bool {
-                    return (bool) $entry['delivered'];
+                'deliveredAt' => $this->firstDate($history, function (array $entry) use ($delivered): bool {
+                    return (int) $entry['id_order_state'] === $delivered;
                 }),
-                'canceledAt' => $this->firstDate(array_reverse($history), function (array $entry) use ($canceledStates): bool {
-                    return in_array((int) $entry['id_order_state'], $canceledStates, true);
-                }),
+                // Only for an order cancelled now: one put back in the flow is not cancelled
+                'canceledAt' => !in_array($state, $canceledStates, true) ? null : $this->firstDate(
+                    array_reverse($history),
+                    function (array $entry) use ($canceledStates): bool {
+                        return in_array((int) $entry['id_order_state'], $canceledStates, true);
+                    }
+                ),
             ],
             'carrier' => $carrier === null ? null : $this->toCarrier($carrier),
             'lines' => array_map(function (array $line): array {

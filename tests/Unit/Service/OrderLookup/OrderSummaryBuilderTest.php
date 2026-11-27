@@ -62,19 +62,21 @@ class OrderSummaryBuilderTest extends TestCase
         $summary = $this->builder()->build(
             'XKBKNABJK',
             [
-                $this->order(41, self::DELIVERED, ['paid' => 1, 'shipped' => 1, 'delivered' => 1]),
+                $this->order(41, self::DELIVERED, ['paid' => 1, 'shipped' => 1]),
                 $this->order(42, self::PAID, ['paid' => 1], '2026-11-20 10:00:01'),
             ],
             [41 => ['tracking_number' => '6A', 'name' => 'Colissimo', 'url' => ''], 42 => ['tracking_number' => '', 'name' => 'DPD', 'url' => 'https://dpd/@']],
             [41 => [
                 $this->entry(self::SHIPPED, '2026-11-21 09:00:00', ['shipped' => 1]),
-                $this->entry(self::DELIVERED, '2026-11-23 15:00:00', ['shipped' => 1, 'delivered' => 1]),
+                $this->entry(self::DELIVERED, '2026-11-23 15:00:00', ['shipped' => 1]),
             ]],
             []
         );
 
         $this->assertSame([41, 42], array_column($summary['orders'], 'idOrder'));
+        $this->assertTrue($summary['orders'][0]['state']['delivered']);
         $this->assertSame('2026-11-23T15:00:00+01:00', $summary['orders'][0]['dates']['deliveredAt']);
+        $this->assertFalse($summary['orders'][1]['state']['delivered']);
         $this->assertNull($summary['orders'][0]['carrier']['trackingUrl']);
         $this->assertSame(['name' => 'DPD', 'trackingNumber' => null, 'trackingUrl' => null], $summary['orders'][1]['carrier']);
         $this->assertSame([], $summary['orders'][1]['lines']);
@@ -100,6 +102,22 @@ class OrderSummaryBuilderTest extends TestCase
         $this->assertNull($part['carrier']);
     }
 
+    public function testDatesNoCancellationOfAnOrderPutBackInTheFlow()
+    {
+        $summary = $this->builder()->build(
+            'XKBKNABJK',
+            [$this->order(41, self::SHIPPED, ['paid' => 1, 'shipped' => 1])],
+            [],
+            [41 => [
+                $this->entry(self::CANCELED, '2026-11-20 10:00:00'),
+                $this->entry(self::SHIPPED, '2026-11-21 09:30:00', ['shipped' => 1]),
+            ]],
+            []
+        );
+
+        $this->assertNull($summary['orders'][0]['dates']['canceledAt']);
+    }
+
     public function testFlagsARefundAndAPaymentError()
     {
         $summary = $this->builder()->build(
@@ -117,7 +135,12 @@ class OrderSummaryBuilderTest extends TestCase
 
     private function builder(): OrderSummaryBuilder
     {
-        return new OrderSummaryBuilder(['PS_OS_CANCELED' => self::CANCELED, 'PS_OS_ERROR' => self::ERROR, 'PS_OS_REFUND' => self::REFUND]);
+        return new OrderSummaryBuilder([
+            'PS_OS_DELIVERED' => self::DELIVERED,
+            'PS_OS_CANCELED' => self::CANCELED,
+            'PS_OS_ERROR' => self::ERROR,
+            'PS_OS_REFUND' => self::REFUND,
+        ]);
     }
 
     /**
@@ -129,7 +152,7 @@ class OrderSummaryBuilderTest extends TestCase
     {
         return array_merge(
             ['id_order' => (string) $idOrder, 'id_customer' => '12', 'current_state' => (string) $state, 'date_add' => $dateAdd, 'email' => 'jane@example.com'],
-            ['paid' => '0', 'shipped' => '0', 'delivered' => '0'],
+            ['paid' => '0', 'shipped' => '0'],
             array_map('strval', $flags)
         );
     }
@@ -142,7 +165,7 @@ class OrderSummaryBuilderTest extends TestCase
     private function entry(int $state, string $date, array $flags = []): array
     {
         return array_merge(
-            ['id_order_state' => (string) $state, 'date_add' => $date, 'shipped' => '0', 'delivered' => '0'],
+            ['id_order_state' => (string) $state, 'date_add' => $date, 'shipped' => '0'],
             array_map('strval', $flags)
         );
     }

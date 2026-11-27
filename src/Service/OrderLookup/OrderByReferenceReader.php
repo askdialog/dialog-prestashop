@@ -63,7 +63,7 @@ class OrderByReferenceReader
         }
 
         $orderIds = array_map('intval', array_column($orders, 'id_order'));
-        $builder = new OrderSummaryBuilder($this->closingStates($idShop));
+        $builder = new OrderSummaryBuilder($this->states($idShop));
 
         return ['order' => $builder->build(
             $reference,
@@ -95,11 +95,11 @@ class OrderByReferenceReader
     /**
      * @return array<string, int>
      */
-    private function closingStates(int $idShop): array
+    private function states(int $idShop): array
     {
         $idShopGroup = (int) \Shop::getGroupFromShop($idShop);
         $states = [];
-        foreach (['PS_OS_CANCELED', 'PS_OS_ERROR', 'PS_OS_REFUND'] as $key) {
+        foreach (['PS_OS_DELIVERED', 'PS_OS_CANCELED', 'PS_OS_ERROR', 'PS_OS_REFUND'] as $key) {
             $states[$key] = (int) \Configuration::get($key, null, $idShopGroup, $idShop);
         }
 

@@ -40,7 +40,7 @@ class OrderByReferenceRepository extends AbstractRepository
     {
         return $this->selectRows(
             'SELECT o.`id_order`, o.`id_customer`, o.`current_state`, o.`date_add`, cu.`email`,'
-            . ' os.`paid`, os.`shipped`, os.`delivered`'
+            . ' os.`paid`, os.`shipped`'
             . " FROM `{$this->getPrefix()}orders` o"
             . " LEFT JOIN `{$this->getPrefix()}customer` cu ON cu.`id_customer` = o.`id_customer`"
             . " LEFT JOIN `{$this->getPrefix()}order_state` os ON os.`id_order_state` = o.`current_state`"
@@ -83,7 +83,7 @@ class OrderByReferenceRepository extends AbstractRepository
         }
 
         return $this->groupBy($this->selectRows(
-            'SELECT oh.`id_order`, oh.`id_order_state`, oh.`date_add`, os.`shipped`, os.`delivered`'
+            'SELECT oh.`id_order`, oh.`id_order_state`, oh.`date_add`, os.`shipped`'
             . " FROM `{$this->getPrefix()}order_history` oh"
             . " LEFT JOIN `{$this->getPrefix()}order_state` os ON os.`id_order_state` = oh.`id_order_state`"
             . ' WHERE oh.`id_order` IN (' . $this->escapeIds($orderIds) . ')'
